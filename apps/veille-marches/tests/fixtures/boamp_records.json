@@ -1,0 +1,178 @@
+{
+  "total_count": 5,
+  "results": [
+    {
+      "idweb": "26-145201",
+      "id": "26-145201",
+      "objet": "Entretien des espaces verts des bâtiments communaux et des cimetières",
+      "nomacheteur": "Commune de Villeurbanne",
+      "code_departement": [
+        "69"
+      ],
+      "code_departement_prestation": [
+        "69"
+      ],
+      "dateparution": "2026-10-26",
+      "datelimitereponse": "2026-11-28T12:00:00+01:00",
+      "datefindiffusion": "2026-11-28",
+      "descripteur_code": [
+        "30"
+      ],
+      "descripteur_libelle": [
+        "Espaces verts"
+      ],
+      "famille": "MAPA",
+      "famille_libelle": "Marchés à procédure adaptée",
+      "nature": "APPEL_OFFRE",
+      "nature_categorise_libelle": "Avis de marché",
+      "nature_libelle": "Avis de marché",
+      "type_marche": [
+        "Services"
+      ],
+      "type_marche_facette": "Services",
+      "procedure_categorise": "Procédure adaptée",
+      "procedure_libelle": "Procédure adaptée",
+      "etat": "INITIAL",
+      "sourceacheteur": "Commune de Villeurbanne",
+      "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:%2226-145201%22",
+      "titulaire": null,
+      "annonce_lie": null,
+      "donnees": "{\"IDENTITE\": {\"DENOMINATION\": \"Commune de Villeurbanne\", \"CP\": \"69100\", \"VILLE\": \"Villeurbanne\", \"URL_PROFIL_ACHETEUR\": \"https://marches.villeurbanne.fr\"}, \"OBJET\": {\"TITRE_MARCHE\": \"Entretien des espaces verts des bâtiments communaux et des cimetières\", \"OBJET_COMPLET\": \"Accord-cadre à bons de commande pour l'entretien des espaces verts (tonte, taille, désherbage, fleurissement) des bâtiments communaux et des trois cimetières de la ville. Durée : 1 an reconductible 3 fois. Visite sur site obligatoire.\", \"CPV\": {\"PRINCIPAL\": {\"CODE\": \"77310000\"}, \"SUPPLEMENTAIRE\": [{\"CODE\": \"77340000\"}, {\"CODE\": \"77312000\"}]}, \"LIEU_EXEC_LIVR\": {\"CODE\": \"69\", \"VILLE\": \"Villeurbanne\"}, \"VALEUR\": {\"ESTIMEE\": 180000, \"DEVISE\": \"EUR\"}, \"CARACTERISTIQUES\": {\"DUREE_MOIS\": 12, \"RECONDUCTION\": \"3 fois\"}}, \"CONDITION_PARTICIPATION\": {\"CAPACITE_TECHNIQUE\": \"Références de prestations similaires sur 3 ans, attestations d'assurance, Kbis\"}, \"PROCEDURE\": {\"TYPE_PROCEDURE\": {\"PROCEDURE_ADAPTEE\": \"1\"}, \"CRITERES_ATTRIBUTION\": \"Prix 60 %, valeur technique 40 %\"}, \"CONDITION_DELAI\": {\"RECEPT_OFFRES\": \"2026-11-28T12:00:00\"}}",
+      "gestion": "{\"INDEXATION\": {\"DESCRIPTEURS\": {\"DESCRIPTEUR\": [{\"CODE\": \"30\", \"LIBELLE\": \"Espaces verts\"}]}, \"DATE_PUBLICATION\": \"2026-10-26\"}}"
+    },
+    {
+      "idweb": "26-145377",
+      "id": "26-145377",
+      "objet": "Création et entretien d'aménagements paysagers — 2 lots",
+      "nomacheteur": "Communauté de communes de la Dombes",
+      "code_departement": [
+        "01"
+      ],
+      "code_departement_prestation": [
+        "01"
+      ],
+      "dateparution": "2026-10-25",
+      "datelimitereponse": "2026-11-20T17:00:00+01:00",
+      "descripteur_code": [
+        "30",
+        "60"
+      ],
+      "descripteur_libelle": [
+        "Espaces verts",
+        "Plantations"
+      ],
+      "famille": "FNS",
+      "nature_categorise_libelle": "Avis de marché",
+      "type_marche": [
+        "Services"
+      ],
+      "procedure_categorise": "Appel d'offres ouvert",
+      "etat": "INITIAL",
+      "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:%2226-145377%22",
+      "donnees": {
+        "IDENTITE": {
+          "DENOMINATION": "Communauté de communes de la Dombes",
+          "CP": "01400"
+        },
+        "OBJET": {
+          "TITRE_MARCHE": "Création et entretien d'aménagements paysagers",
+          "OBJET_COMPLET": "Lot 1 : création d'aménagements paysagers sur les zones d'activités. Lot 2 : entretien des espaces verts des déchèteries et stations d'épuration.",
+          "LOTS": {
+            "LOT": [
+              {
+                "NUM": "1",
+                "INTITULE": "Création",
+                "CPV": {
+                  "PRINCIPAL": {
+                    "CODE": "77311000-3"
+                  }
+                }
+              },
+              {
+                "NUM": "2",
+                "INTITULE": "Entretien",
+                "CPV": {
+                  "PRINCIPAL": {
+                    "CODE": "77312000"
+                  }
+                }
+              }
+            ]
+          },
+          "LIEU_EXEC_LIVR": {
+            "CODE": "01"
+          }
+        },
+        "CONDITION_DELAI": {
+          "RECEPT_OFFRES": "2026-11-20T17:00:00"
+        }
+      }
+    },
+    {
+      "idweb": "26-145402",
+      "id": "26-145402",
+      "objet": "Entretien des espaces verts du campus — attribution",
+      "nomacheteur": "Université Lumière Lyon 2",
+      "code_departement": [
+        "69"
+      ],
+      "dateparution": "2026-10-26",
+      "nature_categorise_libelle": "Avis d'attribution",
+      "nature_libelle": "Avis d'attribution de marché",
+      "descripteur_code": [
+        "30"
+      ],
+      "descripteur_libelle": [
+        "Espaces verts"
+      ],
+      "titulaire": [
+        "ISS Espaces Verts"
+      ],
+      "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:%2226-145402%22",
+      "donnees": "{\"OBJET\": {\"CPV\": {\"PRINCIPAL\": {\"CODE\": \"77310000\"}}}, \"ATTRIBUTION\": {\"DECISION\": {\"TITULAIRE\": {\"DENOMINATION\": \"ISS Espaces Verts\"}, \"MONTANT\": 520000}}}"
+    },
+    {
+      "idweb": "26-145510",
+      "id": "26-145510",
+      "objet": "Travaux de réfection de voirie — programme 2027",
+      "nomacheteur": "Commune d'Aubagne",
+      "code_departement": [
+        "13"
+      ],
+      "dateparution": "2026-10-26",
+      "datelimitereponse": "2026-12-01T12:00:00+01:00",
+      "nature_categorise_libelle": "Avis de marché",
+      "procedure_categorise": "Procédure adaptée",
+      "descripteur_code": [
+        "49"
+      ],
+      "descripteur_libelle": [
+        "Voirie et réseaux divers"
+      ],
+      "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:%2226-145510%22",
+      "donnees": "{\"OBJET\": {\"CPV\": {\"PRINCIPAL\": {\"CODE\": \"45233140\"}}, \"VALEUR\": {\"ESTIMEE\": 950000}}}"
+    },
+    {
+      "idweb": "26-145622",
+      "id": "26-145622",
+      "objet": "Élagage et abattage d'arbres d'alignement",
+      "nomacheteur": "Métropole de Lyon",
+      "dateparution": "2026-10-24",
+      "datelimitereponse": "2026-11-02T16:00:00+01:00",
+      "nature_categorise_libelle": "Avis de marché",
+      "procedure_categorise": "Appel d'offres ouvert",
+      "descripteur_code": [
+        "30"
+      ],
+      "descripteur_libelle": [
+        "Espaces verts"
+      ],
+      "code_cpv": [
+        "77341000-2",
+        "77211400-6"
+      ],
+      "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:%2226-145622%22",
+      "donnees": "{\"IDENTITE\": {\"DENOMINATION\": \"M\\u00e9tropole de Lyon\", \"CP\": \"69003\"}, \"OBJET\": {\"OBJET_COMPLET\": \"\\u00c9lagage, abattage et dessouchage d'arbres d'alignement sur le territoire m\\u00e9tropolitain. 4 lots g\\u00e9ographiques.\", \"LIEU_EXEC_LIVR\": {\"CODE\": \"69M\"}, \"VALEUR\": {\"ESTIMEE\": \"1 200 000\"}}}"
+    }
+  ]
+}

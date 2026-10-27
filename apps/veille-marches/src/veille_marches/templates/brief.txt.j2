@@ -9,24 +9,25 @@
 {% for a in awards %}
 * {{ a.title }}
   {{ a.buyer_name or 'Acheteur non précisé' }} -> {{ a.holder_label }}
-  {{ a.amount|fr_amount }} · notifié le {{ a.notified_at|fr_date }}{% if a.procedure_type %} · {{ a.procedure_type }}{% endif %}{% if a.duration_months %} · {{ a.duration_months }} mois{% endif %}
+  {{ a.amount|fr_amount }} · notifié le {{ a.notified_at|fr_date }}{{ ' · ' ~ a.procedure_type if a.procedure_type else '' }}{{ ' · ' ~ a.duration_months ~ ' mois' if a.duration_months else '' }}
 
 {% endfor %}
 {% endfor %}
 {% if brief.top_buyers %}
+
 == ACHETEURS ACTIFS (12 derniers mois) ==
 {% for c in brief.top_buyers %}
-- {{ c.name }} : {{ c.count }} marché(s), {{ c.recent }} cette semaine{% if c.amount %}, {{ c.amount|fr_amount }}{% endif %}
-
+- {{ c.name }} : {{ c.count }} marché(s), {{ c.recent }} cette semaine{{ ', ' ~ (c.amount|fr_amount) if c.amount else '' }}
 {% endfor %}
 {% endif %}
 {% if brief.recurring_holders %}
+
 == TITULAIRES RÉCURRENTS (12 derniers mois) ==
 {% for c in brief.recurring_holders %}
-- {{ c.name }} : {{ c.count }} marché(s){% if c.amount %}, {{ c.amount|fr_amount }} cumulés{% endif %}
-
+- {{ c.name }} : {{ c.count }} marché(s){{ ', ' ~ (c.amount|fr_amount) ~ ' cumulés' if c.amount else '' }}
 {% endfor %}
 {% endif %}
+
 --
 Source : données essentielles de la commande publique (DECP, data.economie.gouv.fr), publiées avec un délai variable.
 {{ settings.source_label }} · pour modifier votre zone ou vous désabonner, répondez à cet email.

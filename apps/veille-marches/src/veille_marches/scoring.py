@@ -216,21 +216,27 @@ def score_pending(conn: sqlite3.Connection, settings: VMSettings, *, llm: LLM | 
     """Résume et score les avis récents qui n'ont pas encore de résumé.
 
     Le LLM n'est appelé que pour les avis qui intéressent au moins un abonné actif (ou le profil par défaut
-    s'il n'y a aucun abonné) : les autres reçoivent un résumé de repli sans coût.
+    s'il n'y a aucun abonné) et dont la date limite n'est pas passée : les autres reçoivent un résumé de repli
+    sans coût. Un avis résumé sans LLM qui se met à correspondre à un abonné (nouvel inscrit) est repris au
+    passage suivant.
     """
     now = now or utcnow()
     since = now - timedelta(days=settings.digest_lookback_days)
     subscribers = db.list_subscribers(conn, active_only=True) or [virtual_subscriber(settings)]
-    pending = db.notices_without_summary(conn, since=since, limit=limit)
     use_llm = settings.llm_enabled
     if use_llm and llm is None:
         llm = get_llm(settings)
-    llm_budget = settings.llm_max_notices_per_run
+    llm_budget = settings.llm_max_notices_per_run if (use_llm and llm is not None) else 0
+    provider = getattr(llm, "name", "llm") if llm is not None else "none"
     out: list[ScoredNotice] = []
-    for notice in pending:
+
+    def expired(notice: Notice) -> bool:
+        return notice.deadline_at is not None and notice.deadline_at < now
+
+    for notice in db.notices_without_summary(conn, since=since, limit=limit):
         rules, matched = best_rules_score(conn, notice, subscribers, settings, now)
         llm_used = False
-        if matched and use_llm and llm is not None and llm_budget > 0:
+        if matched and llm_budget > 0 and not expired(notice):
             summary, llm_used = summarize(llm, notice, settings.trade_label)
             llm_budget -= 1
         else:
@@ -238,6 +244,28 @@ def score_pending(conn: sqlite3.Connection, settings: VMSettings, *, llm: LLM | 
         score = final_score(rules, summary.verdict if llm_used else None)
         if not dry_run:
             db.save_summary(conn, notice.id, summary, score=score, rules_score=rules,
-                            llm_provider=(getattr(llm, "name", "llm") if llm_used else "none"), now=now)
+                            llm_provider=provider if llm_used else "none", now=now)
         out.append(ScoredNotice(notice, summary, rules, score, llm_used, matched))
+
+    if llm_budget > 0:
+        remaining = None if limit is None else max(0, limit - len(out))
+        for notice in db.notices_with_fallback_summary(conn, since=since):
+            if llm_budget <= 0 or remaining == 0:
+                break
+            if expired(notice):
+                continue
+            rules, matched = best_rules_score(conn, notice, subscribers, settings, now)
+            if not matched:
+                continue
+            summary, llm_used = summarize(llm, notice, settings.trade_label)
+            llm_budget -= 1
+            if not llm_used:
+                continue
+            score = final_score(rules, summary.verdict)
+            if not dry_run:
+                db.save_summary(conn, notice.id, summary, score=score, rules_score=rules, llm_provider=provider,
+                                now=now)
+            out.append(ScoredNotice(notice, summary, rules, score, True, matched))
+            if remaining is not None:
+                remaining -= 1
     return out

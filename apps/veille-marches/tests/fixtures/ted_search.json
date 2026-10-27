@@ -1,0 +1,139 @@
+{
+  "notices": [
+    {
+      "publication-number": "650123-2026",
+      "notice-title": {
+        "fra": "Entretien des espaces verts du patrimoine métropolitain",
+        "eng": "Maintenance of green spaces of the metropolitan estate"
+      },
+      "buyer-name": {
+        "fra": [
+          "Métropole de Lyon"
+        ]
+      },
+      "classification-cpv": [
+        "77310000",
+        "77311000"
+      ],
+      "publication-date": "2026-10-24+02:00",
+      "deadline-receipt-tender-date-lot": [
+        "2026-12-05+01:00",
+        "2026-11-30+01:00"
+      ],
+      "place-of-performance": [
+        "FRK26"
+      ],
+      "estimated-value-proc": "1250000",
+      "estimated-value-cur-proc": "EUR",
+      "procedure-type": "open",
+      "notice-type": "cn-standard",
+      "form-type": "competition",
+      "description-proc": {
+        "fra": "Accord-cadre multi-attributaires d'entretien des espaces verts (tonte, taille, désherbage alternatif) du patrimoine de la Métropole, 6 lots géographiques."
+      },
+      "links": {
+        "html": {
+          "FRA": "https://ted.europa.eu/fr/notice/-/detail/650123-2026",
+          "ENG": "https://ted.europa.eu/en/notice/-/detail/650123-2026"
+        },
+        "pdf": {
+          "FRA": "https://ted.europa.eu/fr/notice/650123-2026/pdf"
+        },
+        "xml": {
+          "MUL": "https://ted.europa.eu/fr/notice/650123-2026/xml"
+        }
+      }
+    },
+    {
+      "publication-number": "650987-2026",
+      "notice-title": {
+        "fra": "Entretien des espaces verts — avis d'attribution"
+      },
+      "buyer-name": {
+        "fra": [
+          "Ville de Grenoble"
+        ]
+      },
+      "classification-cpv": [
+        "77310000"
+      ],
+      "publication-date": "2026-10-25+02:00",
+      "place-of-performance": [
+        "FRK24"
+      ],
+      "procedure-type": "open",
+      "notice-type": "can-standard",
+      "form-type": "result",
+      "links": {
+        "html": {
+          "FRA": "https://ted.europa.eu/fr/notice/-/detail/650987-2026"
+        }
+      }
+    },
+    {
+      "publication-number": "651402-2026",
+      "notice-title": {
+        "eng": "Landscaping maintenance for a university campus"
+      },
+      "buyer-name": {
+        "eng": [
+          "Université Grenoble Alpes"
+        ]
+      },
+      "classification-cpv": [
+        "77314000"
+      ],
+      "publication-date": "20261026",
+      "place-of-performance": [
+        "FRK2"
+      ],
+      "estimated-value-lot": [
+        "300000"
+      ],
+      "estimated-value-cur-lot": [
+        "EUR"
+      ],
+      "procedure-type": "restricted",
+      "notice-type": "cn-standard",
+      "links": {
+        "pdf": {
+          "ENG": "https://ted.europa.eu/en/notice/651402-2026/pdf"
+        }
+      }
+    },
+    {
+      "publication-number": "651555-2026",
+      "notice-title": {
+        "fra": "Travaux d'aménagement paysager de la corniche"
+      },
+      "buyer-name": {
+        "fra": [
+          "Ville de Marseille"
+        ]
+      },
+      "classification-cpv": [
+        "45112700"
+      ],
+      "publication-date": "2026-10-26+02:00",
+      "deadline-receipt-tender-date-lot": [
+        "2026-12-10+01:00"
+      ],
+      "place-of-performance": [
+        "FRL04"
+      ],
+      "estimated-value-proc": "2400000",
+      "estimated-value-cur-proc": "EUR",
+      "procedure-type": "open",
+      "notice-type": "cn-standard",
+      "form-type": "competition",
+      "links": {
+        "html": {
+          "FRA": "https://ted.europa.eu/fr/notice/-/detail/651555-2026"
+        }
+      }
+    }
+  ],
+  "totalNoticeCount": 4,
+  "iterationNextToken": null,
+  "timedOut": false
+}

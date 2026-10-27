@@ -17,3 +17,8 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - DEP-1 fait par la session principale : `deploy/macmini` (install.sh, run.sh, 10 services launchd dont caffeinate, install-launchd.sh), `deploy/vps` (Dockerfile, docker-compose, Caddy, boucle de jobs, README).
 - Décision : `avis-clients` tourne entièrement sur le VPS (web + jobs), le Mac mini sert le LLM via Tailscale ; les trois autres apps tournent sur le Mac mini.
 - Reste de la nuit : intégration des 4 apps (tests, corrections), puis P2-3 (brief DECP + page d'inscription Stripe), QA-1, DOC-1, P4-4, P1-4 selon le temps.
+
+### 28/10 00:50 — veille-marches livrée (P2-1, P2-2, P2-3a)
+- `apps/veille-marches` : 59 tests verts, ruff propre, CLI `vm` complète (collect BOAMP/TED/DECP, score règles + LLM, digest HTML/texte par abonné sans doublon, brief hebdo DECP, abonnés, stats). Vérifié par la session principale.
+- Points à vérifier au premier appel réel listés dans le README de l'app (emplacement du CPV BOAMP, champs TED, identifiant du jeu DECP).
+- Lancé : P2-3b (page d'inscription + Stripe) sur ce dossier.

@@ -10,8 +10,8 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 - [x] Tâche planifiée horaire 21:45 → 06:45 (Paris) qui relance le chantier
 
 ## Phase 1 : lot 1 (nuit, en parallèle)
-- [~] **P2-1** `apps/veille-marches` : collecteurs BOAMP (Opendatasoft) et TED (API v3), modèle `Notice` normalisé, stockage SQLite, filtres CPV + départements + montant, fixtures et tests
-- [~] **P2-2** `apps/veille-marches` : score d'opportunité (règles + LLM), résumé structuré, digest HTML + texte par abonné, CLI `vm` (collect, score, digest, subscribers), envoi console/SMTP/Resend, tests
+- [x] **P2-1** `apps/veille-marches` : collecteurs BOAMP (Opendatasoft) et TED (API v3), modèle `Notice` normalisé, stockage SQLite, filtres CPV + départements + montant, fixtures et tests
+- [x] **P2-2** `apps/veille-marches` : score d'opportunité (règles + LLM), résumé structuré, digest HTML + texte par abonné, CLI `vm` (collect, score, digest, subscribers), envoi console/SMTP/Resend, tests
 - [~] **P4-1** `apps/content-engine` : banque de sujets par produit, génération de scripts (3 variantes, hook/corps/CTA), file de validation (approve/reject), tests
 - [~] **P4-2** `apps/content-engine` : rendu vidéo vertical 1080×1920 (TTS via `say` macOS / Kokoro / ElevenLabs, sous-titres incrustés, fond, miniature) avec ffmpeg, test de rendu court sans TTS
 - [~] **P4-3** `apps/content-engine` : publication en dry-run (YouTube Data API v3 avec drapeau contenu synthétique, Pinterest API v5, LinkedIn Posts API, TikTok Content Posting API en stub documenté), planification, README
@@ -22,7 +22,8 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 ## Phase 2 : lot 2
 - [~] **P3-1** `apps/newsletter-pipeline` : sources (RSS/Atom, pages), collecte, dédoublonnage, classement LLM « pertinence cabinet », brouillon de numéro hebdo en markdown, tests
 - [~] **P3-2** `apps/newsletter-pipeline` : push beehiiv (API) ou export HTML prêt à coller, extraction de 3 posts LinkedIn par numéro, README
-- [ ] **P2-3** `apps/veille-marches` : brief hebdo DECP (collecteur data.economie.gouv.fr), page d'inscription + Stripe Checkout + webhook (FastAPI minimal), README complet
+- [x] **P2-3a** `apps/veille-marches` : brief hebdo DECP (collecteur data.economie.gouv.fr) — fait avec P2-2
+- [~] **P2-3b** `apps/veille-marches` : page d'inscription publique + Stripe Checkout + webhook (FastAPI minimal), README complet
 - [x] **DEP-1** `deploy/macmini` : `install.sh` (brew, uv, ffmpeg, ollama + modèle), plists launchd par job, `caffeinate`, rotation des logs ; `deploy/vps` : docker-compose + Caddy pour `avis-clients` et la page `veille-marches` ; Makefile racine à jour
 
 ## Phase 3 : lot 3 (si le temps le permet)

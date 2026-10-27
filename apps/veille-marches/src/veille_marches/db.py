@@ -119,6 +119,21 @@ def notices_without_summary(conn: sqlite3.Connection, *, since: datetime | None 
     return [row_to_notice(r) for r in conn.execute(sql, params)]
 
 
+def notices_with_fallback_summary(conn: sqlite3.Connection, *, since: datetime | None = None,
+                                  limit: int | None = None) -> list[Notice]:
+    """Avis déjà en base dont le résumé a été produit sans LLM (aucun abonné ne correspondait à l'époque)."""
+    sql = "SELECT n.* FROM notices n JOIN summaries s ON s.notice_id = n.id WHERE s.llm_provider = 'none'"
+    params: list[Any] = []
+    if since is not None:
+        sql += " AND (n.published_at IS NULL OR n.published_at >= ?)"
+        params.append(since.isoformat())
+    sql += " ORDER BY n.published_at DESC, n.id DESC"
+    if limit:
+        sql += " LIMIT ?"
+        params.append(limit)
+    return [row_to_notice(r) for r in conn.execute(sql, params)]
+
+
 def buyer_notice_count(conn: sqlite3.Connection, buyer_name: str | None, exclude_id: int | None = None) -> int:
     if not buyer_name:
         return 0
@@ -294,7 +309,7 @@ def list_awards(conn: sqlite3.Connection, *, since: datetime | None = None, depa
         sql += " AND (COALESCE(notified_at, data_published_at) >= ? OR data_published_at >= ?)"
         params += [since.isoformat(), since.isoformat()]
     if departments:
-        sql += " AND dept IN (%s)" % ",".join("?" for _ in departments)
+        sql += " AND dept IN (" + ",".join("?" for _ in departments) + ")"
         params += departments
     if cpv_prefixes:
         sql += " AND (" + " OR ".join("cpv_code LIKE ?" for _ in cpv_prefixes) + ")"

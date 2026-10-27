@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 _COMPACT = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
 _TED_DATE_TZ = re.compile(r"^(\d{4}-\d{2}-\d{2})([+-]\d{2}:\d{2}|Z)$")
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def parse_dt(value) -> datetime | None:
@@ -21,9 +21,9 @@ def parse_dt(value) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, date):
-        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+        return datetime(value.year, value.month, value.day, tzinfo=UTC)
     text = str(value).strip()
     if not text:
         return None
@@ -43,8 +43,8 @@ def parse_dt(value) -> datetime | None:
         except ValueError:
             return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def to_iso(dt: datetime | None) -> str | None:
@@ -76,7 +76,8 @@ def fr_amount(amount: float | None) -> str:
     if amount is None:
         return "montant non précisé"
     if amount >= 1_000_000:
-        return f"{amount / 1_000_000:.1f} M€ HT".replace(".", ",")
+        millions = f"{amount / 1_000_000:.2f}".rstrip("0").rstrip(".")
+        return f"{millions} M€ HT".replace(".", ",")
     if amount >= 1_000:
         return f"{amount / 1_000:.0f} k€ HT"
     return f"{amount:.0f} € HT"

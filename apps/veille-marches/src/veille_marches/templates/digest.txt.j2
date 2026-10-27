@@ -5,7 +5,7 @@ Bonjour {{ digest.subscriber.display_name }}, {{ digest.total }} nouveau{{ 'x' i
 {% macro block(item, compact=False) %}
 [{{ item.score }}/100] {{ item.notice.title }}
   Acheteur : {{ item.notice.buyer_name or 'non précisé' }}{% if item.notice.all_departments %} · dép. {{ item.notice.all_departments|join(', ') }}{% endif %} · {{ item.notice.source|upper }}
-  Montant : {{ item.notice.estimated_amount|fr_amount }} · Date limite : {{ item.notice.deadline_at|fr_date(true) }}{% if item.days_left is not none %} ({{ item.days_left }} j){% endif %}
+  Montant : {{ item.notice.estimated_amount|fr_amount }} · Date limite : {{ item.notice.deadline_at|fr_date(true) }}{{ ' (' ~ item.days_left ~ ' j)' if item.days_left is not none else '' }}
 {% if item.notice.procedure_type %}
   Procédure : {{ item.notice.procedure_type }}
 {% endif %}
@@ -21,7 +21,7 @@ Bonjour {{ digest.subscriber.display_name }}, {{ digest.total }} nouveau{{ 'x' i
   Critères : {{ item.summary.criteres }}
 {% endif %}
 {% if item.llm_used %}
-  Avis de l'assistant : {{ item.summary.verdict }}{% if item.summary.raison %} — {{ item.summary.raison }}{% endif %}
+  Avis de l'assistant : {{ item.summary.verdict }}{{ ' — ' ~ item.summary.raison if item.summary.raison else '' }}
 {% endif %}
 {% endif %}
 {% if item.flags %}

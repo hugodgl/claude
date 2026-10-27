@@ -95,7 +95,8 @@ def build_brief(conn: sqlite3.Connection, subscriber: Subscriber, settings: VMSe
 
 
 def render_brief(brief: Brief, settings: VMSettings) -> tuple[str, str, str]:
-    period = f"du {brief.since.day:02d}/{brief.since.month:02d} au {brief.until.day:02d}/{brief.until.month:02d}/{brief.until.year}"
+    a, b = brief.since, brief.until
+    period = f"du {a.day:02d}/{a.month:02d} au {b.day:02d}/{b.month:02d}/{b.year}"
     subject = f"{settings.product_name} — brief de la semaine : {brief.count} attribution(s) {period}"
     ctx = {"brief": brief, "settings": settings, "subject": subject, "period": period}
     return subject, render("brief.html.j2", **ctx), render("brief.txt.j2", **ctx)
