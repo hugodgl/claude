@@ -1,4 +1,5 @@
 import pytest
+
 from core.jsonutil import extract_json, strip_think
 
 

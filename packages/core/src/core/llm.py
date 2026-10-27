@@ -6,8 +6,9 @@ Les apps ne doivent jamais appeler un fournisseur directement : toujours `get_ll
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 import httpx
 
@@ -158,12 +159,12 @@ class AnthropicLLM:
         sys_prompt = system or ""
         if json_mode:
             sys_prompt = (sys_prompt + "\n\nRéponds uniquement avec un objet JSON valide, sans texte autour.").strip()
-        kwargs: dict[str, Any] = dict(
-            model=self.model,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-            output_config={"effort": self.effort},
-        )
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+            "output_config": {"effort": self.effort},
+        }
         if sys_prompt:
             kwargs["system"] = sys_prompt
         try:

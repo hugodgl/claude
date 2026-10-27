@@ -1,5 +1,6 @@
 import pytest
-from core.llm import MockLLM, LLMError, complete_json, get_llm, OllamaLLM
+
+from core.llm import LLMError, MockLLM, OllamaLLM, complete_json, get_llm
 from core.settings import get_settings
 
 

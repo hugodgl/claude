@@ -1,28 +1,30 @@
 APPS := veille-marches content-engine avis-clients newsletter-pipeline
 UV ?= uv
+SETUP_TARGETS := $(addprefix setup-,$(APPS))
+TEST_TARGETS := $(addprefix test-,$(APPS))
 
-.PHONY: setup test lint $(addprefix setup-,$(APPS)) $(addprefix test-,$(APPS)) run-veille
+.PHONY: setup test lint test-core run-veille $(SETUP_TARGETS) $(TEST_TARGETS)
 
-setup: $(addprefix setup-,$(APPS))
+setup: $(SETUP_TARGETS)
 
-setup-%:
+$(SETUP_TARGETS): setup-%:
 	@if [ -d apps/$* ]; then \
-		cd apps/$* && $(UV) venv .venv >/dev/null && $(UV) pip install -q -e ../../packages/core -e ".[dev]" && echo "ok  apps/$*"; \
+		cd apps/$* && { [ -d .venv ] || $(UV) venv .venv >/dev/null; } && $(UV) pip install -q -e ../../packages/core -e ".[dev]" && echo "ok  apps/$*"; \
 	else echo "skip apps/$* (absent)"; fi
 
-test: $(addprefix test-,$(APPS))
+test: test-core $(TEST_TARGETS)
 
-test-%:
+$(TEST_TARGETS): test-%:
 	@if [ -x apps/$*/.venv/bin/pytest ]; then \
-		cd apps/$* && .venv/bin/pytest -q; \
+		echo "== apps/$* ==" && cd apps/$* && .venv/bin/pytest -q; \
 	else echo "skip apps/$* (pas de venv : make setup-$*)"; fi
 
 test-core:
-	cd packages/core && $(UV) venv .venv >/dev/null && $(UV) pip install -q -e ".[dev]" && .venv/bin/pytest -q
+	@cd packages/core && { [ -d .venv ] || $(UV) venv .venv >/dev/null; } && $(UV) pip install -q -e ".[dev]" && echo "== packages/core ==" && .venv/bin/pytest -q
 
 lint:
 	@for a in packages/core $(addprefix apps/,$(APPS)); do \
-		if [ -d $$a ]; then (cd $$a && [ -x .venv/bin/ruff ] && .venv/bin/ruff check . || true); fi; \
+		if [ -x $$a/.venv/bin/ruff ]; then echo "== $$a ==" && (cd $$a && .venv/bin/ruff check .); fi; \
 	done
 
 run-veille:
