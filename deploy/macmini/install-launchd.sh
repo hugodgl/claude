@@ -18,6 +18,7 @@ mkdir -p "$DEST" "$REPO/logs"
 for tpl in "$TPL_DIR"/*.plist.tmpl; do
   label="$(basename "$tpl" .plist.tmpl)"
   [ -n "$ONLY" ] && [ "$ONLY" != "$label" ] && continue
+  [ -z "$ONLY" ] && [ "$label" = "com.sideproject.nightshift" ] && continue   # géré par night-shift.sh enable
   plist="$DEST/$label.plist"
   launchctl bootout "gui/$UID_NUM/$label" 2>/dev/null || true
   if [ "$REMOVE" = 1 ]; then rm -f "$plist"; echo "retiré  $label"; continue; fi

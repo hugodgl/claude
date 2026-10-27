@@ -1,0 +1,28 @@
+{
+  "_commentaire": "Liste blanche d'outils pour les passages autonomes de Claude Code sur le Mac mini (mode dontAsk : tout ce qui n'est pas listé est refusé). À relire puis à copier soi-même : cp deploy/macmini/claude-settings.template.json .claude/settings.json",
+  "permissions": {
+    "allow": [
+      "Read", "Edit", "Write", "Glob", "Grep", "Agent", "TodoWrite", "TaskCreate", "TaskUpdate", "TaskList",
+      "WebFetch(domain:boamp.fr)", "WebFetch(domain:boamp-datadila.opendatasoft.com)", "WebFetch(domain:api.ted.europa.eu)",
+      "WebFetch(domain:docs.ted.europa.eu)", "WebFetch(domain:data.economie.gouv.fr)", "WebFetch(domain:data.gouv.fr)",
+      "WebFetch(domain:developers.google.com)", "WebFetch(domain:developers.pinterest.com)", "WebFetch(domain:learn.microsoft.com)",
+      "WebFetch(domain:developers.tiktok.com)", "WebFetch(domain:docs.stripe.com)", "WebFetch(domain:developers.beehiiv.com)",
+      "WebFetch(domain:pypi.org)", "WebFetch(domain:docs.python.org)", "WebFetch(domain:fastapi.tiangolo.com)",
+      "Bash(TZ=Europe/Paris date:*)", "Bash(date:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)",
+      "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)", "Bash(touch:*)", "Bash(cd:*)", "Bash(pwd)", "Bash(echo:*)", "Bash(sed:*)", "Bash(grep:*)", "Bash(find:*)",
+      "Bash(make:*)", "Bash(uv:*)", "Bash(python3:*)", "Bash(.venv/bin/pytest:*)", "Bash(.venv/bin/ruff:*)", "Bash(.venv/bin/python:*)",
+      "Bash(.venv/bin/vm:*)", "Bash(.venv/bin/ce:*)", "Bash(.venv/bin/np:*)", "Bash(.venv/bin/avis:*)",
+      "Bash(ffmpeg:*)", "Bash(ffprobe:*)", "Bash(say:*)", "Bash(ollama list)", "Bash(ollama ps)",
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git add:*)", "Bash(git commit:*)",
+      "Bash(git fetch:*)", "Bash(git pull --ff-only:*)", "Bash(git push origin claude/upbeat-davinci-lk5k7m)", "Bash(git checkout claude/upbeat-davinci-lk5k7m)",
+      "Bash(sleep:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)", "Bash(git push -f:*)", "Bash(git reset --hard:*)", "Bash(git checkout -b:*)", "Bash(git branch:*)",
+      "Bash(git rebase:*)", "Bash(git commit --amend:*)", "Bash(sudo:*)", "Bash(rm -rf:*)", "Bash(curl:*)", "Bash(wget:*)",
+      "Bash(ssh:*)", "Bash(scp:*)", "Bash(launchctl:*)", "Bash(brew:*)", "Bash(npm:*)", "Bash(pip install:*)",
+      "Read(./apps/**/.env)", "Read(./.env)", "Edit(./business-passif-mac-mini-2026.md)", "Edit(./business-plans-4-pistes-2026.md)",
+      "WebSearch"
+    ]
+  }
+}

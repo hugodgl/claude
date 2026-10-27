@@ -21,6 +21,8 @@ Coche au fur et à mesure. Rien ici ne bloque le développement, mais tout bloqu
 - [ ] Anthropic (optionnel) : clé API avec plafond de dépense mensuel
 
 ## Mac mini (30 minutes)
+- [ ] **Chantier de nuit en local** : `deploy/macmini/install.sh`, puis `claude` une fois pour te connecter, `gh auth login` (ou clé SSH GitHub), relire puis copier la liste blanche `cp deploy/macmini/claude-settings.template.json .claude/settings.json`, `deploy/macmini/night-shift.sh test`, puis `deploy/macmini/night-shift.sh enable`. À partir de là c'est le Mac mini qui développe la nuit et la session cloud se met en retrait toute seule.
+- [ ] Session macOS ouverte en permanence (ouverture de session automatique), FileVault désactivé ou déverrouillé, veille désactivée
 - [ ] Installer Homebrew, puis lancer `deploy/macmini/install.sh` (uv, ffmpeg, Ollama, modèle `qwen3:14b`)
 - [ ] Désactiver la mise en veille (Réglages → Économie d'énergie) et vérifier que `caffeinate` est bien lancé par les services
 - [ ] Remplir les `.env` de chaque app à partir des `.env.example`
