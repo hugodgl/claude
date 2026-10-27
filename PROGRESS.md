@@ -35,3 +35,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 01:45 — content-engine livré (P4-1, P4-2, P4-3)
 - `apps/content-engine` : 41 tests verts (dont rendu d'un short 1080×1920 vérifié par ffprobe), ruff propre, CLI `ce` complète : sujets, idées, scripts en 3 variantes avec contrôles, file de validation, rendu vidéo (TTS `say`/Kokoro/ElevenLabs/silent, sous-titres ASS, barre de progression, miniatures), publication en dry-run (YouTube avec `containsSyntheticMedia`, Pinterest, LinkedIn, TikTok en stub), calendrier hebdo, `run-daily`, `run-publish`, import de métriques CSV, `angles`, `doctor`. Vérifié par la session principale.
 - Les quatre apps sont livrées. Reste : P2-3b (en cours), QA-1 (2 revues en cours, 2 à lancer), DOC-1, P4-4, P1-4.
+
+### 28/10 02:00 — DOC-1 : README racine
+- README racine réécrit : tableau des apps avec commandes et nombre de tests, schéma des flux Mac mini / VPS, « démarrer en 15 minutes », variables de configuration à connaître, fichiers de pilotage.
+- En cours : P2-3b (inscription + Stripe pour la veille), QA-1 sur avis-clients, newsletter-pipeline et content-engine. Reste à lancer : QA-1 sur veille-marches (après P2-3b), P4-4, P1-4.

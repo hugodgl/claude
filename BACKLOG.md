@@ -28,7 +28,7 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 
 ## Phase 3 : lot 3 (si le temps le permet)
 - [~] **QA-1** revue croisée de chaque app par un agent différent : bugs, secrets, validation des entrées, injection de prompt dans les textes externes (avis, annonces), corrections
-- [ ] **DOC-1** README racine : « démarrer en 15 minutes sur le Mac mini », schéma des flux, tableau des variables d'environnement
+- [x] **DOC-1** README racine : « démarrer en 15 minutes sur le Mac mini », schéma des flux, tableau des variables d'environnement
 - [ ] **P4-4** `apps/content-engine` : récupération des métriques (YouTube Analytics, TikTok), sélection automatique des angles qui marchent
 - [ ] **P1-4** `apps/avis-clients` : adaptateurs Facebook et Tripadvisor, mode auto-publication pour les avis ≥ 4 étoiles
 
