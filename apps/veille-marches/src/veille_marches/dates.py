@@ -68,6 +68,21 @@ def fr_date(dt: datetime | None, with_time: bool = False) -> str:
     return text
 
 
+FR_WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+FR_MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
+             "novembre", "décembre")
+
+
+def fr_long_date(dt: datetime | None, with_time: bool = False) -> str:
+    """`mardi 28 octobre 2026`, ou `mardi 28 octobre 2026 vers 7 h` (heure locale du datetime)."""
+    if dt is None:
+        return "non précisée"
+    text = f"{FR_WEEKDAYS[dt.weekday()]} {dt.day} {FR_MONTHS[dt.month - 1]} {dt.year}"
+    if with_time:
+        text += f" vers {dt.hour} h" + (f"{dt.minute:02d}" if dt.minute else "")
+    return text
+
+
 def since_date(days: int, now: datetime | None = None) -> date:
     return ((now or utcnow()) - timedelta(days=days)).date()
 

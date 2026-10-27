@@ -10,7 +10,11 @@ from pydantic import BaseModel, Field, field_validator
 
 Source = Literal["boamp", "ted", "decp"]
 Plan = Literal["essentiel", "pro"]
+BillingPeriod = Literal["monthly", "yearly"]
 Verdict = Literal["oui", "peut-etre", "non"]
+
+# États d'un abonné : `active` (colonne) décide des envois ; `status` explique pourquoi.
+SUBSCRIBER_STATUSES = ("pending_payment", "active", "past_due", "unpaid", "canceled", "paused", "disabled")
 
 _CPV = re.compile(r"^\d{8}(?:-\d)?$")
 
@@ -109,13 +113,20 @@ class Subscriber(BaseModel):
     id: int | None = None
     email: str
     label: str | None = None
+    company: str | None = None
     cpv_prefixes: list[str] = Field(default_factory=list)
     departments: list[str] = Field(default_factory=list)
     amount_min: float | None = None
     amount_max: float | None = None
     plan: Plan = "essentiel"
+    billing_period: BillingPeriod = "monthly"
     active: bool = True
+    status: str = "active"
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+    checkout_session_id: str | None = None
     created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @field_validator("cpv_prefixes", mode="before")
     @classmethod
@@ -137,9 +148,19 @@ class Subscriber(BaseModel):
                 out.append(d)
         return out
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def _norm_status(cls, value):
+        text = str(value or "active").strip().lower()
+        return text if text in SUBSCRIBER_STATUSES else "active"
+
     @property
     def display_name(self) -> str:
-        return self.label or self.email
+        return self.label or self.company or self.email
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status == "pending_payment"
 
 
 class LLMSummary(BaseModel):

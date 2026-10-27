@@ -1,0 +1,55 @@
+{
+  "_comment": "Exemple d'alerte affiché sur la page d'accueil. Dates relatives (jours) pour rester d'actualité. Données fictives inspirées de vrais avis BOAMP / TED.",
+  "subscriber": {"email": "exemple@paysages-rhone.fr", "label": "Paysages du Rhône", "cpv_prefixes": ["773"],
+                 "departments": ["69", "01"], "amount_max": 800000, "plan": "pro"},
+  "notices": [
+    {
+      "source": "boamp", "source_id": "26-145201",
+      "title": "Entretien des espaces verts des bâtiments communaux et des groupes scolaires",
+      "buyer_name": "Commune de Villeurbanne", "departments": ["69"], "cpv_codes": ["77310000", "77340000"],
+      "estimated_amount": 180000, "published_days_ago": 1, "deadline_in_days": 32,
+      "procedure_type": "Procédure adaptée",
+      "url": "https://www.boamp.fr/pages/avis/?q=idweb:%2226-145201%22",
+      "summary": {
+        "resume": "Accord-cadre de 4 ans pour l'entretien courant (tontes, tailles, désherbage, fleurissement) de 28 sites communaux. Marché réservé aux prestations de terrain, pas de création.",
+        "lieu": "Villeurbanne (69)", "montant_estime": "180 000 € HT sur 4 ans", "date_limite": "dans 32 jours",
+        "pieces_a_fournir": ["DC1 et DC2", "Mémoire technique (10 pages max)", "Attestations d'assurance"],
+        "criteres": "Prix 60 %, valeur technique 40 %", "verdict": "oui",
+        "raison": "Marché récurrent, taille adaptée à une PME locale, délai confortable."
+      },
+      "buyer_seen": true
+    },
+    {
+      "source": "ted", "source_id": "650123-2026",
+      "title": "Entretien des espaces verts du patrimoine métropolitain, 6 lots géographiques",
+      "buyer_name": "Métropole de Lyon", "departments": ["69"], "cpv_codes": ["77310000"],
+      "estimated_amount": 1250000, "published_days_ago": 2, "deadline_in_days": 34,
+      "procedure_type": "Appel d'offres ouvert",
+      "url": "https://ted.europa.eu/fr/notice/-/detail/650123-2026",
+      "summary": {
+        "resume": "Six lots géographiques d'entretien d'espaces verts sur 4 ans. Les lots peuvent être candidatés séparément ; le lot 3 (Villeurbanne – Vaulx-en-Velin) représente environ 200 000 € HT par an.",
+        "lieu": "Métropole de Lyon (69)", "montant_estime": "1,25 M€ HT, 6 lots", "date_limite": "dans 34 jours",
+        "pieces_a_fournir": ["DUME", "Références de moins de 3 ans", "Moyens humains et matériels par lot"],
+        "criteres": "Prix 50 %, technique 40 %, insertion 10 %", "verdict": "peut-etre",
+        "raison": "Volume global important, mais un lot seul reste accessible : à étudier lot par lot."
+      },
+      "buyer_seen": true
+    },
+    {
+      "source": "boamp", "source_id": "26-146002",
+      "title": "Élagage et abattage d'arbres d'alignement, campagne hivernale",
+      "buyer_name": "Communauté d'agglomération du Pays de Gex", "departments": ["01"], "cpv_codes": ["77341000"],
+      "estimated_amount": null, "published_days_ago": 1, "deadline_in_days": 9,
+      "procedure_type": "Procédure adaptée",
+      "url": "https://www.boamp.fr/pages/avis/?q=idweb:%2226-146002%22",
+      "summary": {
+        "resume": "Campagne d'élagage et d'abattage sur les voiries communautaires, exécution de décembre à février. Montant non indiqué dans l'avis.",
+        "lieu": "Pays de Gex (01)", "montant_estime": "non précisé", "date_limite": "dans 9 jours",
+        "pieces_a_fournir": ["Devis détaillé", "Certificats d'élagueurs grimpeurs"],
+        "criteres": "non précisés", "verdict": "peut-etre",
+        "raison": "Délai court et montant inconnu : à regarder vite si vous avez une équipe d'élagage."
+      },
+      "buyer_seen": false
+    }
+  ]
+}

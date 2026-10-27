@@ -157,26 +157,103 @@ def buyer_award_count(conn: sqlite3.Connection, buyer_name: str | None) -> int:
 # --------------------------------------------------------------------------------------------
 def row_to_subscriber(row: sqlite3.Row) -> Subscriber:
     return Subscriber(
-        id=row["id"], email=row["email"], label=row["label"],
+        id=row["id"], email=row["email"], label=row["label"], company=row["company"],
         cpv_prefixes=_loads(row["cpv_prefixes"], []), departments=_loads(row["departments"], []),
         amount_min=row["amount_min"], amount_max=row["amount_max"], plan=row["plan"],
-        active=bool(row["active"]), created_at=parse_dt(row["created_at"]),
+        billing_period=row["billing_period"] or "monthly", active=bool(row["active"]), status=row["status"],
+        stripe_customer_id=row["stripe_customer_id"], stripe_subscription_id=row["stripe_subscription_id"],
+        checkout_session_id=row["checkout_session_id"], created_at=parse_dt(row["created_at"]),
+        updated_at=parse_dt(row["updated_at"]),
     )
 
 
 def add_subscriber(conn: sqlite3.Connection, s: Subscriber, now: datetime | None = None) -> Subscriber:
+    ts = (now or utcnow()).isoformat()
+    status = s.status if s.status != "active" or s.active else "disabled"
     with conn:
         cur = conn.execute(
-            "INSERT INTO subscribers (email, label, cpv_prefixes, departments, amount_min, amount_max, plan, active,"
-            " created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (s.email.strip().lower(), s.label, json.dumps(s.cpv_prefixes), json.dumps(s.departments),
-             s.amount_min, s.amount_max, s.plan, int(s.active), (now or utcnow()).isoformat()),
+            "INSERT INTO subscribers (email, label, company, cpv_prefixes, departments, amount_min, amount_max, plan,"
+            " billing_period, active, status, stripe_customer_id, stripe_subscription_id, checkout_session_id,"
+            " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (s.email.strip().lower(), s.label, s.company, json.dumps(s.cpv_prefixes), json.dumps(s.departments),
+             s.amount_min, s.amount_max, s.plan, s.billing_period, int(s.active), status, s.stripe_customer_id,
+             s.stripe_subscription_id, s.checkout_session_id, ts, ts),
         )
     return get_subscriber(conn, cur.lastrowid)
 
 
+SUBSCRIBER_COLUMNS = {
+    "label", "company", "cpv_prefixes", "departments", "amount_min", "amount_max", "plan", "billing_period",
+    "active", "status", "stripe_customer_id", "stripe_subscription_id", "checkout_session_id",
+}
+
+
+def update_subscriber(conn: sqlite3.Connection, subscriber_id: int, now: datetime | None = None,
+                      **fields: Any) -> Subscriber:
+    """Met à jour les colonnes données (listes sérialisées en JSON, booléens en 0/1) et retourne l'abonné."""
+    unknown = set(fields) - SUBSCRIBER_COLUMNS
+    if unknown:
+        raise ValueError(f"colonnes inconnues : {', '.join(sorted(unknown))}")
+    if fields:
+        assignments, params = [], []
+        for key, value in fields.items():
+            if isinstance(value, (list, tuple)):
+                value = json.dumps(list(value))
+            elif isinstance(value, bool):
+                value = int(value)
+            assignments.append(f"{key} = ?")
+            params.append(value)
+        assignments.append("updated_at = ?")
+        params.append((now or utcnow()).isoformat())
+        params.append(subscriber_id)
+        with conn:
+            conn.execute(f"UPDATE subscribers SET {', '.join(assignments)} WHERE id = ?", params)
+    return get_subscriber(conn, subscriber_id)
+
+
+def find_subscriber_by_stripe(conn: sqlite3.Connection, *, customer_id: str | None = None,
+                              subscription_id: str | None = None) -> Subscriber | None:
+    if subscription_id:
+        row = conn.execute("SELECT * FROM subscribers WHERE stripe_subscription_id = ?", (subscription_id,)).fetchone()
+        if row:
+            return row_to_subscriber(row)
+    if customer_id:
+        row = conn.execute("SELECT * FROM subscribers WHERE stripe_customer_id = ?", (customer_id,)).fetchone()
+        if row:
+            return row_to_subscriber(row)
+    return None
+
+
+def get_subscriber_by_checkout_session(conn: sqlite3.Connection, session_id: str) -> Subscriber | None:
+    if not session_id:
+        return None
+    row = conn.execute("SELECT * FROM subscribers WHERE checkout_session_id = ?", (session_id,)).fetchone()
+    return row_to_subscriber(row) if row else None
+
+
+def record_stripe_event(conn: sqlite3.Connection, event_id: str, event_type: str,
+                        now: datetime | None = None) -> bool:
+    """Enregistre l'identifiant d'événement ; retourne False s'il a déjà été vu (idempotence)."""
+    with conn:
+        cur = conn.execute("INSERT OR IGNORE INTO stripe_events (id, type, received_at) VALUES (?, ?, ?)",
+                           (event_id, event_type, (now or utcnow()).isoformat()))
+    return cur.rowcount > 0
+
+
+def set_stripe_event_result(conn: sqlite3.Connection, event_id: str, result: str) -> None:
+    with conn:
+        conn.execute("UPDATE stripe_events SET result = ? WHERE id = ?", (result, event_id))
+
+
 def get_subscriber(conn: sqlite3.Connection, subscriber_id: int) -> Subscriber:
     return row_to_subscriber(conn.execute("SELECT * FROM subscribers WHERE id = ?", (subscriber_id,)).fetchone())
+
+
+def find_subscriber(conn: sqlite3.Connection, subscriber_id: int | None) -> Subscriber | None:
+    if subscriber_id is None:
+        return None
+    row = conn.execute("SELECT * FROM subscribers WHERE id = ?", (subscriber_id,)).fetchone()
+    return row_to_subscriber(row) if row else None
 
 
 def get_subscriber_by_email(conn: sqlite3.Connection, email: str) -> Subscriber | None:
@@ -184,17 +261,23 @@ def get_subscriber_by_email(conn: sqlite3.Connection, email: str) -> Subscriber 
     return row_to_subscriber(row) if row else None
 
 
-def list_subscribers(conn: sqlite3.Connection, *, active_only: bool = False) -> list[Subscriber]:
-    sql = "SELECT * FROM subscribers"
+def list_subscribers(conn: sqlite3.Connection, *, active_only: bool = False,
+                     with_stripe_subscription: bool = False) -> list[Subscriber]:
+    sql = "SELECT * FROM subscribers WHERE 1=1"
     if active_only:
-        sql += " WHERE active = 1"
+        sql += " AND active = 1"
+    if with_stripe_subscription:
+        sql += " AND stripe_subscription_id IS NOT NULL"
     sql += " ORDER BY id"
     return [row_to_subscriber(r) for r in conn.execute(sql)]
 
 
-def set_subscriber_active(conn: sqlite3.Connection, email: str, active: bool) -> bool:
+def set_subscriber_active(conn: sqlite3.Connection, email: str, active: bool, now: datetime | None = None) -> bool:
+    """Activation manuelle (CLI) : `active` décide des envois, `status` passe à active / disabled."""
     with conn:
-        cur = conn.execute("UPDATE subscribers SET active = ? WHERE email = ?", (int(active), email.strip().lower()))
+        cur = conn.execute("UPDATE subscribers SET active = ?, status = ?, updated_at = ? WHERE email = ?",
+                           (int(active), "active" if active else "disabled", (now or utcnow()).isoformat(),
+                            email.strip().lower()))
     return cur.rowcount > 0
 
 
@@ -359,6 +442,8 @@ def stats(conn: sqlite3.Connection) -> dict[str, Any]:
             "SELECT COUNT(*) FROM notices n LEFT JOIN summaries s ON s.notice_id = n.id WHERE s.id IS NULL") or 0,
         "subscribers_active": one("SELECT COUNT(*) FROM subscribers WHERE active = 1") or 0,
         "subscribers_total": one("SELECT COUNT(*) FROM subscribers") or 0,
+        "subscribers_pending": one("SELECT COUNT(*) FROM subscribers WHERE status = 'pending_payment'") or 0,
+        "stripe_events": one("SELECT COUNT(*) FROM stripe_events") or 0,
         "deliveries": one("SELECT COUNT(*) FROM deliveries") or 0,
         "last_delivery": one("SELECT MAX(sent_at) FROM deliveries"),
         "awards": one("SELECT COUNT(*) FROM awards") or 0,
