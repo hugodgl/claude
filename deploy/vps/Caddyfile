@@ -1,0 +1,4 @@
+{$AVIS_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy avis-web:8000
+}

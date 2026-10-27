@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.sideproject.veille.collect</string>
+  <key>ProgramArguments</key>
+  <array>
+      <string>/bin/bash</string>
+      <string>__REPO__/deploy/macmini/run.sh</string>
+      <string>veille-marches</string>
+      <string>vm</string>
+      <string>collect</string>
+      <string>--source</string>
+      <string>all</string>
+      <string>--since-days</string>
+      <string>2</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <key>StandardOutPath</key><string>__REPO__/logs/launchd-com.sideproject.veille.collect.out</string>
+  <key>StandardErrorPath</key><string>__REPO__/logs/launchd-com.sideproject.veille.collect.err</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:__HOME__/.local/bin</string></dict>
+</dict>
+</plist>

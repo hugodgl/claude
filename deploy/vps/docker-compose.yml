@@ -1,0 +1,37 @@
+services:
+  avis-web:
+    build:
+      context: ../..
+      dockerfile: deploy/vps/Dockerfile.avis
+    restart: unless-stopped
+    env_file: ../../apps/avis-clients/.env
+    volumes:
+      - avis-data:/srv/apps/avis-clients/data
+    expose: ["8000"]
+
+  avis-jobs:
+    build:
+      context: ../..
+      dockerfile: deploy/vps/Dockerfile.avis
+    restart: unless-stopped
+    env_file: ../../apps/avis-clients/.env
+    volumes:
+      - avis-data:/srv/apps/avis-clients/data
+      - ./jobs.sh:/srv/jobs.sh:ro
+    command: ["/bin/bash", "/srv/jobs.sh"]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      AVIS_DOMAIN: ${AVIS_DOMAIN:-avis.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  avis-data:
+  caddy-data:
+  caddy-config:

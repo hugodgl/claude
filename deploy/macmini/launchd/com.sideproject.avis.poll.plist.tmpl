@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.sideproject.avis.poll</string>
+  <key>ProgramArguments</key>
+  <array>
+      <string>/bin/bash</string>
+      <string>__REPO__/deploy/macmini/run.sh</string>
+      <string>avis-clients</string>
+      <string>avis</string>
+      <string>poll-reviews</string>
+  </array>
+  <key>StartInterval</key><integer>900</integer>
+  <key>StandardOutPath</key><string>__REPO__/logs/launchd-com.sideproject.avis.poll.out</string>
+  <key>StandardErrorPath</key><string>__REPO__/logs/launchd-com.sideproject.avis.poll.err</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:__HOME__/.local/bin</string></dict>
+</dict>
+</plist>
