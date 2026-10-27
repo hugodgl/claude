@@ -23,7 +23,7 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 - [x] **P3-1** `apps/newsletter-pipeline` : sources (RSS/Atom, pages), collecte, dédoublonnage, classement LLM « pertinence cabinet », brouillon de numéro hebdo en markdown, tests
 - [x] **P3-2** `apps/newsletter-pipeline` : push beehiiv (API) ou export HTML prêt à coller, extraction de 3 posts LinkedIn par numéro, README
 - [x] **P2-3a** `apps/veille-marches` : brief hebdo DECP (collecteur data.economie.gouv.fr) — fait avec P2-2
-- [~] **P2-3b** `apps/veille-marches` : page d'inscription publique + Stripe Checkout + webhook (FastAPI minimal), README complet
+- [x] **P2-3b** `apps/veille-marches` : page d'inscription publique + Stripe Checkout + webhook (FastAPI minimal), README complet
 - [x] **DEP-1** `deploy/macmini` : `install.sh` (brew, uv, ffmpeg, ollama + modèle), plists launchd par job, `caffeinate`, rotation des logs ; `deploy/vps` : docker-compose + Caddy pour `avis-clients` et la page `veille-marches` ; Makefile racine à jour
 
 ## Phase 3 : lot 3 (si le temps le permet)

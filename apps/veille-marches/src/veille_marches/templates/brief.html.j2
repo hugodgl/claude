@@ -58,7 +58,7 @@
 
   <tr><td style="padding:12px 24px 24px 24px;font-size:13px;color:#6b7280;line-height:1.5;border-top:1px solid #e5e7eb;">
     <p style="margin:12px 0 0 0;">Données essentielles de la commande publique (DECP, data.economie.gouv.fr), publiées par les acheteurs avec un délai variable : certains marchés de la semaine apparaîtront dans un prochain brief. Les montants sont ceux déclarés (HT).</p>
-    <p style="margin:8px 0 0 0;">{{ settings.source_label }} · pour modifier votre zone ou vous désabonner, répondez à cet email.</p>
+    <p style="margin:8px 0 0 0;">{{ settings.source_label }} · pour modifier votre zone ou vous désabonner : {% if account_url %}<a href="{{ account_url }}" style="color:#14532d;">votre espace</a> ou répondez{% else %}répondez{% endif %} à cet email.</p>
   </td></tr>
 </table>
 </td></tr>

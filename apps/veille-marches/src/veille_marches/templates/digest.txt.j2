@@ -42,5 +42,5 @@ Bonjour {{ digest.subscriber.display_name }}, {{ digest.total }} nouveau{{ 'x' i
 {% endif %}
 --
 Résumé assisté par IA : vérifiez toujours l'avis original (dates, montants, pièces) avant de préparer une réponse.
-Pour modifier vos réglages (départements, CPV, montants) ou vous désabonner, répondez à cet email.
+Pour modifier vos réglages (départements, CPV, montants) ou vous désabonner : {% if account_url %}{{ account_url }} (lien personnel valable {{ settings.account_link_days }} jours) ou répondez{% else %}répondez{% endif %} à cet email.
 {{ settings.source_label }} · Sources : BOAMP (DILA), TED (Union européenne).

@@ -52,3 +52,8 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - `NIGHT-SHIFT-OWNER` = cloud, la session cloud garde la main.
 - Horodatages des entrées précédentes corrigés (ils avaient été estimés trop tard ; désormais pris sur l'horloge Paris).
 - En cours : P2-3b (inscription + Stripe veille), QA-1 sur avis-clients, newsletter-pipeline, content-engine. Rien de nouveau à lancer : toutes les tâches restantes (QA-1 veille, P4-4, P1-4) touchent des dossiers occupés par ces agents.
+
+### 28/10 00:52 — veille-marches : site, inscription, Stripe (P2-3b)
+- `apps/veille-marches` : 78 tests verts (19 nouveaux), ruff propre. Site FastAPI (`vm web`) : landing avec exemple d'alerte réel, inscription → abonné en attente → Stripe Checkout, webhook signé et idempotent qui active l'abonné et envoie l'email de bienvenue, espace `/compte` par lien signé, portail Stripe, mode démonstration sans clé, pages légales à compléter. Vérifié par la session principale.
+- Ajouté au déploiement Mac mini : services launchd `veille.web` (permanent) et `veille.syncstripe` (08:10).
+- Lancé : QA-1 sur `veille-marches`.

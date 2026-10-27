@@ -6,6 +6,7 @@ import hmac
 import json
 import re
 import time
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -323,6 +324,10 @@ def test_digest_goes_only_to_active_subscribers(conn, settings, now, live_settin
     assert [o.digest.subscriber.email for o in outcomes] == ["attente@b.fr"]
     # digest, email de bienvenue, digest
     assert [e.to for e in mailer.sent] == [["paye@b.fr"], ["attente@b.fr"], ["attente@b.fr"]]
+    # sans APP_SECRET_KEY le digest renvoie vers la réponse par email ; avec, il contient le lien signé
+    assert "/compte?token=" not in mailer.sent[0].text and "répondez à cet email" in mailer.sent[0].text
+    outcomes = send_digests(conn, live_settings, mailer, dry_run=True, now=now - timedelta(days=1))
+    assert outcomes and all("http://testserver/compte?token=" in o.text and "votre espace" in o.html for o in outcomes)
 
 
 def test_mock_mode_simulated_checkout_and_portal(mock_client, conn, mailer):

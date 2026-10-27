@@ -12,6 +12,7 @@ from core.mail import Email, Mailer
 
 from . import db
 from .dates import utcnow
+from .digest import settings_account_url
 from .models import Award, Subscriber
 from .rendering import render
 from .settings import VMSettings
@@ -98,7 +99,8 @@ def render_brief(brief: Brief, settings: VMSettings) -> tuple[str, str, str]:
     a, b = brief.since, brief.until
     period = f"du {a.day:02d}/{a.month:02d} au {b.day:02d}/{b.month:02d}/{b.year}"
     subject = f"{settings.product_name} — brief de la semaine : {brief.count} attribution(s) {period}"
-    ctx = {"brief": brief, "settings": settings, "subject": subject, "period": period}
+    ctx = {"brief": brief, "settings": settings, "subject": subject, "period": period,
+           "account_url": settings_account_url(settings, brief.subscriber)}
     return subject, render("brief.html.j2", **ctx), render("brief.txt.j2", **ctx)
 
 

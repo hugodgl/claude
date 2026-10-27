@@ -10,6 +10,7 @@ from pathlib import Path
 from core.mail import Email, Mailer
 
 from . import db
+from .accounts import account_url
 from .dates import days_until, utcnow
 from .filtering import MatchResult, match_notice
 from .models import LLMSummary, Notice, Subscriber
@@ -104,8 +105,15 @@ def render_digest(digest: Digest, settings: VMSettings) -> tuple[str, str, str]:
     else:
         subject = f"{settings.product_name} {date_label} : {digest.total} nouveau(x) marché(s)"
     ctx = {"digest": digest, "settings": settings, "subject": subject, "date_label": date_label,
-           "threshold": settings.priority_threshold}
+           "threshold": settings.priority_threshold, "account_url": settings_account_url(settings, digest.subscriber)}
     return subject, render("digest.html.j2", **ctx), render("digest.txt.j2", **ctx)
+
+
+def settings_account_url(settings: VMSettings, subscriber: Subscriber) -> str | None:
+    """Lien signé vers l'espace abonné, seulement si une clé stable est configurée (sinon le lien mourrait)."""
+    if not settings.app_secret_key or subscriber.id is None:
+        return None
+    return account_url(settings, subscriber.id)
 
 
 def _safe_filename(email: str) -> str:

@@ -79,7 +79,7 @@
 
   <tr><td style="padding:12px 24px 24px 24px;font-size:13px;color:#6b7280;line-height:1.5;border-top:1px solid #e5e7eb;">
     <p style="margin:12px 0 0 0;"><strong>Résumé assisté par IA : vérifiez toujours l'avis original</strong> (dates, montants et pièces) avant de préparer une réponse. Le lien vers la source figure sous chaque marché.</p>
-    <p style="margin:8px 0 0 0;">Pour modifier vos départements, vos codes CPV ou votre fourchette de montant, ou pour vous désabonner, répondez simplement à cet email.</p>
+    <p style="margin:8px 0 0 0;">Pour modifier vos départements, vos codes CPV ou votre fourchette de montant, ou pour vous désabonner : {% if account_url %}<a href="{{ account_url }}" style="color:#14532d;">votre espace</a> (lien personnel valable {{ settings.account_link_days }} jours) ou répondez{% else %}répondez simplement{% endif %} à cet email.</p>
     <p style="margin:8px 0 0 0;">{{ settings.source_label }} · Sources : BOAMP (DILA), TED (Union européenne).</p>
   </td></tr>
 </table>
