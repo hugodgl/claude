@@ -6,6 +6,8 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .db import local_tz, parse_iso
+
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -15,16 +17,24 @@ def stars(rating: int | None) -> str:
     return "★" * r + "☆" * (5 - r)
 
 
+def _local(value: str | None):
+    """Horodatage ISO (UTC en base) → datetime dans le fuseau métier, ou None s'il est illisible."""
+    dt = parse_iso(value)
+    return dt.astimezone(local_tz()) if dt else None
+
+
 def fmt_date(value: str | None) -> str:
     if not value:
         return ""
-    return "/".join(reversed(value[:10].split("-")))
+    dt = _local(value)
+    return dt.strftime("%d/%m/%Y") if dt else "/".join(reversed(value[:10].split("-")))
 
 
 def fmt_datetime(value: str | None) -> str:
     if not value:
         return ""
-    return f"{fmt_date(value)} {value[11:16]}".strip()
+    dt = _local(value)
+    return dt.strftime("%d/%m/%Y %H:%M") if dt else f"{fmt_date(value)} {value[11:16]}".strip()
 
 
 def build_env() -> Environment:

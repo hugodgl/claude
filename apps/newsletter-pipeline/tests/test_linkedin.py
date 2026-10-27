@@ -52,3 +52,11 @@ def test_check_posts_rules():
 def test_linkedin_unknown_issue(conn, settings, llm):
     with pytest.raises(LookupError):
         generate_linkedin_posts(conn, settings, llm, 99)
+
+
+def test_linkedin_prompt_keeps_a_long_issue_whole():
+    from newsletter_pipeline.linkedin import build_prompt
+    md = "# Numéro\n\n" + ("Paragraphe du numéro, assez long pour compter. " * 220) + "\n\n## Le chiffre\n\n**60 %** fin."
+    assert len(md) > 9000
+    prompt = build_prompt(md, 3)
+    assert "**60 %** fin." in prompt and "[…]" not in prompt

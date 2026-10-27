@@ -7,17 +7,12 @@ sont cherchés par défaut à la racine de l'app, quel que soit le dossier coura
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 from core.settings import Settings as CoreSettings
 from pydantic import Field
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 
-Theme = Literal[
-    "tenue", "revision", "social", "fiscal", "relation_client",
-    "recrutement", "outils", "reglementation", "ia_generale",
-]
 THEMES: tuple[str, ...] = (
     "tenue", "revision", "social", "fiscal", "relation_client",
     "recrutement", "outils", "reglementation", "ia_generale",
@@ -49,6 +44,7 @@ class Settings(CoreSettings):
     max_links_per_page: int = 8  # liens d'articles suivis par source de type `page` et par passage
     rss_fetch_pages: bool = False  # True : télécharge l'article complet derrière chaque entrée RSS
     max_content_chars: int = 20000  # taille max du texte stocké par item
+    max_page_bytes: int = 5_000_000  # taille max d'une réponse HTTP (flux ou page) ; au-delà, source en erreur
 
     # Classement
     rank_batch_size: int = 5

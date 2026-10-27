@@ -9,6 +9,7 @@ from typing import Any
 
 from core.db import connect, migrate
 
+from .dedup import url_variants
 from .settings import Settings
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
@@ -68,10 +69,20 @@ def mark_source_fetched(conn: sqlite3.Connection, source_id: int, error: str | N
 
 
 # ------------------------------------------------------------------ items
-def item_exists(conn: sqlite3.Connection, url: str, title_hash: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM items WHERE url = ? OR title_hash = ? LIMIT 1", (url, title_hash)
-    ).fetchone()
+def item_exists(conn: sqlite3.Connection, url: str, title_hash: str | None = None) -> bool:
+    """Vrai si l'URL (ou l'une de ses variantes http/https, avec/sans www) ou le titre est déjà en base."""
+    urls = sorted(url_variants(url) | ({url} if url else set()))
+    clauses: list[str] = []
+    params: list[Any] = []
+    if urls:
+        clauses.append(f"url IN ({','.join('?' * len(urls))})")
+        params += urls
+    if title_hash:
+        clauses.append("title_hash = ?")
+        params.append(title_hash)
+    if not clauses:
+        return False
+    row = conn.execute(f"SELECT 1 FROM items WHERE {' OR '.join(clauses)} LIMIT 1", params).fetchone()
     return row is not None
 
 
@@ -108,13 +119,15 @@ def update_item_score(conn: sqlite3.Connection, item_id: int, score: float, scor
 
 
 def candidate_items(conn: sqlite3.Connection, *, min_published: str | None = None) -> list[sqlite3.Row]:
-    """Items classés, encore disponibles (new ou selected), les mieux notés d'abord."""
+    """Items classés, encore disponibles (new ou selected), les mieux notés d'abord. Le filtre d'ancienneté
+    s'applique à la date de publication, ou à défaut à la date de collecte (un item sans date ne reste
+    pas éligible indéfiniment)."""
     sql = """SELECT i.*, s.name AS source_name, s.category AS source_category
              FROM items i JOIN sources s ON s.id = i.source_id
              WHERE i.score IS NOT NULL AND i.status IN ('new', 'selected')"""
     params: list[Any] = []
     if min_published:
-        sql += " AND (i.published_at IS NULL OR i.published_at >= ?)"
+        sql += " AND COALESCE(i.published_at, i.fetched_at) >= ?"
         params.append(min_published)
     sql += " ORDER BY i.score DESC, i.published_at DESC, i.id DESC"
     return conn.execute(sql, params).fetchall()

@@ -23,7 +23,7 @@ class FakeSession:
     def __init__(self):
         self.calls = []
 
-    def get(self, url, params=None):
+    def get(self, url, params=None, **kwargs):
         self.calls.append(("GET", url, params))
         if url.endswith("/reviews") and not (params or {}).get("pageToken"):
             return FakeResponse(200, {"reviews": [{"reviewId": "a", "reviewer": {"displayName": "A"},
@@ -40,7 +40,7 @@ class FakeSession:
                                                      "metadata": {"placeId": "ChIJlou"}}]})
         return FakeResponse(404, {"error": "?"})
 
-    def put(self, url, json=None):
+    def put(self, url, json=None, **kwargs):
         self.calls.append(("PUT", url, json))
         return FakeResponse(200, {"comment": json["comment"], "updateTime": "2026-10-03T00:00:00Z"})
 

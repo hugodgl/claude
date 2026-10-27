@@ -155,7 +155,8 @@ class MockStripeGateway:
         raise BillingError("webhook indisponible en mode mock (STRIPE_SECRET_KEY et STRIPE_WEBHOOK_SECRET absents)")
 
     def retrieve_subscription(self, subscription_id: str) -> dict[str, Any]:
-        return self.subscriptions.get(subscription_id, {"id": subscription_id, "status": "active"})
+        """Statut `mock` (inconnu) : la synchronisation laisse l'état local tel quel."""
+        return self.subscriptions.get(subscription_id, {"id": subscription_id, "status": "mock"})
 
 
 def get_gateway(settings: VMSettings) -> StripeLike:
@@ -299,7 +300,10 @@ def sync_subscriptions(conn: sqlite3.Connection, settings: VMSettings, gateway: 
             results.append(SyncResult(sub, None, sub.status, sub.status, error=str(e)))
             continue
         remote_status = str(remote.get("status") or "")
-        status, _ = SUBSCRIPTION_STATUS_MAP.get(remote_status, ("active", True))
+        if remote_status not in SUBSCRIPTION_STATUS_MAP:   # statut inconnu (ou passerelle mock) : on ne touche à rien
+            results.append(SyncResult(sub, remote_status or "?", sub.status, sub.status))
+            continue
+        status, _ = SUBSCRIPTION_STATUS_MAP[remote_status]
         if dry_run:
             results.append(SyncResult(sub, remote_status, sub.status, status))
             continue

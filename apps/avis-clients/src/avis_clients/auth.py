@@ -36,18 +36,29 @@ def create_magic_link(conn: sqlite3.Connection, email: str, ttl_s: int) -> str:
 
 
 def consume_magic_link(conn: sqlite3.Connection, token: str) -> str | None:
-    """Retourne l'email si le jeton est valide, non utilisé et non expiré, puis le marque utilisé."""
-    row = conn.execute(
-        "SELECT * FROM magic_links WHERE token_hash = ?", (hash_token(token),)
-    ).fetchone()
-    if not row or row["used_at"]:
-        return None
-    expires = parse_iso(row["expires_at"])
-    if expires is None or expires < utcnow():
-        return None
+    """Retourne l'email si le jeton est valide, non utilisé et non expiré, puis le marque utilisé.
+
+    Le marquage est une seule requête conditionnelle : deux requêtes simultanées avec le même lien
+    ne peuvent pas toutes deux ouvrir une session."""
+    now = now_iso()
     with conn:
-        conn.execute("UPDATE magic_links SET used_at = ? WHERE id = ?", (now_iso(), row["id"]))
-    return row["email"]
+        cur = conn.execute(
+            "UPDATE magic_links SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
+            (now, hash_token(token), now),
+        )
+        if cur.rowcount != 1:
+            return None
+        row = conn.execute("SELECT email FROM magic_links WHERE token_hash = ?", (hash_token(token),)).fetchone()
+    return row["email"] if row else None
+
+
+def recent_magic_link_exists(conn: sqlite3.Connection, email: str, within_s: int) -> bool:
+    """Vrai si un lien a déjà été émis pour cette adresse il y a moins de `within_s` secondes (anti-rafale)."""
+    since = (utcnow() - timedelta(seconds=within_s)).isoformat(timespec="seconds")
+    row = conn.execute(
+        "SELECT 1 FROM magic_links WHERE email = ? AND created_at > ? LIMIT 1", (email.lower().strip(), since)
+    ).fetchone()
+    return row is not None
 
 
 def create_session(

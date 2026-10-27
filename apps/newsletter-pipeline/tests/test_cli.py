@@ -108,3 +108,30 @@ def test_collect_fails_cleanly_without_sources_file(env, workdir):
 def test_draft_rejects_bad_date(env, mock_llm):
     r = runner.invoke(cli.app, ["draft", "--issue", "1", "--date", "03/11/2026"], env=env)
     assert r.exit_code == 1 and "date invalide" in r.output
+
+
+def test_render_missing_markdown_fails_cleanly(env, settings, mock_llm):
+    runner.invoke(cli.app, ["collect"], env=env)
+    runner.invoke(cli.app, ["rank"], env=env)
+    r = runner.invoke(cli.app, ["draft", "--issue", "1", "--date", "2026-11-03"], env=env)
+    assert r.exit_code == 0, r.output
+    (settings.issues_dir / "001-2026-11-03.md").unlink()
+    r = runner.invoke(cli.app, ["render", "--issue", "1"], env=env)
+    assert r.exit_code == 1 and "markdown absent" in r.output
+    r = runner.invoke(cli.app, ["linkedin", "--issue", "1"], env=env)
+    assert r.exit_code == 1 and "absent" in r.output
+
+
+def test_invalid_sources_yaml_fails_cleanly(env, workdir):
+    bad = workdir / "bad.yaml"
+    bad.write_text("sources:\n  - name: [oops\n", encoding="utf-8")
+    r = runner.invoke(cli.app, ["collect"], env={**env, "SOURCES_FILE": str(bad)})
+    assert r.exit_code == 1 and "YAML" in r.output and "Traceback" not in r.output
+    r = runner.invoke(cli.app, ["sources"], env={**env, "SOURCES_FILE": str(bad)})
+    assert r.exit_code == 1 and "YAML" in r.output
+
+
+def test_rank_default_limit_comes_from_settings(env, mock_llm):
+    runner.invoke(cli.app, ["collect"], env=env)
+    r = runner.invoke(cli.app, ["rank"], env={**env, "RANK_DEFAULT_LIMIT": "4"})
+    assert r.exit_code == 0 and "4 items notés en 1 lot(s)" in r.output

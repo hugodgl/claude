@@ -95,3 +95,90 @@ def test_draft_respects_max_age(conn, settings, llm, ranked):
     settings.max_item_age_days = 14
     with pytest.raises(RuntimeError):  # les fixtures datent d'octobre 2026 : trop vieilles pour un envoi en 2027
         Drafter(conn, settings, llm).run(1, date(2027, 6, 1))
+
+
+def _llm_with(actualites=None, chiffre_outil=None, edito=None):
+    """LLM scripté dont on remplace certaines réponses (les autres viennent de conftest)."""
+    from conftest import scripted_response
+
+    def respond(prompt, system):
+        if prompt.startswith("Tâche : actualites") and actualites:
+            return actualites(prompt)
+        if prompt.startswith("Tâche : chiffre_outil") and chiffre_outil:
+            return chiffre_outil(prompt)
+        if prompt.startswith("Tâche : edito") and edito:
+            return edito(prompt)
+        return scripted_response(prompt, system)
+
+    from core.llm import MockLLM
+    return MockLLM(respond)
+
+
+def test_draft_strips_urls_invented_by_llm(conn, settings, ranked):
+    import re
+
+    def actualites(prompt):
+        ids = [int(m) for m in re.findall(r'<item id="(\d+)"', prompt)]
+        urls = re.findall(r'url="([^"]+)"', prompt)
+        return json.dumps({"actualites": [
+            {"item_id": ids[0], "titre": "Titre\navec retour [doc](https://invente.test/doc)",
+             "corps": f"Voir [la source]({urls[0]}) et aussi https://invente.test/x. Fin.",
+             "ce_que_ca_change": "Lire ![pixel](https://invente.test/p.gif) puis [guide](mailto:x@y.fr)."},
+            {"item_id": ids[1], "titre": "B", "corps": "b", "ce_que_ca_change": "b"},
+            {"item_id": ids[2], "titre": "C", "corps": "c", "ce_que_ca_change": "c"}]})
+
+    def edito(prompt):
+        return json.dumps({"titre_numero": "Titre <b>numéro</b>", "preheader": "Aperçu https://invente.test/ok",
+                           "edito": "Édito avec https://invente.test/e, c'est tout.", "intro_cas": "Intro."})
+
+    result = Drafter(conn, settings, _llm_with(actualites=actualites, edito=edito)).run(1, date(2026, 11, 3))
+    md = result.paths["md"].read_text(encoding="utf-8")
+    assert "invente.test" not in md
+    assert "### 1. Titre avec retour doc\n" in md  # titre sur une ligne, lien inventé réduit à son libellé
+    item_url = db.get_items(conn, [result.used_item_ids[0]])[0]["url"]
+    assert f"Voir [la source]({item_url}) et aussi [LIEN À VÉRIFIER]. Fin." in md  # l'URL d'un item sélectionné reste
+    assert "Lire pixel puis guide." in md
+    assert "Édito avec [LIEN À VÉRIFIER], c'est tout." in md
+    assert any("lien" in w and "retiré" in w for w in result.warnings)
+
+
+def test_draft_flags_unverifiable_number_and_missing_source(conn, settings, ranked):
+    def wrong_number(prompt):
+        import re
+        ids = [int(m) for m in re.findall(r'<item id="(\d+)"', prompt)]
+        return json.dumps({"chiffre": {"item_id": ids[0], "valeur": "99,5 %", "phrase": "des cabinets, dit-on."},
+                           "outil": {"item_id": 424242, "nom": "Outil fantôme", "usage": "u", "verdict": "v", "limite": "l"}})
+
+    result = Drafter(conn, settings, _llm_with(chiffre_outil=wrong_number)).run(1, date(2026, 11, 3))
+    md = result.paths["md"].read_text(encoding="utf-8")
+    assert "**99,5 %** — [À VÉRIFIER] des cabinets, dit-on." in md
+    assert any("99,5 %" in w and "n'apparaît pas" in w for w in result.warnings)
+    assert "**Outil fantôme**" in md and "Source : [SOURCE À VÉRIFIER]" in md
+
+    def no_item(prompt):
+        return json.dumps({"chiffre": {"valeur": "12 000", "phrase": "cabinets concernés."}, "outil": None})
+
+    result = Drafter(conn, settings, _llm_with(chiffre_outil=no_item)).run(2, date(2026, 11, 10))
+    md = result.paths["md"].read_text(encoding="utf-8")
+    assert "**12 000** — cabinets concernés. [SOURCE À VÉRIFIER]" in md and "]()" not in md
+    assert any("sans item identifiable" in w for w in result.warnings)
+
+
+def test_number_in_item():
+    from newsletter_pipeline.draft import number_in_item
+    item = {"title": "Baromètre : 60 % des cabinets", "summary": "1 200 professionnels, contre 38 % l'an dernier.",
+            "content_text": None}
+    assert number_in_item("60 %", item) and number_in_item("1 200", item) and number_in_item("de 38 % à 60 %", item)
+    assert not number_in_item("61 %", item) and not number_in_item("deux heures", item)
+
+
+def test_load_sponsor_tolerates_datetime_and_rejects_bad_dates(workdir):
+    p = workdir / "sponsor.yaml"
+    p.write_text("name: S\nfrom: 2026-11-01 07:00:00\nuntil: '2026-11-30'\n", encoding="utf-8")
+    assert load_sponsor(p, date(2026, 11, 15))["name"] == "S"
+    assert load_sponsor(p, date(2026, 12, 1)) is None
+    p.write_text("name: S\nfrom: 01/11/2026\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="sponsor.yaml.*from"):
+        load_sponsor(p, date(2026, 11, 15))
+    p.write_text("- pas un mapping\n", encoding="utf-8")
+    assert load_sponsor(p, date(2026, 11, 15)) is None

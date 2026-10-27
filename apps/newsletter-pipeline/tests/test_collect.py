@@ -168,7 +168,7 @@ def test_collect_page_http_error_recorded(conn, settings, workdir: Path):
 
 def test_html_to_text_keeps_trailing_text_and_literal_entities():
     assert html_to_text("Session Q&A") == "Session Q&A"  # le parseur doit être fermé (close)
-    assert html_to_text("<p>Tarif : 10&euro</p>") == "Tarif : 10€"
+    assert html_to_text("<p>Tarif : 10&euro;</p>") == "Tarif : 10€"
     assert html_to_text("Texte &amp;lt;script&amp;gt; littéral") == "Texte &lt;script&gt; littéral"  # un seul décodage
 
 

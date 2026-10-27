@@ -96,3 +96,23 @@ def test_build_beehiiv_request_defaults(settings, conn, drafted):
     req = build_beehiiv_request(settings, issue, "<html></html>", {"preheader": ""})
     assert "pub_XXXXXXXX" in req["url"] and req["json"]["content_tags"] == ["ia", "cabinets"]
     assert req["json"]["subtitle"] == settings.newsletter_tagline
+
+
+def test_push_title_and_preview_follow_edited_markdown(conn, settings, drafted):
+    md_path = drafted.paths["md"]
+    md = md_path.read_text(encoding="utf-8")
+    md = md.replace(f"# {drafted.title}", "# Titre relu par Hugo", 1).replace("> Un assistant, un décret, un chiffre.",
+                                                                              "> Aperçu relu par Hugo")
+    md_path.write_text(md, encoding="utf-8")
+    push_issue(conn, settings, 1, "beehiiv")
+    data = json.loads((settings.out_dir / "push-beehiiv-001.json").read_text(encoding="utf-8"))
+    assert data["json"]["title"] == "Titre relu par Hugo"
+    assert data["json"]["email_settings"]["preview_text"] == "Aperçu relu par Hugo"
+    assert "<title>Titre relu par Hugo</title>" in data["json"]["body_content"]
+    assert db.get_issue(conn, 1)["title"] == "Titre relu par Hugo"  # la base suit le markdown relu
+
+
+def test_push_live_without_credentials_leaves_no_live_request(conn, settings, drafted):
+    with pytest.raises(PushError, match="BEEHIIV_API_KEY"):
+        push_issue(conn, settings, 1, "beehiiv", live=True)
+    assert not (settings.out_dir / "push-beehiiv-001.json").exists()

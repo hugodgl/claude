@@ -6,9 +6,15 @@ from pathlib import Path
 from typing import Literal
 
 from core.settings import Settings
+from pydantic import model_validator
 from pydantic_settings import SettingsConfigDict
 
 Plan = Literal["none", "solo", "pro", "reseau"]
+
+# Valeurs de SESSION_SECRET refusées dès que l'app est servie en https (production).
+INSECURE_SESSION_SECRETS = {"", "change-me-en-production", "remplacez-par-une-longue-chaine-aleatoire", "secret",
+                            "changeme", "change-me"}
+MIN_SESSION_SECRET_LENGTH = 32
 
 PLAN_LABELS: dict[str, str] = {"none": "Essai", "solo": "Solo", "pro": "Pro", "reseau": "Réseau"}
 PLAN_PRICES_EUR: dict[str, int] = {"solo": 19, "pro": 29, "reseau": 59}
@@ -31,6 +37,7 @@ class AppSettings(Settings):
     trial_days: int = 14
     trial_sms_quota: int = 10  # SMS offerts pendant l'essai, pour tester le parcours
     support_email: str = "contact@example.com"
+    app_timezone: str = "Europe/Paris"  # mois des quotas et des rapports, affichage des dates
 
     # Stripe
     stripe_secret_key: str | None = None
@@ -42,6 +49,9 @@ class AppSettings(Settings):
     # SMS
     sms_provider: Literal["dry-run", "smsmode", "twilio"] = "dry-run"
     sms_sender: str = "AvisClients"  # émetteur alphanumérique (11 caractères max chez smsmode)
+    # Jeton partagé exigé sur le webhook SMS entrant (paramètre `token`), indispensable avec smsmode qui ne
+    # signe pas ses callbacks ; avec Twilio, la signature X-Twilio-Signature est vérifiée à la place.
+    sms_webhook_token: str | None = None
     smsmode_api_key: str | None = None
     smsmode_api: Literal["http16", "rest"] = "rest"
     twilio_account_sid: str | None = None
@@ -71,6 +81,17 @@ class AppSettings(Settings):
     @property
     def cookie_secure(self) -> bool:
         return self.app_base_url.startswith("https://")
+
+    @model_validator(mode="after")
+    def _require_real_secret_in_production(self) -> AppSettings:
+        """Servie en https (production), l'app refuse de démarrer avec un SESSION_SECRET absent ou factice."""
+        secret = (self.session_secret or "").strip()
+        if self.cookie_secure and (secret in INSECURE_SESSION_SECRETS or len(secret) < MIN_SESSION_SECRET_LENGTH):
+            raise ValueError(
+                "SESSION_SECRET manquant ou trop faible pour une URL https : générez-le avec "
+                "python -c \"import secrets;print(secrets.token_hex(32))\" et placez-le dans .env"
+            )
+        return self
 
     def stripe_price_for(self, plan: str) -> str | None:
         return {
