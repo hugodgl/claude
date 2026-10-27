@@ -1,0 +1,80 @@
+{% extends "site/base.html.j2" %}
+{% block content %}
+<section class="hero">
+  <h1>Les marchés publics qui valent le coup, résumés chaque matin.</h1>
+  <p class="lead">Chaque matin à 7 h, un email de deux minutes : les nouveaux appels d'offres de votre métier et de vos départements, résumés en langage clair et notés de 0 à 100. Pas de plateforme à consulter, pas de jargon, zéro email quand il n'y a rien de neuf.</p>
+  <div class="actions">
+    <a class="btn" href="/inscription">Commencer — {{ plans.essentiel.monthly_price|fr_price }} HT / mois</a>
+    <a class="btn secondary" href="/exemple">Voir un email complet</a>
+  </div>
+  <p class="small muted">Sans engagement sur la formule mensuelle · résiliable en deux clics · première alerte dès demain matin.</p>
+</section>
+
+<section>
+  <h2>Pour qui ?</h2>
+  <div class="grid cols-3">
+    <div class="card"><h3>Entreprises d'espaces verts et paysagistes</h3><p>Entretien, création, élagage, fleurissement : les communes et intercommunalités publient toute l'année. Niche de lancement, codes CPV 773.</p></div>
+    <div class="card"><h3>Artisans et PME du bâtiment et des services</h3><p>Nettoyage, peinture, électricité, plomberie, menuiserie, voirie, signalétique… choisissez votre métier à l'inscription ou donnez vos propres codes CPV.</p></div>
+    <div class="card"><h3>3 à 50 salariés, personne dédiée à la veille</h3><p>Vous répondez déjà à des marchés, ou vous voulez commencer, et vous n'avez pas le temps d'éplucher le BOAMP et les profils d'acheteurs.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Comment ça marche</h2>
+  <div class="grid cols-4">
+    <div class="step"><div class="num">1</div><div><strong>Collecte</strong><br>BOAMP et TED sont relevés deux fois par jour, filtrés sur vos codes CPV, vos départements et votre fourchette de montant.</div></div>
+    <div class="step"><div class="num">2</div><div><strong>Résumé et score</strong><br>Chaque avis est résumé (objet, lieu, montant, délai, pièces, critères) et noté : CPV exact, zone, montant compatible, délai suffisant, acheteur déjà vu.</div></div>
+    <div class="step"><div class="num">3</div><div><strong>Email à 7 h</strong><br>Seulement s'il y a du nouveau. Les marchés « à regarder en priorité » d'abord, le lien vers l'avis original à chaque fois.</div></div>
+    <div class="step"><div class="num">4</div><div><strong>Brief du dimanche (Pro)</strong><br>Qui a remporté quoi près de chez vous, à quel prix, quels acheteurs publient régulièrement : tiré des données d'attribution (DECP).</div></div>
+  </div>
+</section>
+
+<section id="exemple">
+  <h2>À quoi ressemble une alerte</h2>
+  <p class="muted small">Exemple pour une entreprise d'espaces verts du Rhône et de l'Ain, plafond 800 k€ (données illustratives, rendu réel du produit).</p>
+  <h3 style="color:var(--green)">À regarder en priorité <span class="muted" style="font-weight:400;font-size:.9rem">(score ≥ {{ settings.priority_threshold }})</span></h3>
+  {% for item in digest.priority %}{% include "site/_alert.html.j2" %}{% endfor %}
+  <h3 style="color:#374151">Autres marchés</h3>
+  {% for item in digest.others %}{% set compact = True %}{% include "site/_alert.html.j2" %}{% endfor %}
+  <p><a href="/exemple">Voir l'email complet tel qu'il arrive dans votre boîte →</a></p>
+</section>
+
+<section id="formules">
+  <h2>Deux formules, prix hors taxes</h2>
+  <div class="grid cols-2">
+    {% for plan in plans.values() %}
+    <div class="card{% if plan.highlight %} highlight{% endif %}">
+      <h3>{{ plan.name }}{% if plan.highlight %} <span class="badge ok">conseillée</span>{% endif %}</h3>
+      <p class="price">{{ plan.monthly_price|fr_price }} <small>HT / mois</small></p>
+      <p class="per-year">ou {{ plan.yearly_price|fr_price }} HT / an (10 mois payés, 2 offerts, soit {{ plan.yearly_monthly_equivalent }} € / mois)</p>
+      <ul class="features">{% for f in plan.features %}<li>{{ f }}</li>{% endfor %}</ul>
+      <div class="actions">
+        <a class="btn{% if not plan.highlight %} secondary{% endif %}" href="/inscription?plan={{ plan.code }}&amp;period=monthly">Choisir {{ plan.name }} — mensuel</a>
+        <a class="btn secondary" href="/inscription?plan={{ plan.code }}&amp;period=yearly">Annuel</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="small muted">Paiement sécurisé par carte via Stripe, facture envoyée automatiquement. La TVA applicable est précisée sur la facture.</p>
+</section>
+
+<section id="faq">
+  <h2>Questions fréquentes</h2>
+  <details open><summary>Quels marchés sont couverts ?</summary><p>Les avis publiés au BOAMP (Bulletin officiel des annonces des marchés publics) et au TED (Journal officiel de l'Union européenne), soit la quasi-totalité des marchés au-dessus de 90 000 € HT et une grande partie des procédures adaptées. <strong>Limite à connaître :</strong> certains petits marchés ne sont publiés que sur le profil d'acheteur (plateforme régionale ou locale) ; nous les ajoutons progressivement, en commençant par les départements de nos abonnés. Dites-nous lesquels vous manquent.</p></details>
+  <details><summary>D'où viennent les données ?</summary><p>Des données publiques ouvertes : l'API du BOAMP (DILA), l'API du TED (Office des publications de l'UE) et les données essentielles de la commande publique (DECP) sur data.economie.gouv.fr pour le brief d'attribution. Nous ne revendons aucune donnée et n'en inventons aucune : chaque alerte pointe vers l'avis original.</p></details>
+  <details><summary>Les résumés sont-ils fiables ?</summary><p>Les résumés et le verdict « vaut-il le coup de répondre ? » sont produits par une intelligence artificielle à partir du texte de l'avis, puis bornés par des règles. Les informations clés (montant, date limite, lien) viennent des données structurées de l'avis, pas du résumé. Comme toute aide automatique, elle peut se tromper : <strong>vérifiez toujours l'avis original</strong> avant de préparer une réponse. Chaque email le rappelle et signalez-nous toute erreur, nous corrigeons les règles.</p></details>
+  <details><summary>Que se passe-t-il s'il n'y a rien de nouveau ?</summary><p>Rien : vous ne recevez pas d'email. Un avis ne vous est jamais envoyé deux fois.</p></details>
+  <details><summary>Puis-je changer de départements, de codes CPV ou de montants ?</summary><p>Oui, à tout moment depuis votre espace (lien dans chaque email de bienvenue et sur demande), sans mot de passe. Essentiel : 2 départements ; Pro : jusqu'à 6.</p></details>
+  <details><summary>Comment résilier ?</summary><p>Depuis votre espace, bouton « Gérer mon abonnement » : vous arrivez sur le portail Stripe où la résiliation prend effet à la fin de la période déjà payée. Formule mensuelle sans engagement ; formule annuelle engagée pour 12 mois (10 payés). Aucun frais caché.</p></details>
+  <details><summary>Est-ce que je reçois une facture ?</summary><p>Oui, Stripe vous envoie une facture à chaque paiement, au nom de votre entreprise, avec la TVA applicable. Vous pouvez aussi la retrouver dans le portail client.</p></details>
+  <details><summary>Et mes données personnelles ?</summary><p>Nous ne conservons que ce qu'il faut pour vous envoyer les alertes : email, nom de l'entreprise, critères de veille et l'identifiant de votre abonnement Stripe. Rien n'est revendu. Détails dans la <a href="/legal/confidentialite">politique de confidentialité</a>.</p></details>
+</section>
+
+<section>
+  <div class="card" style="text-align:center">
+    <h2>Première alerte demain matin</h2>
+    <p class="muted">Inscription en deux minutes, réglages modifiables ensuite.</p>
+    <a class="btn" href="/inscription">S'abonner</a>
+  </div>
+</section>
+{% endblock %}

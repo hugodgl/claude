@@ -1,0 +1,34 @@
+{% extends "site/base.html.j2" %}
+{% block title %}Merci — {{ settings.product_name }}{% endblock %}
+{% block content %}
+{% if state == 'pending' %}<meta http-equiv="refresh" content="4">{% endif %}
+<h1>{% if state == 'active' %}Bienvenue{% if sub and sub.company %}, {{ sub.company }}{% endif %} !{% else %}Merci !{% endif %}</h1>
+{% if state == 'active' %}
+  <div class="flash">Votre abonnement <strong>{{ recap.plan_name }}</strong> est actif. Un email de bienvenue vient de partir à <strong>{{ sub.email }}</strong> avec le récapitulatif ci-dessous et votre lien d'accès.</div>
+  <div class="card">
+    <h2>Prochaines étapes</h2>
+    <ol>
+      <li>Première alerte : <strong>{{ recap.first_digest|fr_long_date(true) }}</strong>, seulement s'il y a du nouveau pour vos critères.</li>
+      {% if recap.first_brief %}<li>Premier brief d'attribution : <strong>{{ recap.first_brief|fr_long_date(true) }}</strong>.</li>{% endif %}
+      <li>Ajoutez <strong>{{ settings.mail_from }}</strong> à vos contacts pour éviter le dossier indésirables.</li>
+      <li>Vérifiez vos réglages ci-dessous ; ils sont modifiables à tout moment.</li>
+    </ol>
+    <table class="recap">
+      <tr><td>Formule</td><td>{{ recap.plan_name }} · {{ recap.period_label }} · {{ recap.price_label }}</td></tr>
+      <tr><td>Codes CPV</td><td>{{ recap.cpv }}</td></tr>
+      <tr><td>Départements</td><td>{{ recap.departments|join(', ') }}</td></tr>
+      <tr><td>Montants</td><td>{{ recap.amount_range }}</td></tr>
+    </table>
+    <a class="btn" href="{{ account_url }}">Ouvrir mon espace</a>
+    <p class="small muted" style="margin-top:10px">Ce lien est valable {{ settings.account_link_days }} jours ; vous le retrouverez dans l'email de bienvenue et pourrez en demander un nouveau à tout moment.</p>
+  </div>
+{% elif state == 'pending' %}
+  <div class="flash warn">Paiement en cours de confirmation par Stripe… Cette page se rafraîchit toute seule ; cela prend en général quelques secondes.</div>
+  <p>Dès confirmation, vous recevrez un email de bienvenue à <strong>{{ sub.email }}</strong> avec le récapitulatif de vos réglages et le lien vers votre espace.</p>
+  <p class="small muted">Si rien n'arrive dans les cinq minutes, écrivez à <a href="mailto:{{ contact }}">{{ contact }}</a> : rien n'est perdu.</p>
+{% else %}
+  <p class="lead">Si votre paiement a abouti, un email de bienvenue arrive avec le récapitulatif de vos réglages et le lien vers votre espace.</p>
+  <p>Vous n'avez rien reçu ? <a href="/compte/lien">Demandez votre lien d'accès</a> ou écrivez à <a href="mailto:{{ contact }}">{{ contact }}</a>.</p>
+{% endif %}
+<p><a href="/">← Retour à l'accueil</a></p>
+{% endblock %}

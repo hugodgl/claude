@@ -1,0 +1,25 @@
+{% extends "site/base.html.j2" %}
+{% from "site/_legal_ident.html.j2" import todo %}
+{% block title %}Conditions générales de vente — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>Conditions générales de vente</h1>
+<p class="small muted">Projet de CGV pour un service par abonnement entre professionnels. Les passages <mark class="todo">surlignés</mark> sont à compléter ou à faire relire avant la mise en ligne. <mark class="todo">[À COMPLÉTER : date de dernière mise à jour]</mark></p>
+<div class="card">
+  <h2>1. Objet</h2>
+  <p>{{ settings.product_name }} (« le Service »), édité par {{ todo(settings.legal_company) }} (« l'Éditeur »), est un service de veille des marchés publics par abonnement : envoi par email d'alertes quotidiennes et, selon la formule, d'un brief hebdomadaire, établis à partir de sources publiques et de critères choisis par le client (codes CPV, départements, montants). Le Service est réservé aux professionnels (entreprises, artisans, associations, indépendants) ; il n'est pas proposé aux consommateurs.</p>
+  <h2>2. Formules et prix</h2>
+  <p>Deux formules sont proposées : <strong>Essentiel</strong> ({{ plans.essentiel.monthly_price|fr_price }} HT par mois ou {{ plans.essentiel.yearly_price|fr_price }} HT par an) et <strong>Pro</strong> ({{ plans.pro.monthly_price|fr_price }} HT par mois ou {{ plans.pro.yearly_price|fr_price }} HT par an). La formule annuelle correspond à dix mois payés pour douze mois de service. Les prix sont exprimés hors taxes ; la TVA applicable est précisée sur la facture ({{ todo(settings.legal_vat) }}). L'Éditeur peut modifier ses prix ; le nouveau prix s'applique au renouvellement suivant, après information du client au moins trente jours avant.</p>
+  <h2>3. Souscription et paiement</h2>
+  <p>La souscription s'effectue en ligne. Le paiement est réalisé par carte bancaire via Stripe, à la souscription puis à chaque échéance (mensuelle ou annuelle), par prélèvement automatique. Une facture est émise à chaque paiement. En cas d'échec de paiement, Stripe procède à de nouvelles tentatives ; le Service est suspendu si le paiement n'est pas régularisé, puis l'abonnement est résilié.</p>
+  <h2>4. Durée et résiliation</h2>
+  <p>L'abonnement mensuel est sans engagement : il se renouvelle tacitement chaque mois et peut être résilié à tout moment depuis l'espace client (portail Stripe) ; la résiliation prend effet à la fin de la période en cours, déjà payée. L'abonnement annuel est conclu pour douze mois, renouvelable tacitement ; il peut être résilié à tout moment avec effet à l'échéance annuelle. <mark class="todo">[À COMPLÉTER : politique de remboursement éventuelle, par exemple « satisfait ou remboursé 14 jours »]</mark>. L'Éditeur peut résilier l'abonnement en cas de manquement du client (usage abusif, impayé) ou d'arrêt du Service, avec remboursement au prorata des périodes payées non consommées.</p>
+  <h2>5. Description du Service et limites</h2>
+  <p>Les alertes couvrent les avis publiés au BOAMP et au TED, et le brief d'attribution les données essentielles de la commande publique (DECP), dans la limite de leur disponibilité, de leur exactitude et de leur délai de publication par les sources. Certains marchés, notamment de faible montant, ne sont publiés que sur des profils d'acheteurs non couverts. Les résumés, verdicts et scores sont produits automatiquement, y compris par intelligence artificielle, et constituent une aide à la lecture ; ils peuvent comporter des erreurs ou des omissions. <strong>Le client s'engage à vérifier l'avis original</strong>, dont le lien est fourni dans chaque alerte, avant toute décision. L'Éditeur ne garantit ni l'exhaustivité de la veille, ni l'obtention d'un marché.</p>
+  <h2>6. Responsabilité</h2>
+  <p>L'Éditeur est tenu d'une obligation de moyens. Sa responsabilité ne saurait être engagée pour un marché non détecté, un résumé erroné, une indisponibilité des sources ou de l'email, ni pour tout dommage indirect (perte de chance, perte de chiffre d'affaires). En tout état de cause, la responsabilité de l'Éditeur est limitée au montant payé par le client au titre des douze derniers mois.</p>
+  <h2>7. Données personnelles</h2>
+  <p>Les données collectées (email, nom de l'entreprise, critères de veille, identifiants de facturation Stripe) servent uniquement à l'exécution du Service. Voir la <a href="/legal/confidentialite">politique de confidentialité</a>.</p>
+  <h2>8. Droit applicable</h2>
+  <p>Les présentes conditions sont soumises au droit français. En cas de litige, les parties rechercheront une solution amiable ; à défaut, compétence est attribuée aux tribunaux de <mark class="todo">[À COMPLÉTER : ville du siège de l'Éditeur]</mark>.</p>
+</div>
+{% endblock %}

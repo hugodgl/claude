@@ -1,0 +1,21 @@
+{% extends "site/base.html.j2" %}
+{% from "site/_legal_ident.html.j2" import todo %}
+{% block title %}Mentions légales — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>Mentions légales</h1>
+<p class="small muted">Les passages <mark class="todo">surlignés</mark> sont des espaces réservés à compléter dans le fichier <code>.env</code> (<code>LEGAL_*</code>) ou dans ce gabarit avant la mise en ligne.</p>
+<div class="card">
+  <h2>Éditeur du site</h2>
+  <p>{{ todo(settings.legal_company) }}<br>{{ todo(settings.legal_address) }}<br>Immatriculation : {{ todo(settings.legal_siren) }}<br>TVA : {{ todo(settings.legal_vat) }}<br>Contact : <a href="mailto:{{ contact }}">{{ contact }}</a></p>
+  <h2>Directeur de la publication</h2>
+  <p>{{ todo(settings.legal_publisher) }}</p>
+  <h2>Hébergement</h2>
+  <p>{{ todo(settings.legal_host) }}</p>
+  <h2>Données et sources</h2>
+  <p>Le service {{ settings.product_name }} réutilise des données publiques ouvertes : avis du BOAMP (Direction de l'information légale et administrative, licence ouverte), avis du TED (Office des publications de l'Union européenne), données essentielles de la commande publique (DECP, data.economie.gouv.fr, licence ouverte). Les résumés et scores sont des aides à la lecture produites automatiquement (traitement algorithmique et intelligence artificielle) ; ils n'ont aucune valeur officielle et ne remplacent pas la consultation de l'avis original, dont le lien est fourni.</p>
+  <h2>Paiement</h2>
+  <p>Les paiements sont traités par Stripe Payments Europe, Ltd. ; aucune donnée de carte bancaire ne transite par nos serveurs.</p>
+  <h2>Propriété intellectuelle</h2>
+  <p>Le site, sa charte et ses textes sont la propriété de l'éditeur. Les avis de marchés restent la propriété de leurs émetteurs et sont soumis aux licences de leurs sources.</p>
+</div>
+{% endblock %}

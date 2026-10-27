@@ -1,0 +1,42 @@
+{% extends "site/base.html.j2" %}
+{% block title %}Mon espace — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>Mon espace</h1>
+<p class="muted">{{ sub.company or sub.label or '' }}{% if sub.company or sub.label %} · {% endif %}{{ sub.email }}</p>
+{% if saved %}<div class="flash">Réglages enregistrés. Ils s'appliquent dès la prochaine alerte.</div>{% endif %}
+{% if portal_error %}<div class="flash warn">{{ portal_error }}</div>{% endif %}
+<div class="grid cols-2" style="align-items:start">
+  <div class="card">
+    <h2>Mes critères</h2>
+    <form method="post" action="/compte" novalidate>
+      <input type="hidden" name="token" value="{{ token }}">
+      {% set plan_hint = "Votre formule " ~ plan.name ~ " comprend " ~ plan.max_departments ~ " département" ~ ("s" if plan.max_departments > 1 else "") ~ "." %}
+      {% include "site/_criteria_fields.html.j2" %}
+      <button class="btn" type="submit">Enregistrer</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Mon abonnement</h2>
+    <table class="recap">
+      <tr><td>Formule</td><td>{{ recap.plan_name }} · {{ recap.period_label }}<br><span class="muted small">{{ recap.price_label }}</span></td></tr>
+      <tr><td>État</td><td>
+        {% if sub.status == 'active' %}<span class="badge ok">actif</span>
+        {% elif sub.status == 'past_due' %}<span class="badge warn">paiement en retard</span> <span class="small">— mettez à jour votre carte via le portail ci-dessous, les alertes continuent pendant les réessais.</span>
+        {% elif sub.status == 'pending_payment' %}<span class="badge warn">paiement en attente</span> <span class="small">— <a href="/inscription">reprendre l'inscription</a></span>
+        {% elif sub.status == 'canceled' %}<span class="badge off">résilié</span> <span class="small">— <a href="/inscription">se réabonner</a></span>
+        {% elif sub.status == 'unpaid' %}<span class="badge off">impayé</span> <span class="small">— les alertes sont suspendues, régularisez via le portail.</span>
+        {% else %}<span class="badge off">{{ sub.status }}</span>{% endif %}
+      </td></tr>
+      <tr><td>Alertes</td><td>{% if sub.active %}tous les matins à 7 h s'il y a du nouveau{% else %}suspendues{% endif %}</td></tr>
+      {% if sub.plan == 'pro' %}<tr><td>Brief hebdo</td><td>le dimanche vers 18 h{% if sub.active %}{% else %} (suspendu){% endif %}</td></tr>{% endif %}
+    </table>
+    <form method="post" action="/compte/portail">
+      <input type="hidden" name="token" value="{{ token }}">
+      <button class="btn secondary" type="submit">Gérer mon abonnement, ma carte ou résilier</button>
+    </form>
+    <p class="small muted" style="margin-top:10px">Le portail Stripe permet de changer de carte, de formule, de télécharger vos factures et de résilier (effet en fin de période payée).</p>
+    <h3>Besoin d'aide ?</h3>
+    <p class="small">Répondez à n'importe quelle alerte ou écrivez à <a href="mailto:{{ contact }}">{{ contact }}</a>. Pour changer d'adresse email, écrivez-nous également.</p>
+  </div>
+</div>
+{% endblock %}

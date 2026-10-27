@@ -1,0 +1,20 @@
+{# Carte d'un marché, même logique que l'email (digest.html.j2), dans le style du site #}
+<article class="alert">
+  <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+    <h3 style="margin:0"><a href="{{ item.notice.url }}" rel="nofollow noopener">{{ item.notice.title }}</a></h3>
+    <span class="score" style="background:{{ item.score|score_color }}">{{ item.score }}</span>
+  </div>
+  <div class="meta">{{ item.notice.buyer_name or 'Acheteur non précisé' }}{% if item.notice.all_departments %} · dép. {{ item.notice.all_departments|join(', ') }}{% endif %} · {{ item.notice.source|upper }}</div>
+  <dl>
+    <dt>Montant</dt><dd>{{ item.notice.estimated_amount|fr_amount }}</dd>
+    <dt>Date limite</dt><dd>{{ item.notice.deadline_at|fr_date }}{% if item.days_left is not none %} ({{ item.days_left }} j){% endif %}</dd>
+    {% if item.notice.procedure_type %}<dt>Procédure</dt><dd>{{ item.notice.procedure_type }}</dd>{% endif %}
+  </dl>
+  {% if not compact %}
+  <p>{{ item.summary.resume }}</p>
+  {% if item.summary.pieces_a_fournir %}<p class="small"><strong>Pièces à fournir :</strong> {{ item.summary.pieces_a_fournir|join(' · ') }}</p>{% endif %}
+  {% if item.summary.criteres and item.summary.criteres != 'non précisés' %}<p class="small"><strong>Critères :</strong> {{ item.summary.criteres }}</p>{% endif %}
+  <p class="small"><strong>Avis de l'assistant :</strong> {% if item.summary.verdict == 'oui' %}oui, à étudier{% elif item.summary.verdict == 'non' %}plutôt non{% else %}peut-être{% endif %}{% if item.summary.raison %} — {{ item.summary.raison }}{% endif %}</p>
+  {% endif %}
+  {% for f in item.flags %}<span class="badge">{{ f }}</span>{% endfor %}
+</article>

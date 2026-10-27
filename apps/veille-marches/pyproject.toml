@@ -1,7 +1,7 @@
 [project]
 name = "veille-marches"
 version = "0.1.0"
-description = "Veille marchés publics par abonnement : collecte BOAMP / TED / DECP, filtrage CPV et zone, score, digest quotidien, brief hebdo"
+description = "Veille marchés publics par abonnement : collecte BOAMP / TED / DECP, filtrage CPV et zone, score, digest quotidien, brief hebdo, site d'inscription Stripe"
 requires-python = ">=3.11"
 dependencies = [
   "core",
@@ -10,6 +10,10 @@ dependencies = [
   "pydantic-settings>=2.3",
   "jinja2>=3.1",
   "typer>=0.12",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
+  "stripe>=10",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,56 @@
+{% extends "site/base.html.j2" %}
+{% block title %}Inscription — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>Inscription</h1>
+<p class="lead">Deux minutes : vos critères, votre formule, puis le paiement sécurisé chez Stripe. Première alerte dès demain 7 h s'il y a du nouveau.</p>
+{% if errors.form %}<div class="flash err">{{ errors.form }}</div>{% endif %}
+{% if already %}<div class="flash warn">Cette adresse est déjà abonnée. <a href="/compte/lien">Recevoir mon lien d'accès</a> pour modifier mes réglages.</div>{% endif %}
+<form method="post" action="/inscription" novalidate>
+  <div class="grid cols-2" style="align-items:start">
+    <div class="card">
+      <h2>Vous</h2>
+      <div class="field">
+        <label for="email">Email professionnel <span class="hint">C'est là qu'arrivent les alertes et la facture.</span></label>
+        <input type="email" id="email" name="email" value="{{ values.email or '' }}" required autocomplete="email">
+        {% if errors.email %}<div class="error">{{ errors.email }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <label for="company">Nom de l'entreprise</label>
+        <input type="text" id="company" name="company" value="{{ values.company or '' }}" required autocomplete="organization">
+        {% if errors.company %}<div class="error">{{ errors.company }}</div>{% endif %}
+      </div>
+      <p class="hp" aria-hidden="true"><label>Site web <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
+
+      <h2>Votre veille</h2>
+      {% set plan_hint = "Essentiel : 2 départements, Pro : jusqu'à 6." %}
+      {% include "site/_criteria_fields.html.j2" %}
+    </div>
+
+    <div class="card">
+      <h2>Votre formule</h2>
+      <div class="field">
+        <div class="radio-group">
+          {% for plan in plans.values() %}
+          <label class="radio-card"><input type="radio" name="plan" value="{{ plan.code }}"{% if values.plan == plan.code %} checked{% endif %}>
+            <span><strong>{{ plan.name }} — {{ plan.monthly_price|fr_price }} HT / mois</strong>{{ plan.max_departments }} département{{ 's' if plan.max_departments > 1 }}{% if plan.code == 'pro' %}, brief hebdo d'attribution{% endif %}<br><span class="hint">ou {{ plan.yearly_price|fr_price }} HT / an</span></span></label>
+          {% endfor %}
+        </div>
+        {% if errors.plan %}<div class="error">{{ errors.plan }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <div class="radio-group">
+          <label class="radio-card"><input type="radio" name="billing_period" value="monthly"{% if values.billing_period != 'yearly' %} checked{% endif %}><span><strong>Mensuel</strong>sans engagement, résiliable à tout moment</span></label>
+          <label class="radio-card"><input type="radio" name="billing_period" value="yearly"{% if values.billing_period == 'yearly' %} checked{% endif %}><span><strong>Annuel</strong>10 mois payés, 2 offerts</span></label>
+        </div>
+        {% if errors.billing_period %}<div class="error">{{ errors.billing_period }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <label class="radio-card" style="align-items:center"><input type="checkbox" name="accept_terms" value="1"{% if values.accept_terms %} checked{% endif %}><span>J'accepte les <a href="/legal/cgv" target="_blank" rel="noopener">conditions générales de vente</a> et la <a href="/legal/confidentialite" target="_blank" rel="noopener">politique de confidentialité</a>.</span></label>
+        {% if errors.accept_terms %}<div class="error">{{ errors.accept_terms }}</div>{% endif %}
+      </div>
+      <button class="btn" type="submit" style="width:100%">Continuer vers le paiement sécurisé</button>
+      <p class="small muted" style="margin-top:10px">Vous serez redirigé vers Stripe pour le paiement par carte. Prix HT ; la TVA applicable figure sur la facture. Rien n'est prélevé tant que le paiement n'est pas confirmé.</p>
+    </div>
+  </div>
+</form>
+{% endblock %}

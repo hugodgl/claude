@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ settings.product_name }}{% endblock %}</title>
+<meta name="description" content="{% block description %}Les marchés publics qui valent le coup, résumés chaque matin par email : appels d'offres de votre métier et de votre zone, en langage clair, avec un score.{% endblock %}">
+<style>
+:root{--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#f7f7f5;--card:#fff;--green:#14532d;--green-2:#1b7f4b;--amber:#b26a00;--red:#b91c1c;--radius:10px}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;font-size:17px}
+a{color:var(--green)}
+h1,h2,h3{line-height:1.2;margin:0 0 .5em}
+h1{font-size:1.9rem}h2{font-size:1.45rem;margin-top:0}h3{font-size:1.1rem}
+p{margin:0 0 1em}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px}
+header.top{background:#fff;border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;flex-wrap:wrap}
+.brand{font-weight:800;color:var(--green);text-decoration:none;font-size:1.1rem;letter-spacing:.01em}
+nav a{margin-left:14px;text-decoration:none;color:var(--ink);font-size:.95rem}
+nav a:hover{text-decoration:underline}
+main{padding:28px 0 48px}
+section{margin:0 0 40px}
+.hero{padding:16px 0 8px}
+.hero h1{font-size:2rem}
+@media(min-width:720px){.hero h1{font-size:2.6rem}h2{font-size:1.7rem}}
+.lead{font-size:1.15rem;color:#374151;max-width:640px}
+.btn{display:inline-block;background:var(--green);color:#fff;text-decoration:none;border:0;border-radius:8px;padding:12px 20px;font-size:1rem;font-weight:600;cursor:pointer}
+.btn:hover{background:#0f3f22}
+.btn.secondary{background:#fff;color:var(--green);border:2px solid var(--green)}
+.btn.secondary:hover{background:#f0fdf4}
+.btn.danger{background:#fff;color:var(--red);border:2px solid var(--red)}
+.btn.small{padding:8px 14px;font-size:.9rem}
+.actions{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}
+.grid{display:grid;gap:16px}
+@media(min-width:720px){.grid.cols-2{grid-template-columns:1fr 1fr}.grid.cols-3{grid-template-columns:1fr 1fr 1fr}.grid.cols-4{grid-template-columns:repeat(4,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.card.highlight{border-color:var(--green);box-shadow:0 0 0 3px #dcfce7}
+.step{display:flex;gap:12px}
+.step .num{flex:0 0 34px;height:34px;border-radius:50%;background:var(--green);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
+.price{font-size:2rem;font-weight:800;margin:6px 0 0}
+.price small{font-size:.95rem;font-weight:500;color:var(--muted)}
+.per-year{color:var(--muted);font-size:.95rem;margin-bottom:10px}
+ul.features{padding-left:20px;margin:10px 0 16px}
+ul.features li{margin:4px 0}
+.badge{display:inline-block;background:#f3f4f6;color:#374151;border-radius:4px;padding:2px 8px;font-size:.8rem;margin:0 6px 4px 0}
+.badge.ok{background:#dcfce7;color:var(--green)}.badge.warn{background:#fef3c7;color:var(--amber)}.badge.off{background:#fee2e2;color:var(--red)}
+.score{display:inline-block;color:#fff;border-radius:14px;padding:3px 10px;font-weight:700;font-size:.9rem}
+.alert{border:1px solid var(--line);border-radius:var(--radius);background:#fff;padding:14px 16px;margin-bottom:12px}
+.alert .meta{color:var(--muted);font-size:.9rem;margin:4px 0 8px}
+.alert dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:8px 0;font-size:.95rem}
+.alert dt{color:var(--muted)}.alert dd{margin:0;font-weight:600}
+.alert p{font-size:.98rem;margin:8px 0}
+.muted{color:var(--muted)}
+.small{font-size:.9rem}
+details{border-top:1px solid var(--line);padding:12px 0}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;font-weight:600;font-size:1.02rem}
+details p{margin:10px 0 0;color:#374151}
+form .field{margin-bottom:18px}
+label{display:block;font-weight:600;margin-bottom:4px}
+.hint{display:block;color:var(--muted);font-size:.88rem;font-weight:400;margin-top:3px}
+input[type=text],input[type=email],input[type=number],select,textarea{width:100%;font:inherit;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid #86efac;border-color:var(--green)}
+select[multiple]{min-height:220px}
+.radio-group{display:grid;gap:10px}
+@media(min-width:600px){.radio-group{grid-template-columns:1fr 1fr}}
+.radio-card{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff;font-weight:400;cursor:pointer}
+.radio-card input{margin-top:5px}
+.radio-card strong{display:block}
+.error{color:var(--red);font-size:.92rem;margin-top:4px}
+.flash{border-radius:8px;padding:12px 14px;margin-bottom:18px;background:#dcfce7;color:var(--green);border:1px solid #86efac}
+.flash.warn{background:#fef3c7;color:#7c4a03;border-color:#fcd34d}
+.flash.err{background:#fee2e2;color:var(--red);border-color:#fca5a5}
+.hp{position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden}
+.two{display:grid;gap:12px}@media(min-width:600px){.two{grid-template-columns:1fr 1fr}}
+footer{border-top:1px solid var(--line);padding:24px 0 40px;color:var(--muted);font-size:.9rem;background:#fff}
+footer a{color:var(--muted)}
+footer .links a{margin-right:14px}
+mark.todo{background:#fef3c7;color:#7c4a03;padding:0 4px;border-radius:3px}
+table.recap{border-collapse:collapse;width:100%;margin:8px 0 16px}
+table.recap td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.recap td:first-child{color:var(--muted);width:38%}
+.demo{background:#fff7ed;border:1px dashed #fb923c;color:#9a3412;padding:10px 14px;border-radius:8px;font-size:.92rem;margin-bottom:16px}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/">{{ settings.product_name }}</a>
+  <nav><a href="/#formules">Formules</a><a href="/#faq">Questions</a><a href="/compte/lien">Mon espace</a><a class="btn small" href="/inscription">S'abonner</a></nav>
+</div></header>
+<main><div class="wrap">
+{% if stripe_mode == 'mock' %}<div class="demo"><strong>Mode démonstration</strong> : Stripe n'est pas configuré, les paiements sont simulés et aucun prélèvement n'a lieu.</div>{% endif %}
+{% block content %}{% endblock %}
+</div></main>
+<footer><div class="wrap">
+  <p class="links"><a href="/legal/mentions">Mentions légales</a><a href="/legal/cgv">CGV</a><a href="/legal/confidentialite">Confidentialité</a><a href="mailto:{{ contact }}">Contact</a></p>
+  <p>{{ settings.product_name }} · Sources : BOAMP (DILA), TED (Union européenne), DECP (data.economie.gouv.fr). Résumés assistés par IA : vérifiez toujours l'avis original avant de répondre. Prix affichés hors taxes.</p>
+  <p>© {{ year }} {{ settings.legal_company if not settings.legal_company.startswith('[') else settings.product_name }}</p>
+</div></footer>
+</body>
+</html>

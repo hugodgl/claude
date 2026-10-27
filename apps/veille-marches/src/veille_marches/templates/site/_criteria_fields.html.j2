@@ -1,0 +1,32 @@
+{# Champs communs inscription / espace abonné : métier, CPV, départements, montants. Attend `values`, `errors`, `plan_max` #}
+<div class="field">
+  <label for="trade">Votre métier</label>
+  <select id="trade" name="trade">
+    {% for t in trades.values() %}<option value="{{ t.code }}"{% if values.trade == t.code %} selected{% endif %}>{{ t.label }}{% if t.cpv_prefixes %} (CPV {{ t.cpv_prefixes|join(', ') }})){% endif %}</option>{% endfor %}
+  </select>
+  {% if errors.trade %}<div class="error">{{ errors.trade }}</div>{% endif %}
+</div>
+<div class="field">
+  <label for="cpv_extra">Préfixes CPV supplémentaires <span class="hint">Facultatif, sauf pour « Autre métier ». Séparés par des virgules : <code>773</code>, <code>45112700</code>… Un préfixe court couvre toute la famille.</span></label>
+  <input type="text" id="cpv_extra" name="cpv_extra" value="{{ values.cpv_extra or '' }}" placeholder="ex. 77341000, 45112">
+  {% if errors.cpv_extra %}<div class="error">{{ errors.cpv_extra }}</div>{% endif %}
+</div>
+<div class="field">
+  <label for="departments">Départements <span class="hint">{{ plan_hint }} Maintenez Ctrl (Windows) ou Cmd (Mac) pour en choisir plusieurs.</span></label>
+  <select id="departments" name="departments" multiple size="10">
+    {% for code, name in departments.items() %}<option value="{{ code }}"{% if code in values.departments %} selected{% endif %}>{{ code }} – {{ name }}</option>{% endfor %}
+  </select>
+  {% if errors.departments %}<div class="error">{{ errors.departments }}</div>{% endif %}
+</div>
+<div class="two">
+  <div class="field">
+    <label for="amount_min">Montant minimal (€ HT) <span class="hint">Facultatif. Les avis sans montant restent affichés.</span></label>
+    <input type="text" inputmode="numeric" id="amount_min" name="amount_min" value="{{ values.amount_min or '' }}" placeholder="ex. 20000">
+    {% if errors.amount_min %}<div class="error">{{ errors.amount_min }}</div>{% endif %}
+  </div>
+  <div class="field">
+    <label for="amount_max">Montant maximal (€ HT) <span class="hint">Facultatif, ex. 500000 ou 500k.</span></label>
+    <input type="text" inputmode="numeric" id="amount_max" name="amount_max" value="{{ values.amount_max or '' }}" placeholder="ex. 500000">
+    {% if errors.amount_max %}<div class="error">{{ errors.amount_max }}</div>{% endif %}
+  </div>
+</div>

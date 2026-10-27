@@ -1,0 +1,14 @@
+{% extends "site/base.html.j2" %}
+{% block title %}Portail simulé — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>Portail client simulé</h1>
+<div class="flash warn">En production, ce bouton ouvre le portail client Stripe (changement de carte, factures, résiliation). Ici, la résiliation est appliquée localement.</div>
+<div class="card" style="max-width:560px">
+  <p><strong>{{ sub.company or sub.email }}</strong> · {{ recap.plan_name }} · {{ recap.period_label }} · état : {{ sub.status }}</p>
+  <form method="post" action="/demo/portal/{{ sub.id }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <button class="btn danger" type="submit" name="action" value="cancel"{% if not sub.active %} disabled{% endif %}>Résilier (simulation)</button>
+    <button class="btn secondary" type="submit" name="action" value="back">Revenir à mon espace</button>
+  </form>
+</div>
+{% endblock %}

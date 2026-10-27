@@ -1,0 +1,20 @@
+{% extends "site/base.html.j2" %}
+{% block title %}Mon espace — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>Accéder à mon espace</h1>
+{% if expired %}<div class="flash warn">Ce lien a expiré (il est valable {{ settings.account_link_days }} jours). Demandez-en un nouveau ci-dessous.</div>
+{% elif missing %}{% elif not sent and request_invalid is not defined and not expired %}{% endif %}
+{% if sent %}
+  <div class="flash">Si l'adresse <strong>{{ email }}</strong> correspond à un abonnement, un email avec votre lien d'accès vient de partir. Pensez au dossier indésirables.</div>
+  <p><a href="/">← Retour à l'accueil</a></p>
+{% else %}
+  <p class="lead">Pas de mot de passe : nous vous envoyons un lien d'accès par email, valable {{ settings.account_link_days }} jours. Il permet de modifier vos critères, votre carte ou de résilier.</p>
+  <form method="post" action="/compte/lien" class="card" style="max-width:480px">
+    <div class="field">
+      <label for="email">Email de l'abonnement</label>
+      <input type="email" id="email" name="email" required autocomplete="email">
+    </div>
+    <button class="btn" type="submit">Recevoir mon lien</button>
+  </form>
+{% endif %}
+{% endblock %}

@@ -164,3 +164,144 @@ def test_collect_page_http_error_recorded(conn, settings, workdir: Path):
     report = collector.collect_source(db.get_source(conn, "Page absente"))
     assert report.error and "404" in report.error
     assert "404" in db.get_source(conn, "Page absente")["last_error"]
+
+
+def test_html_to_text_keeps_trailing_text_and_literal_entities():
+    assert html_to_text("Session Q&A") == "Session Q&A"  # le parseur doit être fermé (close)
+    assert html_to_text("<p>Tarif : 10&euro</p>") == "Tarif : 10€"
+    assert html_to_text("Texte &amp;lt;script&amp;gt; littéral") == "Texte &lt;script&gt; littéral"  # un seul décodage
+
+
+def test_extract_article_accepts_bytes():
+    raw = (FIXTURES / "page_article_1.html").read_bytes()
+    art = extract_article(raw, "https://blog.page-test.fr/blog/2026/10/revision-assistee-par-ia")
+    assert art["author"] == "Marie Durand" and len(art["text"]) > 300
+
+
+def _feed_client(xml: str, extra_pages: dict[str, httpx.Response] | None = None) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/feed.xml":
+            return httpx.Response(200, content=xml.encode("utf-8"), headers={"content-type": "application/rss+xml"})
+        if extra_pages and request.url.path in extra_pages:
+            return extra_pages[request.url.path]
+        return httpx.Response(404, text="introuvable")
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _rss_source(settings, workdir, name="Flux HTTP", url="https://site.fr/feed.xml", **fields) -> None:
+    extra = f"""
+  - name: {name}
+    url: {url}
+    kind: rss
+    category: presse_pro
+""" + "".join(f"    {k}: {v}\n" for k, v in fields.items())
+    settings.sources_file = write_sources_yaml(workdir / "sources_http.yaml", with_broken=False, extra=extra)
+
+
+RSS_EDGE_CASES = """<?xml version="1.0"?><rss version="2.0"><channel><title>t</title><link>https://site.fr/</link>
+<item><title>Lien relatif</title><link>/articles/relatif</link><description>%s</description></item>
+<item><title>Lien javascript</title><link>javascript:alert(1)</link><description>%s</description></item>
+<item><title>Date future</title><link>https://site.fr/futur</link><pubDate>Mon, 19 Oct 2037 08:00:00 +0200</pubDate><description>%s</description></item>
+<item><title>Même lien, autre titre</title><link>https://site.fr/futur?utm_source=rss</link><description>%s</description></item>
+<item><title>Variante www en http</title><link>http://www.site.fr/futur</link><description>%s</description></item>
+</channel></rss>""" % (("Texte de description suffisant pour l'item.",) * 5)
+
+
+def test_rss_edge_cases_relative_links_future_dates_and_batch_duplicates(conn, settings, workdir):
+    _rss_source(settings, workdir)
+    collector = Collector(conn, settings, client=_feed_client(RSS_EDGE_CASES))
+    collector.sync_from_yaml()
+    report = collector.collect_source(db.get_source(conn, "Flux HTTP"))
+    assert report.error is None, report.error
+    urls = [r["url"] for r in conn.execute("SELECT url FROM items ORDER BY id")]
+    assert urls == ["https://site.fr/articles/relatif", "https://site.fr/futur"]  # relatif résolu, javascript écarté
+    assert report.inserted == 2 and report.skipped == 1 and report.duplicates == 2  # même URL (utm, www/http) = doublons
+    future = conn.execute("SELECT published_at FROM items WHERE url = 'https://site.fr/futur'").fetchone()
+    assert future["published_at"] is None  # date dans le futur ignorée
+
+
+def test_item_exists_matches_scheme_and_www_variants(conn, settings, collected):
+    source_id = conn.execute("SELECT id FROM sources LIMIT 1").fetchone()["id"]
+    db.insert_item(conn, source_id, {"url": "https://www.ex.fr/a", "title": "Titre A", "title_hash": "h-a"})
+    assert db.item_exists(conn, "http://ex.fr/a", "autre-hash")
+    assert db.item_exists(conn, "https://ex.fr/a")
+    assert not db.item_exists(conn, "https://ex.fr/b", "autre-hash")
+
+
+def test_candidate_items_age_filter_falls_back_on_fetch_date(conn, settings, ranked):
+    conn.execute("UPDATE items SET published_at = NULL")
+    assert len(db.candidate_items(conn, min_published="2026-10-20")) == 12  # récupérés aujourd'hui : gardés
+    conn.execute("UPDATE items SET fetched_at = '2020-01-01T00:00:00+00:00'")
+    assert db.candidate_items(conn, min_published="2026-10-20") == []  # sans date et vieux : écartés
+
+
+def test_page_too_large_is_an_error_not_a_download(conn, settings, workdir):
+    settings.max_page_bytes = 10_000
+    settings.sources_file = write_sources_yaml(workdir / "s.yaml", with_broken=False, extra="""
+  - name: Page énorme
+    url: https://blog.page-test.fr/blog/
+    kind: page
+    category: presse_pro
+""")
+    big = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, text="<html>" + "x" * 50_000, headers={"content-type": "text/html"})))
+    collector = Collector(conn, settings, client=big)
+    collector.sync_from_yaml()
+    report = collector.collect_source(db.get_source(conn, "Page énorme"))
+    assert report.error and "volumineuse" in report.error
+
+
+def test_page_source_skips_non_html_and_isolates_extraction_errors(conn, settings, workdir, monkeypatch):
+    settings.sources_file = write_sources_yaml(workdir / "s.yaml", with_broken=False, extra="""
+  - name: Page test
+    url: https://blog.page-test.fr/blog/
+    kind: page
+    category: presse_pro
+""")
+    listing = (FIXTURES / "page_listing.html").read_text(encoding="utf-8")
+    article = (FIXTURES / "page_article_2.html").read_text(encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/blog/":
+            return httpx.Response(200, text=listing, headers={"content-type": "text/html; charset=utf-8"})
+        if path.endswith("revision-assistee-par-ia"):
+            return httpx.Response(200, content=b"%PDF-1.4 ...", headers={"content-type": "application/pdf"})
+        if path.endswith("breve-trop-courte"):
+            return httpx.Response(200, text="<html><body>boum</body></html>", headers={"content-type": "text/html"})
+        return httpx.Response(200, text=article, headers={"content-type": "text/html; charset=utf-8"})
+
+    import newsletter_pipeline.collect as collect_mod
+    real = collect_mod.extract_article
+
+    def exploding(html, url):
+        if url.endswith("breve-trop-courte"):
+            raise RuntimeError("extraction impossible")
+        return real(html, url)
+
+    monkeypatch.setattr(collect_mod, "extract_article", exploding)
+    collector = Collector(conn, settings, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    collector.sync_from_yaml()
+    report = collector.collect_source(db.get_source(conn, "Page test"))
+    assert report.error is None
+    assert report.inserted == 1 and report.skipped == 2  # PDF ignoré, extraction en erreur isolée
+    assert conn.execute("SELECT url FROM items").fetchone()["url"].endswith("lettre-de-mission-clause-ia")
+
+
+def test_page_source_discovers_new_links_beyond_known_ones(conn, settings, workdir):
+    settings.max_links_per_page = 1
+    settings.sources_file = write_sources_yaml(workdir / "s.yaml", with_broken=False, extra="""
+  - name: Page test
+    url: https://blog.page-test.fr/blog/
+    kind: page
+    category: presse_pro
+""")
+    requests: list[str] = []
+    collector = Collector(conn, settings, client=_mock_client(requests))
+    collector.sync_from_yaml()
+    source = db.get_source(conn, "Page test")
+    assert collector.collect_source(source).inserted == 1
+    assert requests[-1].endswith("revision-assistee-par-ia")
+    requests.clear()
+    assert collector.collect_source(source).inserted == 1  # le 1er lien est connu : on passe au suivant
+    assert requests == ["/blog/", "/blog/2026/10/lettre-de-mission-clause-ia"]

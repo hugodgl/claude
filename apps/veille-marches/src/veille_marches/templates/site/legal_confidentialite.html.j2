@@ -1,0 +1,28 @@
+{% extends "site/base.html.j2" %}
+{% from "site/_legal_ident.html.j2" import todo %}
+{% block title %}Politique de confidentialité — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>Politique de confidentialité</h1>
+<p class="small muted">Les passages <mark class="todo">surlignés</mark> sont à compléter avant la mise en ligne.</p>
+<div class="card">
+  <h2>Responsable du traitement</h2>
+  <p>{{ todo(settings.legal_company) }}, {{ todo(settings.legal_address) }} — <a href="mailto:{{ contact }}">{{ contact }}</a>.</p>
+  <h2>Données traitées et finalités</h2>
+  <table class="recap">
+    <tr><td>Email, nom de l'entreprise</td><td>envoi des alertes et du brief, email de bienvenue, lien d'accès à l'espace client, facturation (exécution du contrat)</td></tr>
+    <tr><td>Critères de veille (codes CPV, départements, montants)</td><td>sélection des avis qui vous sont envoyés (exécution du contrat)</td></tr>
+    <tr><td>Identifiants Stripe (client, abonnement), état de l'abonnement</td><td>facturation, suspension en cas d'impayé, résiliation (exécution du contrat, obligations comptables)</td></tr>
+    <tr><td>Historique des avis envoyés</td><td>ne jamais vous envoyer deux fois le même avis (intérêt légitime)</td></tr>
+    <tr><td>Journaux techniques du serveur web (adresse IP, pages consultées)</td><td>sécurité et diagnostic, conservés <mark class="todo">[À COMPLÉTER : durée, ex. 12 mois]</mark> (intérêt légitime)</td></tr>
+  </table>
+  <p>Aucune donnée de carte bancaire n'est collectée par l'Éditeur : le paiement est réalisé directement chez Stripe, dont la politique de confidentialité s'applique. Aucun cookie de suivi ni outil de mesure d'audience tiers n'est utilisé sur ce site.</p>
+  <h2>Destinataires et sous-traitants</h2>
+  <p>Stripe (paiement et facturation), <mark class="todo">[À COMPLÉTER : prestataire d'envoi d'emails, ex. Resend ou serveur SMTP]</mark>, <mark class="todo">[À COMPLÉTER : hébergeur]</mark>. Aucune donnée n'est vendue ni cédée à des tiers à des fins commerciales.</p>
+  <h2>Durée de conservation</h2>
+  <p>Pendant la durée de l'abonnement, puis trois ans après sa fin à des fins de prospection et de preuve, sauf demande de suppression ; les factures sont conservées dix ans (obligation légale).</p>
+  <h2>Vos droits</h2>
+  <p>Vous pouvez accéder à vos données, les rectifier (depuis votre espace pour les critères de veille), demander leur effacement ou leur portabilité, et vous opposer au traitement, en écrivant à <a href="mailto:{{ contact }}">{{ contact }}</a>. Vous pouvez introduire une réclamation auprès de la CNIL (cnil.fr).</p>
+  <h2>Sécurité</h2>
+  <p>Liens d'accès signés et à durée limitée, pas de mot de passe stocké, échanges chiffrés (HTTPS), base de données hébergée en Europe <mark class="todo">[À COMPLÉTER : préciser l'emplacement]</mark>.</p>
+</div>
+{% endblock %}

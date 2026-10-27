@@ -10,6 +10,8 @@ from core.llm import get_llm
 from core.mail import get_mailer
 
 from . import __version__, db
+from .accounts import account_url
+from .billing import get_gateway, sync_subscriptions
 from .brief import send_briefs
 from .collectors import SOURCES, run_collect
 from .dates import fr_amount
@@ -45,7 +47,7 @@ def _parse_csv_option(values: list[str] | None) -> list[str]:
 
 @app.callback()
 def _main() -> None:
-    """Sous-commandes : collect, score, digest, subscribers, brief-weekly, stats."""
+    """Sous-commandes : collect, score, digest, subscribers, brief-weekly, stats, web."""
 
 
 @app.command()
@@ -180,8 +182,14 @@ def subscribers_list() -> None:
         amount = ""
         if s.amount_min is not None or s.amount_max is not None:
             amount = f" montant {s.amount_min or 0:.0f}-{s.amount_max if s.amount_max is not None else '∞'}"
-        _echo(f"#{s.id} {s.email} [{s.plan}, {state}] {s.label or ''} CPV {','.join(s.cpv_prefixes) or '-'} "
-              f"dép. {','.join(s.departments) or 'toute la France'}{amount}")
+        extra = ""
+        if s.status not in ("active", "disabled"):
+            extra += f" · état {s.status}"
+        if s.stripe_subscription_id:
+            extra += f" · stripe {s.stripe_subscription_id} ({s.billing_period})"
+        zone = ",".join(s.departments) or "toute la France"
+        _echo(f"#{s.id} {s.email} [{s.plan}, {state}] {s.label or s.company or ''} "
+              f"CPV {','.join(s.cpv_prefixes) or '-'} dép. {zone}{amount}{extra}")
 
 
 @subscribers_app.command("disable")
@@ -202,6 +210,68 @@ def subscribers_enable(email: Annotated[str, typer.Argument()]) -> None:
         _echo(f"abonné introuvable : {email}")
         raise typer.Exit(code=1)
     _echo(f"abonné réactivé : {email}")
+
+
+@subscribers_app.command("sync-stripe")
+def subscribers_sync_stripe(
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Compare sans modifier la base")] = False,
+) -> None:
+    """Relit l'état de chaque abonnement chez Stripe et aligne `status` / `active` (filet si un webhook a manqué)."""
+    settings, conn = _ctx()
+    gateway = get_gateway(settings)
+    results = sync_subscriptions(conn, settings, gateway, dry_run=dry_run)
+    if not results:
+        _echo(f"mode {gateway.mode} : aucun abonné lié à un abonnement Stripe")
+        return
+    changed = errors = 0
+    for r in results:
+        if r.error:
+            errors += 1
+            _echo(f"{r.subscriber.email} : ERREUR {r.error}")
+            continue
+        if r.changed:
+            changed += 1
+            verb = "passerait" if dry_run else "passe"
+            _echo(f"{r.subscriber.email} : Stripe {r.remote_status} → {verb} de {r.before} à {r.after}")
+        else:
+            _echo(f"{r.subscriber.email} : Stripe {r.remote_status} → {r.after} (inchangé)")
+    suffix = " (dry-run, rien d'écrit)" if dry_run else ""
+    _echo(f"mode {gateway.mode} : {len(results)} abonnement(s) vérifié(s), {changed} modifié(s), {errors} erreur(s)"
+          f"{suffix}")
+    if errors and errors == len(results):
+        raise typer.Exit(code=1)
+
+
+@subscribers_app.command("link")
+def subscribers_link(
+    email: Annotated[str, typer.Argument(help="Email de l'abonné")],
+    days: Annotated[int | None, typer.Option("--days", help="Validité en jours (défaut : ACCOUNT_LINK_DAYS)")] = None,
+) -> None:
+    """Affiche un lien signé vers l'espace abonné (à envoyer à la main en cas de besoin)."""
+    settings, conn = _ctx()
+    sub = db.get_subscriber_by_email(conn, email)
+    if sub is None:
+        _echo(f"abonné introuvable : {email}")
+        raise typer.Exit(code=1)
+    if days is not None:
+        settings = settings.model_copy(update={"account_link_days": days})
+    _echo(account_url(settings, sub.id))
+
+
+@app.command()
+def web(
+    host: Annotated[str | None, typer.Option("--host", help="Interface d'écoute (défaut : WEB_HOST)")] = None,
+    port: Annotated[int | None, typer.Option("--port", help="Port (défaut : WEB_PORT)")] = None,
+    reload: Annotated[bool, typer.Option("--reload", help="Rechargement automatique (développement)")] = False,
+) -> None:
+    """Lance le site public, l'espace abonné et le webhook Stripe (uvicorn)."""
+    import uvicorn
+
+    settings = get_settings()
+    _echo(f"site : http://{host or settings.web_host}:{port or settings.web_port}  (Stripe : {settings.stripe_mode}, "
+          f"URL publique : {settings.base_url})")
+    uvicorn.run("veille_marches.web:app", host=host or settings.web_host, port=port or settings.web_port,
+                reload=reload, proxy_headers=True, forwarded_allow_ips="*", log_level="info")
 
 
 @app.command("brief-weekly")
@@ -244,7 +314,8 @@ def stats() -> None:
     _echo(f"  sans département : {s['notices_unknown_dept']} ; sans CPV détecté : {s['notices_without_cpv']}"
           " (si élevé : vérifier le mapping, voir README)")
     _echo(f"résumés : {s['summaries']} ; en attente de score : {s['pending_summaries']}")
-    _echo(f"abonnés : {s['subscribers_active']} actifs / {s['subscribers_total']}")
+    _echo(f"abonnés : {s['subscribers_active']} actifs / {s['subscribers_total']} "
+          f"({s['subscribers_pending']} en attente de paiement) ; événements Stripe : {s['stripe_events']}")
     _echo(f"envois : {s['deliveries']} ; dernier : {s['last_delivery'] or '-'}")
     _echo(f"attributions DECP : {s['awards']}")
     if s["runs"]:

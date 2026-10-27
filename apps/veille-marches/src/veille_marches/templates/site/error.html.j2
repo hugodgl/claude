@@ -1,0 +1,7 @@
+{% extends "site/base.html.j2" %}
+{% block title %}Erreur {{ code }} — {{ settings.product_name }}{% endblock %}
+{% block content %}
+<h1>{% if code == 404 %}Page introuvable{% else %}Erreur {{ code }}{% endif %}</h1>
+<p class="lead">{{ detail if detail and detail != 'Not Found' else "Cette page n'existe pas ou plus." }}</p>
+<p><a class="btn secondary" href="/">Retour à l'accueil</a></p>
+{% endblock %}

@@ -1,0 +1,1 @@
+{% macro todo(value) %}{% if value.startswith('[') %}<mark class="todo">{{ value }}</mark>{% else %}{{ value }}{% endif %}{% endmacro %}

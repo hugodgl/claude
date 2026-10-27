@@ -1,0 +1,23 @@
+{{ settings.product_name|upper }} — BIENVENUE{% if sub.company %}, {{ sub.company|upper }}{% endif %}
+
+Votre abonnement {{ recap.plan_name }} ({{ recap.period_label|lower }}, {{ recap.price_label }}) est actif.
+
+1. Première alerte : {{ recap.first_digest|fr_long_date(true) }}, puis chaque matin à 7 h, uniquement s'il y a de nouveaux marchés pour vos critères.
+{% if recap.first_brief %}
+2. Premier brief d'attribution : {{ recap.first_brief|fr_long_date(true) }}, puis chaque dimanche.
+{% endif %}
+Chaque marché arrive résumé et noté de 0 à 100, avec le lien vers l'avis original. Résumés assistés par IA : vérifiez toujours l'avis original avant de répondre.
+
+VOS RÉGLAGES
+  Codes CPV : {{ recap.cpv }}
+  Départements : {{ recap.departments|join(', ') }}
+  Montants : {{ recap.amount_range }}
+  Email des alertes : {{ sub.email }}
+
+Modifier mes réglages ou gérer mon abonnement (lien personnel, valable {{ settings.account_link_days }} jours) :
+{{ account_url }}
+Nouveau lien à tout moment : {{ settings.base_url }}/compte/lien
+
+Ajoutez {{ settings.mail_from }} à vos contacts. Une question ? Répondez à cet email.
+--
+{{ settings.source_label }} · Sources : BOAMP (DILA), TED (Union européenne), DECP.

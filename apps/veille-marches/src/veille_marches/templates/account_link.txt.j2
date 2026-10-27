@@ -1,0 +1,6 @@
+{{ settings.product_name|upper }} — VOTRE LIEN D'ACCÈS
+
+Bonjour{% if sub.display_name != sub.email %} {{ sub.display_name }}{% endif %}, voici votre lien pour modifier vos critères de veille, votre carte ou résilier (valable {{ days }} jours) :
+{{ account_url }}
+
+Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
