@@ -22,3 +22,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - `apps/veille-marches` : 59 tests verts, ruff propre, CLI `vm` complète (collect BOAMP/TED/DECP, score règles + LLM, digest HTML/texte par abonné sans doublon, brief hebdo DECP, abonnés, stats). Vérifié par la session principale.
 - Points à vérifier au premier appel réel listés dans le README de l'app (emplacement du CPV BOAMP, champs TED, identifiant du jeu DECP).
 - Lancé : P2-3b (page d'inscription + Stripe) sur ce dossier.
+
+### 28/10 01:10 — newsletter-pipeline livrée (P3-1, P3-2)
+- `apps/newsletter-pipeline` : 60 tests verts, ruff propre, CLI `np` (collect RSS/pages avec trafilatura, dédoublonnage, rank LLM par lots, draft du numéro en markdown + HTML + texte, push beehiiv en dry-run, posts LinkedIn, stats, `run-monday` aligné sur le service launchd). 39 sources d'amorçage dont 36 à vérifier au premier passage réel. Vérifié par la session principale.
+- Décisions de l'agent : markdown = source de vérité, 3 appels LLM courts par numéro avec replis `[À RELIRE]`, trafilatura pour l'extraction.
