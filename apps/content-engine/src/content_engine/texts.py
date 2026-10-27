@@ -1,4 +1,5 @@
 """Textes finaux par plateforme : descriptions, légendes, post LinkedIn, étiquetage IA."""
+
 from __future__ import annotations
 
 from .products import Product
@@ -40,7 +41,7 @@ def youtube_title(payload: dict) -> str:
 
 
 def compose_description(payload: dict, product: Product, settings: Settings) -> str:
-    """Description YouTube : description du script (sources incluses), CTA + lien, label IA, hashtags."""
+    """Description YouTube : description du script (sources), CTA + lien, label IA, hashtags."""
     blocks = [
         payload.get("description", "").strip(),
         f"{payload['cta']}\n{ucfirst(product.cta_hint)} : {settings.landing_url(product.slug)}",
@@ -52,14 +53,24 @@ def compose_description(payload: dict, product: Product, settings: Settings) -> 
 
 def compose_tiktok_caption(payload: dict, product: Product, settings: Settings) -> str:
     cta = payload["cta"] if "bio" in payload["cta"].lower() else f"{payload['cta']} (lien en bio)"
-    blocks = [payload["hook"], cta, disclosure_line(settings), hashtags_line(payload, product, limit=5)]
+    blocks = [
+        payload["hook"],
+        cta,
+        disclosure_line(settings),
+        hashtags_line(payload, product, limit=5),
+    ]
     return truncate("\n".join(b for b in blocks if b), LIMITS["tiktok_title"])
 
 
 def compose_pin(payload: dict, product: Product, settings: Settings) -> dict:
     description = "\n\n".join(
-        b for b in [payload.get("description", "").strip(), disclosure_line(settings),
-                    hashtags_line(payload, product, limit=5)] if b
+        b
+        for b in [
+            payload.get("description", "").strip(),
+            disclosure_line(settings),
+            hashtags_line(payload, product, limit=5),
+        ]
+        if b
     )
     return {
         "title": truncate(payload["title"], LIMITS["pinterest_title"]),
@@ -70,9 +81,14 @@ def compose_pin(payload: dict, product: Product, settings: Settings) -> dict:
 
 
 def compose_linkedin_post(payload: dict, product: Product, settings: Settings) -> str:
-    blocks = [payload["hook"], *payload["body"], payload["cta"],
-              f"{ucfirst(product.cta_hint)} : {settings.landing_url(product.slug)}",
-              disclosure_line(settings), hashtags_line(payload, product, limit=4)]
+    blocks = [
+        payload["hook"],
+        *payload["body"],
+        payload["cta"],
+        f"{ucfirst(product.cta_hint)} : {settings.landing_url(product.slug)}",
+        disclosure_line(settings),
+        hashtags_line(payload, product, limit=4),
+    ]
     return truncate("\n\n".join(b for b in blocks if b), LIMITS["linkedin_commentary"])
 
 

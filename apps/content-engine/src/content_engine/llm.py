@@ -1,9 +1,10 @@
-"""Accès au LLM via le socle commun (`core.llm.get_llm`), avec un simulateur réaliste en mode `mock`.
+"""Accès au LLM via le socle commun (`core.llm.get_llm`), avec un simulateur en mode `mock`.
 
 En mode `mock`, `MockLLM` répond `{}` par défaut : inutilisable pour une démo. On lui branche un
 répondeur déterministe qui produit des idées et des scripts plausibles, ce qui permet de dérouler
 toute la chaîne (sujet → script → validation → rendu → dry-run) sans Ollama ni réseau.
 """
+
 from __future__ import annotations
 
 import json
@@ -57,8 +58,12 @@ class FakeResponder:
             n = self.ideas_counter
             tpl = templates[n % len(templates)]
             suffix = f" (variante {n // len(templates)})" if n >= len(templates) else ""
-            questions.append({"question": tpl.format(p=f"le sujet {product}") + suffix,
-                              "angle": angles[n % len(angles)]})
+            questions.append(
+                {
+                    "question": tpl.format(p=f"le sujet {product}") + suffix,
+                    "angle": angles[n % len(angles)],
+                }
+            )
         return json.dumps({"questions": questions}, ensure_ascii=False)
 
     def _script(self, prompt: str) -> str:
@@ -81,7 +86,9 @@ class FakeResponder:
                 ],
                 "cta": "Le guide complet est en lien dans la bio.",
                 "title": title,
-                "description": f"{base} : la méthode simple, sans jargon, pour s'y mettre dès cette semaine.",
+                "description": (
+                    f"{base} : la méthode simple, sans jargon, pour s'y mettre dès cette semaine."
+                ),
                 "hashtags": hashtags,
                 "duration_s": 32,
             }
@@ -89,15 +96,26 @@ class FakeResponder:
             payload = {
                 "hook": f"{base} ? Voici le plan complet, étape par étape.",
                 "body": [
-                    "Partie 1 — Le problème : pourquoi cette question revient tout le temps, et ce qu'elle cache vraiment.",
-                    "Partie 2 — Les idées reçues : ce que l'on croit, et pourquoi c'est souvent faux.",
-                    "Partie 3 — La méthode : les étapes dans l'ordre, avec ce qu'il faut préparer avant.",
-                    "Partie 4 — Le cas concret : une entreprise imaginaire déroule la méthode, avec ses erreurs.",
-                    "Partie 5 — Le plan d'action : quoi faire cette semaine, et comment mesurer le résultat.",
+                    "Partie 1 — Le problème : pourquoi cette question revient tout le temps, "
+                    "et ce qu'elle cache vraiment.",
+                    "Partie 2 — Les idées reçues : ce que l'on croit, et pourquoi c'est "
+                    "souvent faux.",
+                    "Partie 3 — La méthode : les étapes dans l'ordre, avec ce qu'il faut "
+                    "préparer avant.",
+                    "Partie 4 — Le cas concret : une entreprise imaginaire déroule la méthode, "
+                    "avec ses erreurs.",
+                    "Partie 5 — Le plan d'action : quoi faire cette semaine, et comment mesurer "
+                    "le résultat.",
                 ],
-                "cta": "Le modèle de document est en description, et dites-moi en commentaire ce qui bloque chez vous.",
+                "cta": (
+                    "Le modèle de document est en description, et dites-moi en commentaire "
+                    "ce qui bloque chez vous."
+                ),
                 "title": title,
-                "description": f"{base} : une méthode complète en cinq parties, avec un cas concret et un plan d'action.",
+                "description": (
+                    f"{base} : une méthode complète en cinq parties, avec un cas concret "
+                    "et un plan d'action."
+                ),
                 "hashtags": hashtags,
                 "duration_s": 480,
             }
@@ -106,19 +124,26 @@ class FakeResponder:
                 "hook": f"{base} ? La vraie réponse est moins compliquée qu'on ne le pense.",
                 "body": [
                     "Dans la plupart des entreprises que je rencontre, la même scène se répète : "
-                    "cette question arrive en fin de réunion, quand tout le monde est déjà fatigué, "
+                    "cette question arrive en fin de réunion, quand tout le monde est déjà "
+                    "fatigué, "
                     "et elle reste sans réponse claire pendant des mois.",
-                    "Pourtant la réponse tient en trois idées simples. D'abord, poser le problème par "
+                    "Pourtant la réponse tient en trois idées simples. D'abord, poser le "
+                    "problème par "
                     "écrit en une phrase, sans jargon. Ensuite, regarder ce qui existe déjà dans "
                     "l'entreprise avant d'acheter quoi que ce soit. Enfin, tester sur un seul cas "
                     "pendant une semaine, et mesurer avec honnêteté ce que cela change.",
-                    "Ce qui bloque n'est presque jamais la technique. C'est l'absence de temps dédié "
-                    "et la peur de mal faire. Un créneau court, bloqué dans l'agenda chaque semaine, "
+                    "Ce qui bloque n'est presque jamais la technique. C'est l'absence de "
+                    "temps dédié "
+                    "et la peur de mal faire. Un créneau court, bloqué dans l'agenda chaque "
+                    "semaine, "
                     "suffit pour avancer sans mettre l'activité en danger.",
                     "La semaine prochaine, je partage le détail de la méthode, étape par étape, "
                     "avec les pièges à éviter et un exemple complet.",
                 ],
-                "cta": "Si le sujet vous parle, dites-le en commentaire : je vous envoie la fiche complète.",
+                "cta": (
+                    "Si le sujet vous parle, dites-le en commentaire : je vous envoie la fiche "
+                    "complète."
+                ),
                 "title": title,
                 "description": f"Post LinkedIn : {base}.",
                 "hashtags": hashtags,

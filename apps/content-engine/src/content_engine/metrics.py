@@ -1,4 +1,5 @@
 """Métriques : import des exports CSV (YouTube Studio, TikTok Studio), classement des angles."""
+
 from __future__ import annotations
 
 import csv
@@ -12,22 +13,59 @@ from .topics import normalize_question
 
 ALIASES: dict[str, list[str]] = {
     "remote_id": ["contenu", "content", "video id", "id de la video", "video_id", "id", "post id"],
-    "title": ["titre de la video", "video title", "titre", "title", "nom de la video", "video name",
-              "post title", "description"],
-    "views": ["vues", "views", "video views", "vues de la video", "nombre de vues", "total views",
-              "vues totales"],
-    "likes": ["mentions j'aime", "mentions jaime", "likes", "j'aime", "jaime", "total likes",
-              "mentions j aime"],
+    "title": [
+        "titre de la video",
+        "video title",
+        "titre",
+        "title",
+        "nom de la video",
+        "video name",
+        "post title",
+        "description",
+    ],
+    "views": [
+        "vues",
+        "views",
+        "video views",
+        "vues de la video",
+        "nombre de vues",
+        "total views",
+        "vues totales",
+    ],
+    "likes": [
+        "mentions j'aime",
+        "mentions jaime",
+        "likes",
+        "j'aime",
+        "jaime",
+        "total likes",
+        "mentions j aime",
+    ],
     "comments": ["commentaires", "comments", "total comments"],
     "shares": ["partages", "shares", "total shares"],
     "impressions": ["impressions"],
-    "ctr": ["taux de clics des impressions (%)", "impressions click-through rate (%)", "ctr",
-            "taux de clics", "click-through rate"],
-    "avg_view_pct": ["pourcentage moyen visionne (%)", "average percentage viewed (%)",
-                     "pourcentage moyen de visionnage (%)", "average percentage viewed"],
+    "ctr": [
+        "taux de clics des impressions (%)",
+        "impressions click-through rate (%)",
+        "ctr",
+        "taux de clics",
+        "click-through rate",
+    ],
+    "avg_view_pct": [
+        "pourcentage moyen visionne (%)",
+        "average percentage viewed (%)",
+        "pourcentage moyen de visionnage (%)",
+        "average percentage viewed",
+    ],
     "watch_time_h": ["duree de visionnage (heures)", "watch time (hours)"],
-    "published_at": ["heure de publication de la video", "video publish time", "post time",
-                     "date de publication", "publish time", "date"],
+    "published_at": [
+        "heure de publication de la video",
+        "video publish time",
+        "post time",
+        "date de publication",
+        "publish time",
+        "date",
+    ],
 }
 
 
@@ -73,8 +111,10 @@ def detect_platform(headers: list[str], filename: str = "") -> str:
     name = filename.lower()
     if "tiktok" in name or {"video views", "vues de la video"} & norm:
         return "tiktok"
-    if "youtube" in name or {"duree de visionnage (heures)", "watch time (hours)", "contenu",
-                             "content"} & norm:
+    if (
+        "youtube" in name
+        or {"duree de visionnage (heures)", "watch time (hours)", "contenu", "content"} & norm
+    ):
         return "youtube"
     return "unknown"
 
@@ -89,12 +129,19 @@ def _draft_titles(conn: sqlite3.Connection) -> dict[str, int]:
     return titles
 
 
-def link_draft(conn: sqlite3.Connection, platform: str, remote_id: str | None, title: str | None,
-               titles: dict[str, int]) -> int | None:
+def link_draft(
+    conn: sqlite3.Connection,
+    platform: str,
+    remote_id: str | None,
+    title: str | None,
+    titles: dict[str, int],
+) -> int | None:
     if remote_id:
         row = conn.execute(
-            "SELECT draft_id FROM publications WHERE platform = ? AND remote_id = ? AND dry_run = 0 "
-            "ORDER BY id DESC LIMIT 1", (platform, remote_id),
+            "SELECT draft_id FROM publications "
+            "WHERE platform = ? AND remote_id = ? AND dry_run = 0 "
+            "ORDER BY id DESC LIMIT 1",
+            (platform, remote_id),
         ).fetchone()
         if row:
             return int(row["draft_id"])
@@ -113,6 +160,11 @@ def read_csv(path: Path) -> tuple[list[str], list[dict]]:
     reader = csv.DictReader(text.splitlines(), dialect=dialect)
     rows = [r for r in reader if any((v or "").strip() for v in r.values())]
     return list(reader.fieldnames or []), rows
+
+
+def _num(row: dict, mapping: dict[str, str], field: str) -> float | None:
+    col = mapping.get(field)
+    return parse_number(row.get(col)) if col else None
 
 
 def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None = None) -> dict:
@@ -136,33 +188,52 @@ def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None 
             skipped += 1
             continue
 
-        def num(field: str) -> float | None:
-            col = mapping.get(field)
-            return parse_number(r.get(col)) if col else None
-
         draft_id = link_draft(conn, platform, remote_id, title, titles)
         linked += draft_id is not None
         with conn:
             if remote_id:
-                conn.execute("DELETE FROM metrics WHERE platform = ? AND remote_id = ?",
-                             (platform, remote_id))
+                conn.execute(
+                    "DELETE FROM metrics WHERE platform = ? AND remote_id = ?",
+                    (platform, remote_id),
+                )
             elif title:
-                conn.execute("DELETE FROM metrics WHERE platform = ? AND remote_id IS NULL AND title = ?",
-                             (platform, title))
+                conn.execute(
+                    "DELETE FROM metrics WHERE platform = ? AND remote_id IS NULL AND title = ?",
+                    (platform, title),
+                )
             conn.execute(
-                "INSERT INTO metrics (platform, remote_id, title, draft_id, views, likes, comments, "
+                "INSERT INTO metrics (platform, remote_id, title, draft_id, views, likes, "
+                "comments, "
                 "shares, impressions, ctr, avg_view_pct, watch_time_h, published_at, imported_at, "
                 "source_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (platform, remote_id, title, draft_id, int(views), int(num("likes") or 0),
-                 int(num("comments") or 0), int(num("shares") or 0),
-                 int(num("impressions")) if num("impressions") is not None else None,
-                 num("ctr"), num("avg_view_pct"), num("watch_time_h"),
-                 (r.get(mapping.get("published_at", ""), "") or "").strip() or None,
-                 utc_now_iso(), path.name),
+                (
+                    platform,
+                    remote_id,
+                    title,
+                    draft_id,
+                    int(views),
+                    int(_num(r, mapping, "likes") or 0),
+                    int(_num(r, mapping, "comments") or 0),
+                    int(_num(r, mapping, "shares") or 0),
+                    int(_num(r, mapping, "impressions"))
+                    if _num(r, mapping, "impressions") is not None
+                    else None,
+                    _num(r, mapping, "ctr"),
+                    _num(r, mapping, "avg_view_pct"),
+                    _num(r, mapping, "watch_time_h"),
+                    (r.get(mapping.get("published_at", ""), "") or "").strip() or None,
+                    utc_now_iso(),
+                    path.name,
+                ),
             )
         imported += 1
-    return {"platform": platform, "imported": imported, "linked": linked, "skipped": skipped,
-            "columns": mapping}
+    return {
+        "platform": platform,
+        "imported": imported,
+        "linked": linked,
+        "skipped": skipped,
+        "columns": mapping,
+    }
 
 
 def angle_ranking(conn: sqlite3.Connection, product: str | None = None) -> list[dict]:

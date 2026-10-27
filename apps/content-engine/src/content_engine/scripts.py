@@ -1,4 +1,5 @@
 """Génération des scripts (3 variantes par sujet et par format) et contrôles automatiques."""
+
 from __future__ import annotations
 
 import json
@@ -62,7 +63,9 @@ class ScriptPayload(BaseModel):
             v = re.split(r"[\s,]+", v)
         out, seen = [], set()
         for tag in v or []:
-            tag = re.sub(r"[^0-9a-zà-ÿ_]", "", str(tag).strip().lstrip("#").lower().replace(" ", ""))
+            tag = re.sub(
+                r"[^0-9a-zà-ÿ_]", "", str(tag).strip().lstrip("#").lower().replace(" ", "")
+            )
             if tag and tag not in seen:
                 seen.add(tag)
                 out.append(tag)
@@ -139,7 +142,8 @@ def _request_variant(llm: LLM, prompt: str) -> ScriptPayload:
         return ScriptPayload.model_validate(data)
     except ValidationError as e:
         retry = (
-            prompt + "\n\nTa réponse précédente ne respectait pas le schéma demandé : "
+            prompt
+            + "\n\nTa réponse précédente ne respectait pas le schéma demandé : "
             + str(e).splitlines()[0]
             + ". Recommence en respectant exactement les champs et leurs types."
         )
@@ -150,8 +154,9 @@ def _request_variant(llm: LLM, prompt: str) -> ScriptPayload:
             raise LLMError(f"script invalide après relance : {e2}") from e2
 
 
-def generate_scripts(conn: sqlite3.Connection, llm: LLM, topic_id: int, fmt: str,
-                     variants: int = 3) -> list[int]:
+def generate_scripts(
+    conn: sqlite3.Connection, llm: LLM, topic_id: int, fmt: str, variants: int = 3
+) -> list[int]:
     """Génère `variants` brouillons pour un sujet et un format ; retourne leurs identifiants."""
     if fmt not in FORMAT_SPECS:
         raise ValueError(f"format inconnu : {fmt!r} (choix : {', '.join(FORMATS)})")
@@ -194,8 +199,13 @@ def draft_payload(row: sqlite3.Row) -> dict:
     return json.loads(row["payload_json"])
 
 
-def list_drafts(conn: sqlite3.Connection, status: str | None = None, fmt: str | None = None,
-                product: str | None = None, limit: int | None = None) -> list[sqlite3.Row]:
+def list_drafts(
+    conn: sqlite3.Connection,
+    status: str | None = None,
+    fmt: str | None = None,
+    product: str | None = None,
+    limit: int | None = None,
+) -> list[sqlite3.Row]:
     sql, params = _DRAFT_SELECT + " WHERE 1=1", []
     if status:
         statuses = status.split(",")
@@ -213,13 +223,15 @@ def list_drafts(conn: sqlite3.Connection, status: str | None = None, fmt: str | 
     return conn.execute(sql, params).fetchall()
 
 
-def set_draft_status(conn: sqlite3.Connection, draft_id: int, status: str,
-                     reason: str | None = None) -> None:
+def set_draft_status(
+    conn: sqlite3.Connection, draft_id: int, status: str, reason: str | None = None
+) -> None:
     if status not in DRAFT_STATUSES:
         raise ValueError(f"statut inconnu : {status}")
     with conn:
         conn.execute(
-            "UPDATE drafts SET status = ?, reject_reason = COALESCE(?, reject_reason), updated_at = ?"
+            "UPDATE drafts SET status = ?, reject_reason = COALESCE(?, reject_reason), "
+            "updated_at = ?"
             " WHERE id = ?",
             (status, reason, utc_now_iso(), draft_id),
         )

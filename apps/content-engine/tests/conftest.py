@@ -1,4 +1,5 @@
 """Fixtures communes : réglages isolés (tmp_path), base amorcée, LLM simulé, environnement CLI."""
+
 from __future__ import annotations
 
 import json
@@ -78,15 +79,24 @@ def make_draft(conn, llm, topic_id: int = 1, fmt: str = "short", status: str | N
     return draft_id
 
 
-def fake_render(settings: Settings, draft_id: int, fmt: str = "short",
-                synthetic_voice: bool = True) -> Path:
+def fake_render(
+    settings: Settings, draft_id: int, fmt: str = "short", synthetic_voice: bool = True
+) -> Path:
     """Simule un rendu (fichiers factices + render.json) pour tester la publication sans ffmpeg."""
     out = Path(settings.out_dir) / str(draft_id)
     out.mkdir(parents=True, exist_ok=True)
-    info = {"draft_id": draft_id, "format": fmt, "out_dir": str(out), "video": None,
-            "thumb": "thumb.jpg", "cover": "cover.jpg", "duration_s": 0.0,
-            "tts_provider": "say" if synthetic_voice else "silent",
-            "synthetic_voice": synthetic_voice, "synthetic_image": False}
+    info = {
+        "draft_id": draft_id,
+        "format": fmt,
+        "out_dir": str(out),
+        "video": None,
+        "thumb": "thumb.jpg",
+        "cover": "cover.jpg",
+        "duration_s": 0.0,
+        "tts_provider": "say" if synthetic_voice else "silent",
+        "synthetic_voice": synthetic_voice,
+        "synthetic_image": False,
+    }
     if fmt == "short":
         (out / "video.mp4").write_bytes(b"\x00" * 2048)
         info["video"], info["duration_s"] = "video.mp4", 30.0

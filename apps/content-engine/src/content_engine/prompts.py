@@ -1,4 +1,5 @@
 """Prompts (français) : garde-fous éditoriaux, idées de sujets, scripts par format."""
+
 from __future__ import annotations
 
 from .products import ANGLES, Product

@@ -1,4 +1,5 @@
 """Banque de sujets : amorçage depuis topics.yaml, dédoublonnage, idées générées par le LLM."""
+
 from __future__ import annotations
 
 import re
@@ -43,14 +44,20 @@ def load_topics_yaml(path: str | Path) -> dict[str, list[dict]]:
             if isinstance(item, str):
                 items.append({"question": item, "angle": None})
             else:
-                items.append({"question": item.get("q") or item.get("question"),
-                              "angle": item.get("angle")})
+                items.append(
+                    {"question": item.get("q") or item.get("question"), "angle": item.get("angle")}
+                )
         out[slug] = [i for i in items if i["question"]]
     return out
 
 
-def add_topic(conn: sqlite3.Connection, product: str, question: str, angle: str | None = None,
-              source: str = "manual") -> int | None:
+def add_topic(
+    conn: sqlite3.Connection,
+    product: str,
+    question: str,
+    angle: str | None = None,
+    source: str = "manual",
+) -> int | None:
     """Insère un sujet ; retourne None si la question existe déjà (clé normalisée)."""
     get_product(product)
     question = " ".join(question.split())
@@ -62,7 +69,8 @@ def add_topic(conn: sqlite3.Connection, product: str, question: str, angle: str 
     try:
         with conn:
             cur = conn.execute(
-                "INSERT INTO topics (product, question, question_key, angle, status, source, created_at)"
+                "INSERT INTO topics (product, question, question_key, angle, status, source, "
+                "created_at)"
                 " VALUES (?, ?, ?, ?, 'new', ?, ?)",
                 (product, question, key, angle, source, utc_now_iso()),
             )
@@ -76,13 +84,20 @@ def seed_topics(conn: sqlite3.Connection, path: str | Path) -> int:
     added = 0
     for slug, items in load_topics_yaml(path).items():
         for item in items:
-            if add_topic(conn, slug, item["question"], item.get("angle"), source="seed") is not None:
+            if (
+                add_topic(conn, slug, item["question"], item.get("angle"), source="seed")
+                is not None
+            ):
                 added += 1
     return added
 
 
-def list_topics(conn: sqlite3.Connection, product: str | None = None, status: str | None = None,
-                limit: int | None = None) -> list[sqlite3.Row]:
+def list_topics(
+    conn: sqlite3.Connection,
+    product: str | None = None,
+    status: str | None = None,
+    limit: int | None = None,
+) -> list[sqlite3.Row]:
     sql, params = "SELECT * FROM topics WHERE 1=1", []
     if product:
         sql += " AND product = ?"
@@ -134,8 +149,9 @@ def generate_ideas(conn: sqlite3.Connection, llm: LLM, product: str, count: int)
     existing_rows = list_topics(conn, product)
     existing_questions = [r["question"] for r in existing_rows]
     existing_keys = [r["question_key"] for r in existing_rows]
-    data = complete_json(llm, ideas_prompt(prod, count, existing_questions),
-                         system=SYSTEM_PROMPT, max_tokens=2048)
+    data = complete_json(
+        llm, ideas_prompt(prod, count, existing_questions), system=SYSTEM_PROMPT, max_tokens=2048
+    )
     items = data.get("questions") if isinstance(data, dict) else data
     if not isinstance(items, list):
         raise LLMError("réponse inattendue : liste `questions` absente")
@@ -150,7 +166,9 @@ def generate_ideas(conn: sqlite3.Connection, llm: LLM, product: str, count: int)
         if is_duplicate(key, existing_keys):
             continue
         angle = item.get("angle")
-        topic_id = add_topic(conn, product, question, angle if angle in ANGLES else None, source="llm")
+        topic_id = add_topic(
+            conn, product, question, angle if angle in ANGLES else None, source="llm"
+        )
         if topic_id is None:
             continue
         existing_keys.append(key)

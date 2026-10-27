@@ -1,4 +1,5 @@
 """Contrat commun des adaptateurs TTS : une liste de phrases → un fichier audio + des timings."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

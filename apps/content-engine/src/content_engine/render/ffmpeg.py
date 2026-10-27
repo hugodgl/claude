@@ -1,4 +1,5 @@
 """Enveloppe ffmpeg / ffprobe : exécution, sonde, police, utilitaires de texte."""
+
 from __future__ import annotations
 
 import json
@@ -40,8 +41,9 @@ def run(cmd: list[str], cwd: Path | None = None, timeout: int = 900) -> subproce
     if shutil.which(cmd[0]) is None:
         raise RenderError(f"{cmd[0]} introuvable : installer ffmpeg (brew install ffmpeg)")
     try:
-        proc = subprocess.run(cmd, cwd=str(cwd) if cwd else None, capture_output=True, text=True,
-                              timeout=timeout)
+        proc = subprocess.run(
+            cmd, cwd=str(cwd) if cwd else None, capture_output=True, text=True, timeout=timeout
+        )
     except subprocess.TimeoutExpired as e:
         raise RenderError(f"{cmd[0]} : délai dépassé ({timeout} s)") from e
     if proc.returncode != 0:
@@ -63,8 +65,18 @@ class ProbeInfo:
 
 
 def probe(path: str | Path) -> ProbeInfo:
-    proc = run([ffprobe_bin(), "-v", "error", "-print_format", "json", "-show_streams",
-                "-show_format", str(path)])
+    proc = run(
+        [
+            ffprobe_bin(),
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_streams",
+            "-show_format",
+            str(path),
+        ]
+    )
     data = json.loads(proc.stdout or "{}")
     info = ProbeInfo(path=Path(path))
     fmt = data.get("format") or {}
@@ -117,7 +129,7 @@ class FontInfo:
 
 
 def find_font(preferred: Path | None = None) -> FontInfo:
-    """Police pour drawtext et libass : DejaVu si présente, sinon une police système, sinon défaut."""
+    """Police pour drawtext et libass : DejaVu si présente, sinon police système, sinon défaut."""
     if preferred:
         p = Path(preferred).expanduser()
         if p.exists():

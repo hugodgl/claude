@@ -1,4 +1,5 @@
 """Réglages de l'app (hérite du socle commun : LLM, mail, data_dir)."""
+
 from __future__ import annotations
 
 from pathlib import Path

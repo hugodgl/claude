@@ -19,9 +19,20 @@ def test_seed_is_idempotent_and_covers_three_products(conn, settings):
 
 
 def test_normalize_and_duplicates(conn):
-    assert normalize_question("Comment demander un avis Google ?") == "comment demander un avis google"
-    assert add_topic(conn, "avis", "comment demander un avis google à un client sans le gêner !") is None
-    assert is_duplicate("comment relancer un client par sms", ["comment relancer un client par sms pour un avis"]) is False
+    assert (
+        normalize_question("Comment demander un avis Google ?") == "comment demander un avis google"
+    )
+    assert (
+        add_topic(conn, "avis", "comment demander un avis google à un client sans le gêner !")
+        is None
+    )
+    assert (
+        is_duplicate(
+            "comment relancer un client par sms",
+            ["comment relancer un client par sms pour un avis"],
+        )
+        is False
+    )
     assert is_duplicate("a b c d e", ["a b c d e f"]) is True
     new_id = add_topic(conn, "avis", "Faut-il payer pour avoir des avis ?", angle="mythe")
     assert new_id and list_topics(conn, "avis", "new")[-1]["source"] == "manual"

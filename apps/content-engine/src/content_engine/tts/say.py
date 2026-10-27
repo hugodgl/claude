@@ -1,4 +1,5 @@
 """TTS macOS intégré : `say` → AIFF par phrase → concaténation ffmpeg (timings exacts)."""
+
 from __future__ import annotations
 
 import shutil
@@ -26,7 +27,8 @@ class SayTTS:
             txt.write_text(sentence, encoding="utf-8")
             proc = subprocess.run(
                 ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(aiff), "-f", str(txt)],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             if proc.returncode != 0 or not aiff.exists():
                 raise TTSError(f"say a échoué (voix {self.voice!r}) : {proc.stderr.strip()[:300]}")

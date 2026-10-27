@@ -1,5 +1,7 @@
 """Contrat commun des connecteurs : une publication est d'abord une liste de requêtes HTTP décrites
-(dry-run : écrites dans out/<id>/publish-<plateforme>.json), puis éventuellement envoyées (--live)."""
+(dry-run : écrites dans out/<id>/publish-<plateforme>.json), puis éventuellement envoyées
+(--live)."""
+
 from __future__ import annotations
 
 import json
@@ -56,8 +58,9 @@ class PublishRequest:
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        d["headers"] = {k: (redact(v) if k.lower() in SECRET_HEADERS else v)
-                        for k, v in self.headers.items()}
+        d["headers"] = {
+            k: (redact(v) if k.lower() in SECRET_HEADERS else v) for k, v in self.headers.items()
+        }
         return d
 
 
@@ -69,8 +72,12 @@ class PublishPlan:
     summary: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
-        return {"platform": self.platform, "draft_id": self.draft_id, "summary": self.summary,
-                "requests": [r.to_dict() for r in self.requests]}
+        return {
+            "platform": self.platform,
+            "draft_id": self.draft_id,
+            "summary": self.summary,
+            "requests": [r.to_dict() for r in self.requests],
+        }
 
 
 @dataclass
@@ -115,7 +122,9 @@ class Publisher(Protocol):
 
     def build(self, ctx: PublishContext) -> PublishPlan: ...
 
-    def send(self, plan: PublishPlan, ctx: PublishContext, client: httpx.Client) -> PublishOutcome: ...
+    def send(
+        self, plan: PublishPlan, ctx: PublishContext, client: httpx.Client
+    ) -> PublishOutcome: ...
 
 
 def write_dry_run(plan: PublishPlan, out_dir: Path, live: bool = False) -> Path:

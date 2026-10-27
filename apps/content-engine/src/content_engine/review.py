@@ -1,4 +1,5 @@
 """File de validation humaine : liste, approbation, rejet, export markdown du matin."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -48,7 +49,10 @@ def review_table(rows: list[sqlite3.Row], title: str = "Brouillons en attente") 
         p = draft_payload(row)
         checks = p.get("checks", {})
         table.add_row(
-            str(row["id"]), row["product"], row["format"], str(row["variant"]),
+            str(row["id"]),
+            row["product"],
+            row["format"],
+            str(row["variant"]),
             _short(p["title"], 48) + "\n[dim]" + _short(p["hook"], 48) + "[/dim]",
             f"{checks.get('estimated_duration_s', p.get('duration_s', 0)):.0f} s",
             "\n".join(checks.get("warnings", [])) or "[green]ok[/green]",
@@ -72,12 +76,18 @@ def draft_markdown(row: sqlite3.Row) -> str:
         "",
     ]
     lines += [f"- {part}" for part in p["body"]]
-    lines += ["", f"> **CTA :** {p['cta']}", "", f"**Description :** {p['description']}  ",
-              f"**Hashtags :** {' '.join('#' + h for h in p.get('hashtags', []))}", ""]
+    lines += [
+        "",
+        f"> **CTA :** {p['cta']}",
+        "",
+        f"**Description :** {p['description']}  ",
+        f"**Hashtags :** {' '.join('#' + h for h in p.get('hashtags', []))}",
+        "",
+    ]
     warnings = checks.get("warnings", [])
     if warnings:
         lines += ["**Alertes :**"] + [f"- ⚠ {w}" for w in warnings] + [""]
-    lines += [f"`ce approve {row['id']}` · `ce reject {row['id']} --reason \"…\"`", "", "---", ""]
+    lines += [f'`ce approve {row["id"]}` · `ce reject {row["id"]} --reason "…"`', "", "---", ""]
     return "\n".join(lines)
 
 
@@ -95,7 +105,7 @@ def export_review(conn: sqlite3.Connection, out_dir: str | Path, day: date | Non
         "Lire, choisir, corriger si besoin (15 minutes). Puis :",
         "",
         f"- tout approuver : `ce approve {ids}`" if ids else "- rien à approuver",
-        "- rejeter : `ce reject ID --reason \"motif\"` (le motif nourrit les prochains scripts)",
+        '- rejeter : `ce reject ID --reason "motif"` (le motif nourrit les prochains scripts)',
         "- ensuite : `ce render --approved` puis `ce run-publish` (dry-run par défaut)",
         "",
         "---",

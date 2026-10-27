@@ -1,4 +1,5 @@
 """Outils audio partagés : mesure de durée, concaténation avec pauses, écriture WAV."""
+
 from __future__ import annotations
 
 import struct
@@ -19,8 +20,9 @@ def write_wav(path: Path, samples, sample_rate: int) -> None:
         w.writeframes(struct.pack(f"<{len(ints)}h", *ints))
 
 
-def assemble(parts: list[Path], sentences: list[str], out_path: Path, pause_s: float,
-             provider: str) -> TTSResult:
+def assemble(
+    parts: list[Path], sentences: list[str], out_path: Path, pause_s: float, provider: str
+) -> TTSResult:
     """Concatène les fichiers audio (un par phrase) avec une pause entre chaque ; timings exacts."""
     if len(parts) != len(sentences):
         raise ValueError("un fichier audio par phrase est attendu")
@@ -43,5 +45,6 @@ def assemble(parts: list[Path], sentences: list[str], out_path: Path, pause_s: f
     cmd += ["-filter_complex", chain, "-map", "[out]", "-c:a", "aac", "-b:a", "128k", str(out_path)]
     run(cmd)
     total = probe_duration(out_path)
-    return TTSResult(audio_path=out_path, duration_s=total, segments=segments, provider=provider,
-                     synthetic=True)
+    return TTSResult(
+        audio_path=out_path, duration_s=total, segments=segments, provider=provider, synthetic=True
+    )

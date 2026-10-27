@@ -14,8 +14,15 @@ from content_engine.scripts import (
 )
 from content_engine.topics import get_topic
 
-VALID = {"hook": "Accroche courte.", "body": ["Une phrase.", "Deux phrases."], "cta": "Lien en bio.",
-         "title": "Titre", "description": "Desc.", "hashtags": ["#A", "b c"], "duration_s": "20"}
+VALID = {
+    "hook": "Accroche courte.",
+    "body": ["Une phrase.", "Deux phrases."],
+    "cta": "Lien en bio.",
+    "title": "Titre",
+    "description": "Desc.",
+    "hashtags": ["#A", "b c"],
+    "duration_s": "20",
+}
 
 
 def test_generate_three_variants(conn, llm):

@@ -1,4 +1,5 @@
 """TTS muet : aucune voix, timings estimés (tests, aperçus rapides, vidéos à doubler soi-même)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,5 +26,10 @@ class SilentTTS:
         for text, d in zip(sentences, estimates, strict=False):
             segments.append(Segment(text=text, start=round(t, 3), end=round(t + d, 3)))
             t += d
-        return TTSResult(audio_path=None, duration_s=round(total, 3), segments=segments,
-                         provider=self.name, synthetic=False)
+        return TTSResult(
+            audio_path=None,
+            duration_s=round(total, 3),
+            segments=segments,
+            provider=self.name,
+            synthetic=False,
+        )

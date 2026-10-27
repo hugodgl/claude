@@ -1,4 +1,5 @@
 """Sous-titres phrase par phrase : découpage, timings proportionnels, fichiers ASS et SRT."""
+
 from __future__ import annotations
 
 import re
@@ -35,9 +36,10 @@ def split_sentences(parts: list[str], max_chars: int = 85) -> list[list[str]]:
     return result
 
 
-def proportional_segments(sentences: list[str], total_s: float, lead_in_s: float = 0.0,
-                          min_s: float = 0.6) -> list[Segment]:
-    """Répartit `total_s` entre les phrases au prorata de leur longueur (quand le TTS ne donne rien)."""
+def proportional_segments(
+    sentences: list[str], total_s: float, lead_in_s: float = 0.0, min_s: float = 0.6
+) -> list[Segment]:
+    """Répartit `total_s` entre les phrases au prorata de leur longueur (sans timings TTS)."""
     if not sentences:
         return []
     weights = [max(1, len(s)) for s in sentences]
@@ -78,13 +80,21 @@ def _ass_escape(text: str) -> str:
     return text.replace("\\", "/").replace("{", "(").replace("}", ")").replace("\n", "\\N")
 
 
-def write_ass(segments: list[Segment], path: Path, font_family: str, palette: Palette,
-              play_res: tuple[int, int] = (1080, 1920), font_size: int = 66,
-              accent_first: bool = True) -> Path:
+def write_ass(
+    segments: list[Segment],
+    path: Path,
+    font_family: str,
+    palette: Palette,
+    play_res: tuple[int, int] = (1080, 1920),
+    font_size: int = 66,
+    accent_first: bool = True,
+) -> Path:
     w, h = play_res
-    style_fmt = ("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
-                 "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
-                 "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding")
+    style_fmt = (
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"
+    )
     margin = int(w * 0.07)
     lines = [
         "[Script Info]",

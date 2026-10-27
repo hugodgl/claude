@@ -1,4 +1,5 @@
-"""TTS local Kokoro (optionnel) via le paquet `kokoro-onnx` ; modèle et voix à télécharger dans data/."""
+"""TTS local Kokoro (optionnel) via `kokoro-onnx` ; modèle et voix à télécharger dans data/."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,8 +11,15 @@ from .base import TTSError, TTSResult
 class KokoroTTS:
     name = "kokoro"
 
-    def __init__(self, model_path: Path, voices_path: Path, voice: str = "ff_siwis",
-                 lang: str = "fr-fr", speed: float = 1.0, pause_s: float = 0.3):
+    def __init__(
+        self,
+        model_path: Path,
+        voices_path: Path,
+        voice: str = "ff_siwis",
+        lang: str = "fr-fr",
+        speed: float = 1.0,
+        pause_s: float = 0.3,
+    ):
         self.model_path, self.voices_path = Path(model_path), Path(voices_path)
         self.voice, self.lang, self.speed, self.pause_s = voice, lang, speed, pause_s
         self._engine = None
@@ -35,8 +43,9 @@ class KokoroTTS:
         out_dir.mkdir(parents=True, exist_ok=True)
         parts: list[Path] = []
         for i, sentence in enumerate(sentences):
-            samples, sample_rate = engine.create(sentence, voice=self.voice, speed=self.speed,
-                                                 lang=self.lang)
+            samples, sample_rate = engine.create(
+                sentence, voice=self.voice, speed=self.speed, lang=self.lang
+            )
             wav = out_dir / f"tts_{i:02d}.wav"
             write_wav(wav, samples, int(sample_rate))
             parts.append(wav)

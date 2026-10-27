@@ -1,4 +1,5 @@
 """CLI `ce` : banque de sujets, scripts, relecture, rendu, publication, planification, métriques."""
+
 from __future__ import annotations
 
 import functools
@@ -30,7 +31,9 @@ from .topics import add_topic, count_topics, generate_ideas, list_topics, seed_t
 from .tts.base import TTSError
 
 app = typer.Typer(
-    help="Moteur de contenu : sujets → scripts → relecture → rendu vertical → publication (dry-run).",
+    help=(
+        "Moteur de contenu : sujets → scripts → relecture → rendu vertical → publication (dry-run)."
+    ),
     no_args_is_help=True,
     add_completion=False,
 )
@@ -68,8 +71,9 @@ def _version(value: bool):
 
 @app.callback()
 def main(
-    version: bool = typer.Option(False, "--version", callback=_version, is_eager=True,
-                                 help="Affiche la version."),
+    version: bool = typer.Option(
+        False, "--version", callback=_version, is_eager=True, help="Affiche la version."
+    ),
 ):
     """Commandes du moteur de contenu. Tout est en dry-run tant que --live n'est pas passé."""
 
@@ -86,8 +90,10 @@ def init():
     added = seed_topics(conn, s.topics_file)
     console.print(f"Base : {s.db_path} · sujets ajoutés : {added}")
     for slug in PRODUCTS:
-        console.print(f"  {slug:<9} {count_topics(conn, slug, 'new'):>3} nouveaux, "
-                      f"{count_topics(conn, slug, 'used'):>3} utilisés")
+        console.print(
+            f"  {slug:<9} {count_topics(conn, slug, 'new'):>3} nouveaux, "
+            f"{count_topics(conn, slug, 'used'):>3} utilisés"
+        )
 
 
 @app.command()
@@ -136,8 +142,10 @@ def ideas(
     inserted = generate_ideas(conn, get_engine_llm(s), product, count)
     for item in inserted:
         console.print(f"  #{item['id']} [{item.get('angle') or 'libre'}] {item['question']}")
-    console.print(f"{len(inserted)} nouveau(x) sujet(s) pour {product} "
-                  f"(banque : {count_topics(conn, product, 'new')} nouveaux).")
+    console.print(
+        f"{len(inserted)} nouveau(x) sujet(s) pour {product} "
+        f"(banque : {count_topics(conn, product, 'new')} nouveaux)."
+    )
 
 
 # ----------------------------------------------------------------------------------------------
@@ -166,9 +174,13 @@ def review():
     conn = _db(_settings())
     rows = pending_drafts(conn)
     console.print(review_table(rows))
-    counts = {r["status"]: r["n"] for r in conn.execute(
-        "SELECT status, COUNT(*) AS n FROM drafts GROUP BY status")}
-    console.print("Statuts : " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "aucun")
+    counts = {
+        r["status"]: r["n"]
+        for r in conn.execute("SELECT status, COUNT(*) AS n FROM drafts GROUP BY status")
+    }
+    console.print(
+        "Statuts : " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "aucun"
+    )
 
 
 @app.command()
@@ -178,7 +190,9 @@ def show(draft_id: int = typer.Argument(...)):
     conn = _db(_settings())
     row = get_draft(conn, draft_id)
     console.print(draft_markdown(row))
-    console.print(f"Statut : {row['status']}" + (f" ({row['reject_reason']})" if row["reject_reason"] else ""))
+    console.print(
+        f"Statut : {row['status']}" + (f" ({row['reject_reason']})" if row["reject_reason"] else "")
+    )
 
 
 @app.command()
@@ -195,7 +209,9 @@ def approve(draft_ids: list[int] = typer.Argument(..., help="Un ou plusieurs ide
 @guard
 def reject(
     draft_id: int = typer.Argument(...),
-    reason: str = typer.Option(..., "--reason", "-r", help="Motif court (nourrit les prochains scripts)."),
+    reason: str = typer.Option(
+        ..., "--reason", "-r", help="Motif court (nourrit les prochains scripts)."
+    ),
 ):
     """Rejette un brouillon avec un motif."""
     conn = _db(_settings())
@@ -205,7 +221,9 @@ def reject(
 
 @app.command("export-review")
 @guard
-def export_review_cmd(day: str | None = typer.Option(None, "--date", help="AAAA-MM-JJ (défaut : aujourd'hui)")):
+def export_review_cmd(
+    day: str | None = typer.Option(None, "--date", help="AAAA-MM-JJ (défaut : aujourd'hui)"),
+):
     """Écrit out/review-AAAA-MM-JJ.md pour la relecture du matin."""
     s = _settings()
     conn = _db(s)
@@ -229,7 +247,11 @@ def render(
     conn = _db(s)
     if draft_id is None and not approved:
         raise ValueError("préciser --draft-id N ou --approved")
-    ids = [draft_id] if draft_id is not None else [r["id"] for r in list_drafts(conn, status="approved")]
+    ids = (
+        [draft_id]
+        if draft_id is not None
+        else [r["id"] for r in list_drafts(conn, status="approved")]
+    )
     if not ids:
         console.print("Aucun brouillon approuvé à rendre.")
         return
@@ -255,9 +277,14 @@ def publish(
         raise ValueError(f"plateforme inconnue : {platform} (choix : {', '.join(PLATFORMS)})")
     rep = publish_draft(conn, draft_id, platform, s, live=live, force=force)
     if rep.dry_run:
-        console.print(f"[yellow]Dry-run[/yellow] {platform} #{draft_id} : requête décrite dans {rep.request_file}")
+        console.print(
+            f"[yellow]Dry-run[/yellow] {platform} #{draft_id} : requête décrite dans "
+            f"{rep.request_file}"
+        )
     else:
-        console.print(f"[green]Publié[/green] sur {platform} : {rep.outcome.url or rep.outcome.remote_id}")
+        console.print(
+            f"[green]Publié[/green] sur {platform} : {rep.outcome.url or rep.outcome.remote_id}"
+        )
 
 
 # ----------------------------------------------------------------------------------------------
@@ -269,13 +296,19 @@ def plan(
     days: int = typer.Option(7, "--days", min=1, max=60),
     start: str | None = typer.Option(None, "--start", help="AAAA-MM-JJ (défaut : demain)"),
 ):
-    """Propose un calendrier (1 short, 1 TikTok, 5 pins par jour ; 3 LinkedIn et 1 long par semaine)."""
+    """Calendrier : 1 short, 1 TikTok, 5 pins par jour ; 3 LinkedIn et 1 long par semaine."""
     s = _settings()
     conn = _db(s)
-    first = date.fromisoformat(start) if start else date.fromordinal(local_now(s).date().toordinal() + 1)
+    first = (
+        date.fromisoformat(start)
+        if start
+        else date.fromordinal(local_now(s).date().toordinal() + 1)
+    )
     slots = build_plan(first, days)
     added = save_plan(conn, slots)
-    table = Table(title=f"Calendrier du {first.isoformat()} sur {days} jour(s) : {added} créneau(x) ajouté(s)")
+    table = Table(
+        title=f"Calendrier du {first.isoformat()} sur {days} jour(s) : {added} créneau(x) ajouté(s)"
+    )
     for col in ("Créneau", "Plateforme", "Format", "Produit"):
         table.add_column(col)
     for sl in slots:
@@ -297,8 +330,16 @@ def schedule(
     for col in ("ID", "Créneau", "Plateforme", "Format", "Produit", "Statut", "Brouillon", "Note"):
         table.add_column(col)
     for r in rows:
-        table.add_row(str(r["id"]), r["slot_at"].replace("T", " "), r["platform"], r["format"],
-                      r["product"] or "-", r["status"], str(r["draft_id"] or "-"), r["note"] or "")
+        table.add_row(
+            str(r["id"]),
+            r["slot_at"].replace("T", " "),
+            r["platform"],
+            r["format"],
+            r["product"] or "-",
+            r["status"],
+            str(r["draft_id"] or "-"),
+            r["note"] or "",
+        )
     console.print(table)
 
 
@@ -308,15 +349,17 @@ def run_daily_cmd(
     min_bank: int = typer.Option(20, "--min-bank", help="Seuil de sujets `new` par produit."),
     scripts: int = typer.Option(5, "--scripts", help="Sujets à scripter aujourd'hui."),
 ):
-    """Routine du matin : idées si la banque est basse, scripts pour 5 sujets, export de relecture."""
+    """Routine du matin : idées si la banque est basse, scripts pour 5 sujets, export relecture."""
     s = _settings()
     conn = _db(s)
     rep = run_daily(conn, s, get_engine_llm(s), min_bank=min_bank, scripts_per_day=scripts)
     for product, n in rep["ideas"].items():
         console.print(f"Idées : {n} nouveau(x) sujet(s) pour {product}")
     for item in rep["scripts"]:
-        console.print(f"Scripts : sujet #{item['topic_id']} ({item['format']}) → "
-                      + ", ".join("#" + str(i) for i in item["draft_ids"]))
+        console.print(
+            f"Scripts : sujet #{item['topic_id']} ({item['format']}) → "
+            + ", ".join("#" + str(i) for i in item["draft_ids"])
+        )
     for e in rep["errors"]:
         console.print(f"[red]{e}[/red]")
     console.print(f"Relecture : {rep['review_file']}")
@@ -326,21 +369,31 @@ def run_daily_cmd(
 @guard
 def run_publish_cmd(
     live: bool = typer.Option(False, "--live", help="Envoi réel (sinon dry-run)."),
-    do_render: bool = typer.Option(True, "--render/--no-render", help="Rend d'abord les approuvés."),
+    do_render: bool = typer.Option(
+        True, "--render/--no-render", help="Rend d'abord les approuvés."
+    ),
 ):
-    """Publie les créneaux échus dont un brouillon approuvé et rendu est prêt (dry-run par défaut)."""
+    """Publie les créneaux échus dont un brouillon rendu est prêt (dry-run par défaut)."""
     s = _settings()
     conn = _db(s)
     rep = run_publish(conn, s, live=live, render_missing=do_render)
     for r in rep["rendered"]:
-        console.print(f"Rendu #{r['draft_id']} : " + ("ok" if r["ok"] else f"[red]{r['error']}[/red]"))
+        console.print(
+            f"Rendu #{r['draft_id']} : " + ("ok" if r["ok"] else f"[red]{r['error']}[/red]")
+        )
     for p in rep["published"]:
         tag = "[yellow]dry-run[/yellow]" if p["dry_run"] else "[green]publié[/green]"
         console.print(f"{tag} {p['slot_at']} {p['platform']} #{p['draft_id']} → {p['note']}")
     for w in rep["waiting"]:
-        console.print(f"[dim]en attente[/dim] {w['slot_at']} {w['platform']}/{w['format']} : aucun brouillon prêt")
+        console.print(
+            f"[dim]en attente[/dim] {w['slot_at']} {w['platform']}/{w['format']} : "
+            "aucun brouillon prêt"
+        )
     for sk in rep["skipped"]:
-        console.print(f"[red]ignoré[/red] {sk['slot_at']} {sk['platform']} : {sk.get('error') or sk.get('note') or ''}")
+        console.print(
+            f"[red]ignoré[/red] {sk['slot_at']} {sk['platform']} : "
+            f"{sk.get('error') or sk.get('note') or ''}"
+        )
     if not any(rep.values()):
         console.print("Rien à faire.")
 
@@ -351,14 +404,20 @@ def run_publish_cmd(
 @app.command()
 @guard
 def metrics(
-    import_file: Path = typer.Option(..., "--import", exists=True, dir_okay=False, help="Export CSV YouTube Studio ou TikTok."),
-    platform: str | None = typer.Option(None, "--platform", help="youtube | tiktok (détection auto sinon)"),
+    import_file: Path = typer.Option(
+        ..., "--import", exists=True, dir_okay=False, help="Export CSV YouTube Studio ou TikTok."
+    ),
+    platform: str | None = typer.Option(
+        None, "--platform", help="youtube | tiktok (détection auto sinon)"
+    ),
 ):
     """Importe un export CSV de métriques."""
     conn = _db(_settings())
     rep = import_csv(conn, import_file, platform)
-    console.print(f"{rep['platform']} : {rep['imported']} ligne(s) importée(s), {rep['linked']} liée(s) "
-                  f"à un brouillon, {rep['skipped']} ignorée(s). Colonnes : {rep['columns']}")
+    console.print(
+        f"{rep['platform']} : {rep['imported']} ligne(s) importée(s), {rep['linked']} liée(s) "
+        f"à un brouillon, {rep['skipped']} ignorée(s). Colonnes : {rep['columns']}"
+    )
 
 
 @app.command()
@@ -375,13 +434,26 @@ def angles(
     conn = _db(_settings())
     rows = angle_ranking(conn, product)
     table = Table(title="Angles par performance")
-    for col in ("Produit", "Angle", "Contenus", "Vues moy.", "Vues total", "CTR moy.", "Vision. moy. %"):
+    for col in (
+        "Produit",
+        "Angle",
+        "Contenus",
+        "Vues moy.",
+        "Vues total",
+        "CTR moy.",
+        "Vision. moy. %",
+    ):
         table.add_column(col, justify="right" if col not in ("Produit", "Angle") else "left")
     for r in rows:
-        table.add_row(r["product"], r["angle"], str(r["n"]), f"{r['views_avg']:.0f}",
-                      str(r["views_total"]),
-                      f"{r['ctr_avg']:.1f}" if r["ctr_avg"] is not None else "-",
-                      f"{r['view_pct_avg']:.0f}" if r["view_pct_avg"] is not None else "-")
+        table.add_row(
+            r["product"],
+            r["angle"],
+            str(r["n"]),
+            f"{r['views_avg']:.0f}",
+            str(r["views_total"]),
+            f"{r['ctr_avg']:.1f}" if r["ctr_avg"] is not None else "-",
+            f"{r['view_pct_avg']:.0f}" if r["view_pct_avg"] is not None else "-",
+        )
     console.print(table)
     if rows:
         best, worst = rows[0], rows[-1]
@@ -390,10 +462,14 @@ def angles(
             msg += f" · à revoir : {worst['product']}/{worst['angle']}"
         console.print(msg)
     else:
-        console.print("Pas encore de métriques liées : `ce metrics --import export.csv` après publication.")
+        console.print(
+            "Pas encore de métriques liées : `ce metrics --import export.csv` après publication."
+        )
     n = unlinked_count(conn)
     if n:
-        console.print(f"[dim]{n} ligne(s) de métriques sans brouillon associé (titre différent).[/dim]")
+        console.print(
+            f"[dim]{n} ligne(s) de métriques sans brouillon associé (titre différent).[/dim]"
+        )
 
 
 # ----------------------------------------------------------------------------------------------
@@ -424,19 +500,25 @@ def doctor():
         console.print(" · modèle " + (ok if s.kokoro_model_path.exists() else ko))
     else:
         console.print()
-    model = {"ollama": s.ollama_model, "anthropic": s.anthropic_model}.get(s.llm_provider, "simulateur")
+    model = {"ollama": s.ollama_model, "anthropic": s.anthropic_model}.get(
+        s.llm_provider, "simulateur"
+    )
     console.print(f"LLM : {s.llm_provider} ({model})")
-    keys = {"YouTube (secrets OAuth)": Path(s.youtube_client_secrets_file).exists(),
-            "YouTube (jeton)": Path(s.youtube_token_file).exists(),
-            "Pinterest": bool(s.pinterest_access_token and s.pinterest_board_id),
-            "LinkedIn": bool(s.linkedin_access_token and s.linkedin_author_urn),
-            "TikTok": bool(s.tiktok_access_token)}
+    keys = {
+        "YouTube (secrets OAuth)": Path(s.youtube_client_secrets_file).exists(),
+        "YouTube (jeton)": Path(s.youtube_token_file).exists(),
+        "Pinterest": bool(s.pinterest_access_token and s.pinterest_board_id),
+        "LinkedIn": bool(s.linkedin_access_token and s.linkedin_author_urn),
+        "TikTok": bool(s.tiktok_access_token),
+    }
     for name, present in keys.items():
         console.print(f"clé {name} : {ok if present else '[yellow]manquante (dry-run)[/yellow]'}")
     conn = _db(s)
-    console.print(f"base : {s.db_path} · sujets new : {count_topics(conn)} · "
-                  f"brouillons : {len(list_drafts(conn))} · sortie : {s.out_dir} · "
-                  f"heure locale : {datetime.now().strftime('%H:%M')} ({s.timezone})")
+    console.print(
+        f"base : {s.db_path} · sujets new : {count_topics(conn)} · "
+        f"brouillons : {len(list_drafts(conn))} · sortie : {s.out_dir} · "
+        f"heure locale : {datetime.now().strftime('%H:%M')} ({s.timezone})"
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

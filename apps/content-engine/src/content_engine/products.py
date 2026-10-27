@@ -1,4 +1,5 @@
 """Ligne éditoriale par produit (plan 4, section 4.2) et angles de traitement."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,14 +35,18 @@ PRODUCTS: dict[str, Product] = {
         promise="plus de clients pour ton commerce",
         audience="restaurateurs, coiffeurs, garagistes, artisans et commerçants indépendants",
         tone="tu",
-        cta_hint="le kit gratuit « demander un avis » (affiche QR + trois messages prêts à envoyer)",
+        cta_hint=(
+            "le kit gratuit « demander un avis » (affiche QR + trois messages prêts à envoyer)"
+        ),
         hashtags=("avisgoogle", "commerce", "commercant", "fichegoogle"),
         palette=Palette(bg0="#2B1B12", bg1="#8A4B10", accent="#FFD166"),
         platforms=("youtube", "tiktok", "pinterest"),
     ),
     "marches": Product(
         slug="marches",
-        label="Les marchés publics sans jargon pour les entreprises d'espaces verts et les artisans",
+        label=(
+            "Les marchés publics sans jargon pour les entreprises d'espaces verts et les artisans"
+        ),
         promise="des marchés publics gagnables, expliqués simplement",
         audience=(
             "dirigeants d'entreprises d'espaces verts, paysagistes et artisans du bâtiment "
@@ -57,7 +62,9 @@ PRODUCTS: dict[str, Product] = {
         slug="cabinets",
         label="L'IA concrète en cabinet d'expertise comptable",
         promise="l'IA en cabinet, concrètement, un cas d'usage à la fois",
-        audience="experts-comptables, chefs de mission et collaborateurs de cabinets de 5 à 50 personnes",
+        audience=(
+            "experts-comptables, chefs de mission et collaborateurs de cabinets de 5 à 50 personnes"
+        ),
         tone="vous",
         cta_hint="la newsletter hebdo « l'IA en cabinet » (un cas d'usage testé par semaine)",
         hashtags=("expertcomptable", "cabinetcomptable", "ia", "comptabilite"),

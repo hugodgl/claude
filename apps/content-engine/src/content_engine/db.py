@@ -1,4 +1,5 @@
 """Ouverture de la base SQLite de l'app avec migrations."""
+
 from __future__ import annotations
 
 import sqlite3

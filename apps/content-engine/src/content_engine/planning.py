@@ -1,4 +1,5 @@
-"""Calendrier éditorial (cadences du plan 4), routine quotidienne, publication des créneaux échus."""
+"""Calendrier éditorial (cadences du plan 4), routine du matin, publication des créneaux échus."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -20,11 +21,11 @@ from .tts.base import TTSError
 
 # clé → (plateforme, format, heures locales, jours de semaine autorisés ou None = tous)
 CADENCE: dict[str, tuple[str, str, list[str], set[int] | None]] = {
-    "short": ("youtube", "short", ["12:00"], None),                       # 1 short / jour
-    "tiktok": ("tiktok", "short", ["18:00"], None),                       # 1 TikTok / jour
+    "short": ("youtube", "short", ["12:00"], None),  # 1 short / jour
+    "tiktok": ("tiktok", "short", ["18:00"], None),  # 1 TikTok / jour
     "pins": ("pinterest", "pin", ["09:00", "11:00", "13:00", "15:00", "17:00"], None),  # 5 / jour
-    "linkedin": ("linkedin", "linkedin", ["08:30"], {0, 2, 4}),           # lun, mer, ven
-    "long": ("youtube", "long", ["17:00"], {3}),                          # jeudi
+    "linkedin": ("linkedin", "linkedin", ["08:30"], {0, 2, 4}),  # lun, mer, ven
+    "long": ("youtube", "long", ["17:00"], {3}),  # jeudi
 }
 VIDEO_PLATFORMS = ("youtube", "tiktok", "pinterest")
 
@@ -71,8 +72,12 @@ def save_plan(conn: sqlite3.Connection, slots: list[Slot]) -> int:
     return added
 
 
-def list_schedule(conn: sqlite3.Connection, from_day: str | None = None, to_day: str | None = None,
-                  status: str | None = None) -> list[sqlite3.Row]:
+def list_schedule(
+    conn: sqlite3.Connection,
+    from_day: str | None = None,
+    to_day: str | None = None,
+    status: str | None = None,
+) -> list[sqlite3.Row]:
     sql, params = "SELECT * FROM schedule WHERE 1=1", []
     if from_day:
         sql += " AND day >= ?"
@@ -98,15 +103,19 @@ def candidate_draft(conn: sqlite3.Connection, slot: sqlite3.Row | Slot) -> sqlit
     envoyé sur cette plateforme (dry-run compris), produit du créneau de préférence."""
     platform, fmt = slot["platform"], slot["format"]
     product = slot["product"]
-    statuses = "('rendered', 'published')" if platform in VIDEO_PLATFORMS else \
-        "('approved', 'rendered', 'published')"
+    statuses = (
+        "('rendered', 'published')"
+        if platform in VIDEO_PLATFORMS
+        else "('approved', 'rendered', 'published')"
+    )
     base = (
         "SELECT d.*, t.product FROM drafts d JOIN topics t ON t.id = d.topic_id "
         f"WHERE d.format = ? AND d.status IN {statuses} "
         "AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.draft_id = d.id AND p.platform = ?)"
     )
-    row = conn.execute(base + " AND t.product = ? ORDER BY d.id LIMIT 1",
-                       (fmt, platform, product)).fetchone()
+    row = conn.execute(
+        base + " AND t.product = ? ORDER BY d.id LIMIT 1", (fmt, platform, product)
+    ).fetchone()
     if row is None:
         row = conn.execute(base + " ORDER BY d.id LIMIT 1", (fmt, platform)).fetchone()
     return row
@@ -118,14 +127,24 @@ def render_pending(conn: sqlite3.Connection, settings: Settings, tts=None) -> li
     for row in list_drafts(conn, status="approved"):
         try:
             res = render_draft(conn, row["id"], settings, tts=tts)
-            results.append({"draft_id": row["id"], "ok": True, "video": res.video, "cover": res.cover})
+            results.append(
+                {"draft_id": row["id"], "ok": True, "video": res.video, "cover": res.cover}
+            )
         except (RenderError, TTSError, ValueError) as e:
             results.append({"draft_id": row["id"], "ok": False, "error": str(e)})
     return results
 
 
-def run_publish(conn: sqlite3.Connection, settings: Settings, now: datetime | None = None, *,
-                live: bool = False, client=None, render_missing: bool = True, tts=None) -> dict:
+def run_publish(
+    conn: sqlite3.Connection,
+    settings: Settings,
+    now: datetime | None = None,
+    *,
+    live: bool = False,
+    client=None,
+    render_missing: bool = True,
+    tts=None,
+) -> dict:
     """Publie (dry-run par défaut) les créneaux échus pour lesquels un brouillon est prêt."""
     now = now or local_now(settings)
     report: dict = {"rendered": [], "published": [], "waiting": [], "skipped": []}
@@ -134,30 +153,48 @@ def run_publish(conn: sqlite3.Connection, settings: Settings, now: datetime | No
     for slot in due_slots(conn, now):
         draft = candidate_draft(conn, slot)
         if draft is None:
-            age = now - datetime.strptime(slot["slot_at"], "%Y-%m-%dT%H:%M").replace(tzinfo=now.tzinfo)
+            age = now - datetime.strptime(slot["slot_at"], "%Y-%m-%dT%H:%M").replace(
+                tzinfo=now.tzinfo
+            )
             if age > timedelta(hours=24):
                 with conn:
-                    conn.execute("UPDATE schedule SET status = 'skipped', note = ? WHERE id = ?",
-                                 ("aucun brouillon prêt dans les 24 h", slot["id"]))
-                report["skipped"].append({**dict(slot), "note": "aucun brouillon prêt dans les 24 h"})
+                    conn.execute(
+                        "UPDATE schedule SET status = 'skipped', note = ? WHERE id = ?",
+                        ("aucun brouillon prêt dans les 24 h", slot["id"]),
+                    )
+                report["skipped"].append(
+                    {**dict(slot), "note": "aucun brouillon prêt dans les 24 h"}
+                )
             else:
                 report["waiting"].append(dict(slot))
             continue
         try:
-            rep = publish_draft(conn, draft["id"], slot["platform"], settings, live=live, client=client)
+            rep = publish_draft(
+                conn, draft["id"], slot["platform"], settings, live=live, client=client
+            )
         except PublishError as e:
             report["skipped"].append({**dict(slot), "error": str(e)})
             continue
-        note = rep.outcome.url if (rep.outcome and rep.outcome.url) else (
-            rep.outcome.remote_id if rep.outcome else f"dry-run : {rep.request_file}")
+        note = (
+            rep.outcome.url
+            if (rep.outcome and rep.outcome.url)
+            else (rep.outcome.remote_id if rep.outcome else f"dry-run : {rep.request_file}")
+        )
         with conn:
             conn.execute(
                 "UPDATE schedule SET status = 'published', draft_id = ?, note = ? WHERE id = ?",
                 (draft["id"], note, slot["id"]),
             )
-        report["published"].append({"slot_id": slot["id"], "slot_at": slot["slot_at"],
-                                    "platform": slot["platform"], "draft_id": draft["id"],
-                                    "dry_run": rep.dry_run, "note": note})
+        report["published"].append(
+            {
+                "slot_id": slot["id"],
+                "slot_at": slot["slot_at"],
+                "platform": slot["platform"],
+                "draft_id": draft["id"],
+                "dry_run": rep.dry_run,
+                "note": note,
+            }
+        )
     return report
 
 
@@ -167,12 +204,14 @@ def format_deficits(conn: sqlite3.Connection, today: date, horizon_days: int = 7
     planned = {f: 0 for f in FORMATS}
     for row in conn.execute(
         "SELECT format, COUNT(*) AS n FROM schedule WHERE status = 'planned' AND day >= ? "
-        "AND day <= ? GROUP BY format", (today.isoformat(), to_day),
+        "AND day <= ? GROUP BY format",
+        (today.isoformat(), to_day),
     ):
         planned[row["format"]] = row["n"]
     available = {f: 0 for f in FORMATS}
     for row in conn.execute(
-        "SELECT format, COUNT(*) AS n FROM drafts WHERE status IN ('draft', 'approved', 'rendered') "
+        "SELECT format, COUNT(*) AS n FROM drafts "
+        "WHERE status IN ('draft', 'approved', 'rendered') "
         "GROUP BY format"
     ):
         available[row["format"]] = row["n"]
@@ -184,7 +223,7 @@ FORMAT_CAPS = {"pin": 2, "linkedin": 1, "long": 1}  # par routine ; le reste en 
 
 
 def choose_formats(deficits: dict[str, int], n: int) -> list[str]:
-    """Formats des `n` sujets du jour : au moins deux shorts, puis les plus gros déficits plafonnés."""
+    """Formats des `n` sujets du jour : deux shorts au moins, puis les plus gros déficits."""
     chosen = ["short"] * min(2, n)
     used = {"short": len(chosen)}
     while len(chosen) < n:
@@ -196,16 +235,26 @@ def choose_formats(deficits: dict[str, int], n: int) -> list[str]:
     return chosen
 
 
-def run_daily(conn: sqlite3.Connection, settings: Settings, llm: LLM, today: date | None = None, *,
-              min_bank: int = 20, scripts_per_day: int = 5, ideas_batch: int = 10) -> dict:
-    """Routine du matin : idées si la banque est basse → scripts pour 5 sujets → export de relecture."""
+def run_daily(
+    conn: sqlite3.Connection,
+    settings: Settings,
+    llm: LLM,
+    today: date | None = None,
+    *,
+    min_bank: int = 20,
+    scripts_per_day: int = 5,
+    ideas_batch: int = 10,
+) -> dict:
+    """Routine du matin : idées si la banque est basse → scripts pour 5 sujets → relecture."""
     today = today or date.today()
     report: dict = {"ideas": {}, "scripts": [], "errors": []}
     for product in PRODUCTS:
         n = count_topics(conn, product, "new")
         if n < min_bank:
             try:
-                inserted = generate_ideas(conn, llm, product, min(ideas_batch, max(5, min_bank - n)))
+                inserted = generate_ideas(
+                    conn, llm, product, min(ideas_batch, max(5, min_bank - n))
+                )
                 report["ideas"][product] = len(inserted)
             except Exception as e:  # le LLM local peut échouer : on continue la routine
                 report["errors"].append(f"idées {product} : {e}")
