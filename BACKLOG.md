@@ -12,9 +12,9 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 ## Phase 1 : lot 1 (nuit, en parallèle)
 - [x] **P2-1** `apps/veille-marches` : collecteurs BOAMP (Opendatasoft) et TED (API v3), modèle `Notice` normalisé, stockage SQLite, filtres CPV + départements + montant, fixtures et tests
 - [x] **P2-2** `apps/veille-marches` : score d'opportunité (règles + LLM), résumé structuré, digest HTML + texte par abonné, CLI `vm` (collect, score, digest, subscribers), envoi console/SMTP/Resend, tests
-- [~] **P4-1** `apps/content-engine` : banque de sujets par produit, génération de scripts (3 variantes, hook/corps/CTA), file de validation (approve/reject), tests
-- [~] **P4-2** `apps/content-engine` : rendu vidéo vertical 1080×1920 (TTS via `say` macOS / Kokoro / ElevenLabs, sous-titres incrustés, fond, miniature) avec ffmpeg, test de rendu court sans TTS
-- [~] **P4-3** `apps/content-engine` : publication en dry-run (YouTube Data API v3 avec drapeau contenu synthétique, Pinterest API v5, LinkedIn Posts API, TikTok Content Posting API en stub documenté), planification, README
+- [x] **P4-1** `apps/content-engine` : banque de sujets par produit, génération de scripts (3 variantes, hook/corps/CTA), file de validation (approve/reject), tests
+- [x] **P4-2** `apps/content-engine` : rendu vidéo vertical 1080×1920 (TTS via `say` macOS / Kokoro / ElevenLabs, sous-titres incrustés, fond, miniature) avec ffmpeg, test de rendu court sans TTS
+- [x] **P4-3** `apps/content-engine` : publication en dry-run (YouTube Data API v3 avec drapeau contenu synthétique, Pinterest API v5, LinkedIn Posts API, TikTok Content Posting API en stub documenté), planification, README
 - [x] **P1-1** `apps/avis-clients` : FastAPI + Jinja/HTMX, comptes (lien magique), établissements, page publique d'avis avec QR code, demandes d'avis SMS (adaptateurs smsmode/Twilio/dry-run), tests
 - [x] **P1-2** `apps/avis-clients` : client Google Business Profile (OAuth + mode mock sur fixtures), boîte de réception des avis, brouillons de réponse LLM selon le ton, validation et publication, job de polling 15 min
 - [x] **P1-3** `apps/avis-clients` : Stripe (Checkout, portail client, webhooks signés), formules Solo/Pro/Réseau, rapport mensuel HTML, README

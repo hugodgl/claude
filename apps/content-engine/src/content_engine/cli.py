@@ -5,7 +5,7 @@ from __future__ import annotations
 import functools
 import shutil
 import subprocess
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 import typer
@@ -517,7 +517,7 @@ def doctor():
     console.print(
         f"base : {s.db_path} · sujets new : {count_topics(conn)} · "
         f"brouillons : {len(list_drafts(conn))} · sortie : {s.out_dir} · "
-        f"heure locale : {datetime.now().strftime('%H:%M')} ({s.timezone})"
+        f"heure locale : {local_now(s).strftime('%H:%M')} ({s.timezone})"
     )
 
 

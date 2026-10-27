@@ -31,3 +31,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - `apps/avis-clients` : 57 tests verts, ruff propre, app FastAPI importable. Lien magique, onboarding avec QR et affiche A6, page publique sans filtrage d'avis, demandes SMS/WhatsApp/email avec quotas et liste STOP, client Google Business Profile (mock + réel), brouillons LLM avec garde-fous, boîte de réception HTMX, Stripe (Checkout, portail, webhook signé, garde d'accès), rapport mensuel, CLI `avis`. Vérifié par la session principale.
 - Décision confirmée : web + jobs de cette app sur la même machine (SQLite) ; le `deploy/vps` racine fait tout tourner sur le VPS, l'app documente aussi l'option « tout sur le Mac mini derrière Cloudflare Tunnel ».
 - Lancé : QA-1 (revue croisée) sur `avis-clients` et `newsletter-pipeline`.
+
+### 28/10 01:45 — content-engine livré (P4-1, P4-2, P4-3)
+- `apps/content-engine` : 41 tests verts (dont rendu d'un short 1080×1920 vérifié par ffprobe), ruff propre, CLI `ce` complète : sujets, idées, scripts en 3 variantes avec contrôles, file de validation, rendu vidéo (TTS `say`/Kokoro/ElevenLabs/silent, sous-titres ASS, barre de progression, miniatures), publication en dry-run (YouTube avec `containsSyntheticMedia`, Pinterest, LinkedIn, TikTok en stub), calendrier hebdo, `run-daily`, `run-publish`, import de métriques CSV, `angles`, `doctor`. Vérifié par la session principale.
+- Les quatre apps sont livrées. Reste : P2-3b (en cours), QA-1 (2 revues en cours, 2 à lancer), DOC-1, P4-4, P1-4.
