@@ -29,6 +29,13 @@ Coche au fur et à mesure. Rien ici ne bloque le développement, mais tout bloqu
 - [ ] Faire un premier appel réel : `cd apps/veille-marches && .venv/bin/vm collect --limit 20` et me coller la sortie si les champs ne correspondent pas aux fixtures (les API n'étaient pas joignables depuis le sandbox)
 - [ ] Sauvegarde : Time Machine + une copie hors site du dossier `data/`
 
+## Premiers essais réels, app par app (après `deploy/macmini/install.sh`)
+- [ ] Veille : `cd apps/veille-marches && .venv/bin/vm collect --limit 20 && .venv/bin/vm stats`. Si « sans CPV » ou « sans département » domine, me coller la sortie : les API n'étaient pas joignables depuis le sandbox et le mapping des champs BOAMP/TED/DECP est à confirmer (liste précise dans le README de l'app).
+- [ ] Contenu : `cd apps/content-engine && .venv/bin/ce doctor` (ffmpeg, police, `say`, LLM), puis `ce init`, `ce script --topic-id 1`, `ce approve <id>`, `ce render --draft-id <id>` et regarder `out/<id>/video.mp4`. Première publication réelle uniquement après relecture d'un `publish-*.json`, en `private` / `SELF_ONLY`.
+- [ ] Newsletter : `cd apps/newsletter-pipeline && .venv/bin/np collect --dry-run && .venv/bin/np stats`, corriger les sources en erreur dans `sources.yaml` (36 sur 39 sont marquées à vérifier), puis `np run-monday` à blanc et relire `issues/001-*.md`.
+- [ ] Avis : `cd apps/avis-clients && .venv/bin/avis demo && .venv/bin/avis serve`, parcourir http://localhost:8000 (inscription par lien magique affiché en console, QR, boîte de réception sur les avis simulés). `avis google auth` seulement après l'approbation de l'API Google.
+- [ ] Chantier de nuit sur le Mac : voir la section Mac mini ci-dessus (`night-shift.sh test` puis `enable`).
+
 ## Administratif
 - [ ] Création de la micro-entreprise (URSSAF), choix de l'activité « services », compte bancaire dédié
 - [ ] Mentions légales, CGV, politique de confidentialité (modèles fournis dans chaque app, à relire)

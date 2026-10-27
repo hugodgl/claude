@@ -39,3 +39,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 02:00 — DOC-1 : README racine
 - README racine réécrit : tableau des apps avec commandes et nombre de tests, schéma des flux Mac mini / VPS, « démarrer en 15 minutes », variables de configuration à connaître, fichiers de pilotage.
 - En cours : P2-3b (inscription + Stripe pour la veille), QA-1 sur avis-clients, newsletter-pipeline et content-engine. Reste à lancer : QA-1 sur veille-marches (après P2-3b), P4-4, P1-4.
+
+### 28/10 02:15 — intégration racine
+- Makefile corrigé : `make test` et `make setup` ne faisaient rien pour les apps (règles implicites ignorées sur des cibles `.PHONY`) ; passage en règles statiques, garde sur les venvs existants. `make test-core` vert, lint du socle corrigé.
+- `ACTIONS-HUGO.md` : ajout des premiers essais réels app par app.
