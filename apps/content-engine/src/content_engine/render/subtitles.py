@@ -45,10 +45,16 @@ def proportional_segments(
     weights = [max(1, len(s)) for s in sentences]
     available = max(0.0, total_s - lead_in_s)
     unit = available / sum(weights)
+    durations = [w * unit for w in weights]
+    if available >= min_s * len(sentences):
+        # plancher par phrase, puis remise à l'échelle : la somme reste exactement `available`
+        durations = [max(min_s, d) for d in durations]
+        scale = available / sum(durations)
+        durations = [d * scale for d in durations]
     segments, t = [], lead_in_s
-    for s, w in zip(sentences, weights, strict=True):
-        d = max(min_s, w * unit) if available > min_s * len(sentences) else w * unit
-        segments.append(Segment(text=s, start=round(t, 3), end=round(min(total_s, t + d), 3)))
+    for i, (s, d) in enumerate(zip(sentences, durations, strict=True)):
+        end = total_s if i == len(sentences) - 1 else min(total_s, t + d)
+        segments.append(Segment(text=s, start=round(t, 3), end=round(end, 3)))
         t += d
     return segments
 
@@ -90,6 +96,7 @@ def write_ass(
     accent_first: bool = True,
 ) -> Path:
     w, h = play_res
+    font_family = " ".join(font_family.replace(",", " ").split()) or "Sans"  # champ CSV du style
     style_fmt = (
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "

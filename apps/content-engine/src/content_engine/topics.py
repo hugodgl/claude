@@ -14,6 +14,9 @@ from .db import utc_now_iso
 from .products import ANGLES, PRODUCTS, get_product
 from .prompts import SYSTEM_PROMPT, ideas_prompt
 
+MAX_QUESTION_CHARS = 300  # une question de prospect tient en une ligne ; au-delà, c'est un texte
+IDEA_LENGTH = (12, 200)  # bornes acceptées pour une question proposée par le LLM
+
 
 def normalize_question(question: str) -> str:
     """Clé de dédoublonnage : sans accents, minuscules, sans ponctuation, espaces réduits."""
@@ -61,6 +64,10 @@ def add_topic(
     """Insère un sujet ; retourne None si la question existe déjà (clé normalisée)."""
     get_product(product)
     question = " ".join(question.split())
+    if len(question) > MAX_QUESTION_CHARS:
+        raise ValueError(
+            f"question trop longue ({len(question)} caractères, maximum {MAX_QUESTION_CHARS})"
+        )
     if angle and angle not in ANGLES:
         angle = None
     key = normalize_question(question)
@@ -159,8 +166,10 @@ def generate_ideas(conn: sqlite3.Connection, llm: LLM, product: str, count: int)
     for item in items:
         if isinstance(item, str):
             item = {"question": item}
+        if not isinstance(item, dict):
+            continue
         question = " ".join(str(item.get("question", "")).split())
-        if len(question) < 12:
+        if not IDEA_LENGTH[0] <= len(question) <= IDEA_LENGTH[1]:
             continue
         key = normalize_question(question)
         if is_duplicate(key, existing_keys):

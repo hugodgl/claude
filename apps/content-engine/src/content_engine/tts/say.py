@@ -25,11 +25,15 @@ class SayTTS:
             txt = out_dir / f"tts_{i:02d}.txt"
             aiff = out_dir / f"tts_{i:02d}.aiff"
             txt.write_text(sentence, encoding="utf-8")
-            proc = subprocess.run(
-                ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(aiff), "-f", str(txt)],
-                capture_output=True,
-                text=True,
-            )
+            try:
+                proc = subprocess.run(
+                    ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(aiff), "-f", str(txt)],
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+            except subprocess.TimeoutExpired as e:
+                raise TTSError(f"say bloqué plus de 180 s sur la phrase {i + 1}") from e
             if proc.returncode != 0 or not aiff.exists():
                 raise TTSError(f"say a échoué (voix {self.voice!r}) : {proc.stderr.strip()[:300]}")
             parts.append(aiff)

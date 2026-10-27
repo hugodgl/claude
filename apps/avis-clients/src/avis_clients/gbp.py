@@ -125,6 +125,7 @@ class LiveGBPClient:
     """Appels réels via un jeton OAuth « application de bureau » (google-auth-oauthlib)."""
 
     name = "live"
+    REQUEST_TIMEOUT_S = 30  # sans délai d'attente, un appel Google bloqué gèlerait tout le poll
 
     def __init__(self, token_file: Path, client_secrets_file: Path | None = None, session: Any | None = None):
         self.token_file = Path(token_file)
@@ -151,10 +152,13 @@ class LiveGBPClient:
 
             if not self.token_file.exists():
                 raise GBPError(f"jeton Google absent ({self.token_file}) : lancer `avis google auth`")
-            creds = Credentials.from_authorized_user_file(str(self.token_file), scopes=SCOPES)
-            if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-                self.token_file.write_text(creds.to_json(), encoding="utf-8")
+            try:
+                creds = Credentials.from_authorized_user_file(str(self.token_file), scopes=SCOPES)
+                if creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                    self.token_file.write_text(creds.to_json(), encoding="utf-8")
+            except Exception as e:  # noqa: BLE001 - jeton corrompu ou révoqué, réseau indisponible
+                raise GBPError(f"jeton Google inutilisable ({e}) : relancer `avis google auth`") from e
             self._session = AuthorizedSession(creds)
         return self._session
 
@@ -163,15 +167,24 @@ class LiveGBPClient:
             raise GBPError(f"Google {what} : HTTP {r.status_code} {getattr(r, 'text', '')[:300]}")
         return r.json() if getattr(r, "content", b"") else {}
 
+    def _call(self, method: str, url: str, what: str, **kwargs: Any) -> dict[str, Any]:
+        """Appel HTTP avec délai d'attente ; toute erreur réseau devient une GBPError (le poll continue)."""
+        try:
+            r = getattr(self.session(), method)(url, timeout=self.REQUEST_TIMEOUT_S, **kwargs)
+        except GBPError:
+            raise
+        except Exception as e:  # noqa: BLE001 - ConnectionError, Timeout, RefreshError…
+            raise GBPError(f"Google {what} injoignable : {e}") from e
+        return self._check(r, what)
+
     def list_reviews(self, location_name: str) -> list[GBPReview]:
-        s = self.session()
         reviews: list[GBPReview] = []
         page_token: str | None = None
         while True:
             params: dict[str, Any] = {"pageSize": 50}
             if page_token:
                 params["pageToken"] = page_token
-            data = self._check(s.get(f"{BASE_V4}/{location_name}/reviews", params=params), "liste des avis")
+            data = self._call("get", f"{BASE_V4}/{location_name}/reviews", "liste des avis", params=params)
             reviews.extend(GBPReview.from_api(r, location_name) for r in data.get("reviews", []))
             page_token = data.get("nextPageToken")
             if not page_token:
@@ -179,21 +192,17 @@ class LiveGBPClient:
         return reviews
 
     def reply(self, review_name: str, text: str) -> dict[str, Any]:
-        s = self.session()
-        return self._check(s.put(f"{BASE_V4}/{review_name}/reply", json={"comment": text}), "réponse à un avis")
+        return self._call("put", f"{BASE_V4}/{review_name}/reply", "réponse à un avis", json={"comment": text})
 
     def list_accounts(self) -> list[dict[str, Any]]:
-        s = self.session()
-        return self._check(s.get(f"{ACCOUNTS_V1}/accounts"), "comptes").get("accounts", [])
+        return self._call("get", f"{ACCOUNTS_V1}/accounts", "comptes").get("accounts", [])
 
     def list_locations(self) -> list[dict[str, Any]]:
-        s = self.session()
         out = []
         for account in self.list_accounts():
-            data = self._check(
-                s.get(f"{INFO_V1}/{account['name']}/locations",
-                      params={"readMask": "name,title,metadata", "pageSize": 100}),
-                "fiches",
+            data = self._call(
+                "get", f"{INFO_V1}/{account['name']}/locations", "fiches",
+                params={"readMask": "name,title,metadata", "pageSize": 100},
             )
             for loc in data.get("locations", []):
                 out.append({

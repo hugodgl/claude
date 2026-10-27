@@ -34,7 +34,8 @@ class TikTokPublisher:
         return {
             "post_info": {
                 "title": compose_tiktok_caption(ctx.payload, ctx.product, ctx.settings),
-                "privacy_level": ctx.settings.tiktok_privacy_level,
+                # SELF_ONLY forcé tant que TIKTOK_APP_AUDITED n'est pas vrai (audit de l'app)
+                "privacy_level": ctx.settings.tiktok_effective_privacy,
                 "disable_duet": False,
                 "disable_comment": False,
                 "disable_stitch": False,
@@ -60,6 +61,14 @@ class TikTokPublisher:
         s = ctx.settings
         auth = ctx.bearer(s.tiktok_access_token, "TIKTOK_ACCESS_TOKEN")
         body = self.body(ctx, size)
+        forced = (
+            [
+                f"privacy_level demandé : {s.tiktok_privacy_level}, forcé à SELF_ONLY tant que "
+                "TIKTOK_APP_AUDITED=false"
+            ]
+            if s.tiktok_privacy_level != s.tiktok_effective_privacy
+            else []
+        )
         requests = [
             PublishRequest(
                 step="post/publish/video/init",
@@ -67,9 +76,10 @@ class TikTokPublisher:
                 url=f"{s.tiktok_api_base}/v2/post/publish/video/init/",
                 headers={"Authorization": auth, "Content-Type": "application/json; charset=UTF-8"},
                 json=body,
-                notes=[
+                notes=forced
+                + [
                     "STUB : l'app doit passer l'audit Content Posting ; sans audit, "
-                    "privacy_level=SELF_ONLY uniquement",
+                    "privacy_level=SELF_ONLY uniquement (TIKTOK_APP_AUDITED=true après l'audit)",
                     "post_info.is_aigc = vrai : label « contenu généré par IA » (obligatoire, "
                     "sous peine de strike)",
                     "Creator Rewards : contenu 100 % original de plus d'une minute ; un compte "
@@ -98,11 +108,11 @@ class TikTokPublisher:
         ]
         summary = {
             "title": body["post_info"]["title"][:120],
-            "privacy_level": s.tiktok_privacy_level,
+            "privacy_level": body["post_info"]["privacy_level"],
             "is_aigc": body["post_info"]["is_aigc"],
             "video": str(video),
             "bytes": size,
-            "audit_required": True,
+            "audit_required": not s.tiktok_app_audited,
         }
         return PublishPlan(self.platform, int(ctx.draft["id"]), requests, summary)
 

@@ -80,7 +80,14 @@ def create_app(settings: AppSettings | None = None, services: Services | None = 
                         return HTMLResponse(f'<div class="flash warn">{message} '
                                             f'<a href="/billing">Voir les formules</a></div>', status_code=402)
                     return redirect("/billing", flash=message, category="warn")
-            return await call_next(request)
+            response = await call_next(request)
+            # en-têtes de sécurité de base, même sans Caddy devant (option Cloudflare Tunnel)
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("X-Frame-Options", "DENY")
+            response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+            if path.startswith(("/app", "/billing", "/auth/")):
+                response.headers["Cache-Control"] = "no-store"  # pages privées : rien en cache navigateur
+            return response
         finally:
             conn.close()
 

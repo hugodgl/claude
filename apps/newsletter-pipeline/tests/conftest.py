@@ -95,6 +95,7 @@ def conn(settings: Settings):
 # ------------------------------------------------------------------ LLM scripté
 _ITEM_RE = re.compile(r'<item id="(\d+)"([^>]*)>')
 _TITLE_RE = re.compile(r'titre="([^"]*)"')
+_BLOCK_RE = re.compile(r'<item id="(\d+)"[^>]*>\n(.*?)\n</item>', re.DOTALL)
 
 THEME_KEYWORDS = [
     ("tva", "fiscal"), ("fiscal", "fiscal"), ("paie", "social"), ("urssaf", "social"), ("dsn", "social"),
@@ -137,7 +138,12 @@ def scripted_response(prompt: str, system: str | None) -> str:
             for k, (i, title) in enumerate(items)]})
     if prompt.startswith("Tâche : chiffre_outil"):
         items = _items_in(prompt)
-        chiffre = {"item_id": items[0][0], "valeur": "60 %", "phrase": "des experts-comptables utilisent l'IA pour des analyses."} if items else None
+        chiffre = None
+        for item_id, body in _BLOCK_RE.findall(prompt):  # premier item qui contient un pourcentage, cité tel quel
+            m = re.search(r"\d+(?: \d{3})* %", body)
+            if m:
+                chiffre = {"item_id": int(item_id), "valeur": m.group(0), "phrase": "des professionnels concernés, selon l'item."}
+                break
         outil = {"item_id": items[1][0], "nom": "Pré-saisie photo", "usage": "lit les tickets et propose l'écriture",
                  "verdict": "Non testé par nous : à essayer sur un mois de notes de frais.",
                  "limite": "Le taux annoncé vient de l'éditeur."} if len(items) > 1 else None

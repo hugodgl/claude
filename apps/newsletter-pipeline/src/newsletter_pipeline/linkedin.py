@@ -77,7 +77,9 @@ def check_posts(posts: list[dict[str, Any]]) -> list[str]:
     return problems
 
 
-def build_prompt(md_text: str, number: int, max_chars: int = 9000) -> str:
+def build_prompt(md_text: str, number: int, max_chars: int = 16000) -> str:
+    """Le numéro entier (un numéro fait 6 000 à 10 000 caractères avec le cas d'usage) ; la borne ne
+    sert qu'à protéger le modèle local d'un markdown anormalement long."""
     return f"Tâche : linkedin\n\n{INSTRUCTIONS}\n\n" + item_block(
         f"numero-{number}", {"type": "numero de newsletter"}, md_text, max_chars)
 
@@ -86,7 +88,10 @@ def generate_linkedin_posts(conn: sqlite3.Connection, settings: Settings, llm: L
     issue = db.get_issue(conn, number)
     if issue is None:
         raise LookupError(f"numéro {number} introuvable : lance d'abord `np draft --issue {number}`")
-    md_text = Path(issue["md_path"]).read_text(encoding="utf-8")
+    md_path = Path(issue["md_path"])
+    if not md_path.exists():
+        raise FileNotFoundError(f"fichier markdown absent : {md_path} (relance `np draft --issue {number} --force`)")
+    md_text = md_path.read_text(encoding="utf-8")
     system = system_prompt(settings)
     prompt = build_prompt(md_text, number)
     warnings: list[str] = []

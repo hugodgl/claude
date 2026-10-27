@@ -39,7 +39,7 @@ Source : [{{ a.source }}]({{ a.url }})
 ## Le chiffre
 
 {% if chiffre %}
-**{{ chiffre.valeur }}** — {{ chiffre.phrase }} ([source : {{ chiffre.source }}]({{ chiffre.url }}))
+**{{ chiffre.valeur }}** — {{ chiffre.phrase }} {% if chiffre.url %}([source : {{ chiffre.source }}]({{ chiffre.url }})){% else %}[SOURCE À VÉRIFIER]{% endif %}
 {% else %}
 [CHIFFRE À TROUVER] — aucun chiffre sourcé dans les items de la semaine ; en ajouter un à la main (baromètre, étude, statistique officielle) avec son lien.
 {% endif %}
@@ -50,11 +50,9 @@ Source : [{{ a.source }}]({{ a.url }})
 **{{ outil.nom }}** — {{ outil.usage }}
 
 Verdict : {{ outil.verdict }}{% if outil.limite %} Limite : {{ outil.limite }}{% endif %}
-{% if outil.url %}
 
 
-Source : [{{ outil.source }}]({{ outil.url }})
-{% endif %}
+{% if outil.url %}Source : [{{ outil.source }}]({{ outil.url }}){% else %}Source : [SOURCE À VÉRIFIER]{% endif %}
 {% else %}
 [OUTIL À TESTER] — aucun outil ressorti cette semaine ; décrire un outil réellement essayé au cabinet (ce qu'il fait, pour qui, verdict, limite).
 {% endif %}

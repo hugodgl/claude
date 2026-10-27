@@ -33,10 +33,6 @@ class Access:
     def can_write(self) -> bool:
         return self.state != "readonly"
 
-    @property
-    def sms_quota_plan(self) -> str:
-        return self.plan
-
 
 def account_access(account: Account, settings: AppSettings, now: datetime | None = None) -> Access:
     """Abonnement actif → accès complet ; sinon essai de `trial_days` ; sinon lecture seule."""
@@ -45,7 +41,8 @@ def account_access(account: Account, settings: AppSettings, now: datetime | None
         return Access(state="active", plan=account.plan)
     trial_end = account.trial_end
     if trial_end and now < trial_end:
-        days_left = max(0, (trial_end - now).days)
+        # le dernier jour d'essai affiche « 1 jour restant », pas « 0 »
+        days_left = max(1, (trial_end - now).days)
         return Access(state="trial", plan="pro", days_left=days_left)
     return Access(state="readonly", plan="none", days_left=0)
 

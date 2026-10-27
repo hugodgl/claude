@@ -1,6 +1,9 @@
 """Envoi de SMS / WhatsApp : adaptateurs dry-run (défaut), smsmode et Twilio ; numéros et modèles."""
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import logging
 import re
 import unicodedata
@@ -18,7 +21,10 @@ DEFAULT_REQUEST_TEMPLATE = (
     "Bonjour {prenom}, merci pour votre visite chez {etablissement}. Un avis en 30 s nous aide "
     "beaucoup : {lien}. Répondre STOP pour ne plus recevoir de message."
 )
+REQUEST_TEMPLATE_MAX_LENGTH = 320
 STOP_WORDS = {"stop", "stop sms", "stop mms", "arret", "arrêt", "desabonnement", "désabonnement"}
+_CHANNEL_PREFIX_RE = re.compile(r"^(whatsapp|tel|sms):", re.IGNORECASE)
+_PLACEHOLDER_RE = re.compile(r"\{(prenom|etablissement|lien)\}")
 
 
 class SMSError(RuntimeError):
@@ -40,24 +46,37 @@ class SMSSender(Protocol):
 
 
 def normalize_phone(raw: str | None, default_country: str = "33") -> str | None:
-    """Normalise au format E.164 (+33612345678). Retourne None si le numéro est inexploitable."""
+    """Normalise au format E.164 (+33612345678). Retourne None si le numéro est inexploitable.
+
+    Accepte le préfixe de canal renvoyé par Twilio (`whatsapp:+33…`), le « 0 » national écrit après
+    l'indicatif (`+33 (0)6 12 34 56 78`), et les formes 00 33…, 06… et 6… (France par défaut)."""
     if not raw:
         return None
-    s = re.sub(r"[\s.\-()]", "", raw.strip())
+    s = re.sub(r"[\s.\-()]", "", _CHANNEL_PREFIX_RE.sub("", raw.strip()))
     if s.startswith("00"):
         s = "+" + s[2:]
     if s.startswith("+"):
         digits = s[1:]
-        if digits.isdigit() and 8 <= len(digits) <= 15:
+        if digits.startswith(default_country + "0") and len(digits) == len(default_country) + 10:
+            digits = default_country + digits[len(default_country) + 1:]
+        if digits.isdigit() and 8 <= len(digits) <= 15 and digits[0] != "0":
             return "+" + digits
         return None
     if not s.isdigit():
         return None
     if len(s) == 10 and s[0] == "0":
         return f"+{default_country}{s[1:]}"
-    if len(s) == 9 and s[0] in "1234567896":
+    if len(s) == 9 and s[0] != "0":
         return f"+{default_country}{s}"
     return None
+
+
+def clean_first_name(value: str | None, max_length: int = 60) -> str | None:
+    """Prénom sur une seule ligne, sans préfixe de formule tableur (= + - @) ni guillemet, tronqué."""
+    if not value:
+        return None
+    name = re.sub(r"\s+", " ", str(value)).strip().lstrip("=+-@'\"").strip()
+    return name[:max_length] or None
 
 
 def looks_like_stop(body: str | None) -> bool:
@@ -68,15 +87,42 @@ def looks_like_stop(body: str | None) -> bool:
     return text in STOP_WORDS or text.startswith("stop")
 
 
-class _SafeDict(dict):
-    def __missing__(self, key: str) -> str:
-        return "{" + key + "}"
-
-
 def render_message(template: str, *, prenom: str | None, etablissement: str, lien: str) -> str:
-    msg = template.format_map(_SafeDict(prenom=(prenom or "").strip(), etablissement=etablissement, lien=lien))
+    """Remplace uniquement {prenom}, {etablissement} et {lien} ; toute autre accolade est laissée telle quelle.
+
+    Pas de `str.format` : un modèle mal formé (« {prenom, ») ne doit pas planter la page, et une expression
+    comme `{lien.__class__}` ne doit rien exposer."""
+    values = {"prenom": (prenom or "").strip(), "etablissement": etablissement, "lien": lien}
+    msg = _PLACEHOLDER_RE.sub(lambda m: values[m.group(1)], template)
     msg = re.sub(r"Bonjour\s+,", "Bonjour,", msg)
     return re.sub(r"[ \t]{2,}", " ", msg).strip()
+
+
+def validate_request_template(template: str) -> str | None:
+    """Retourne un message d'erreur si le modèle de demande d'avis est inutilisable, sinon None."""
+    tpl = (template or "").strip()
+    if "{lien}" not in tpl:
+        return "Le modèle de message doit contenir {lien}."
+    if "stop" not in tpl.lower():
+        return "Le modèle doit indiquer comment se désinscrire (mention STOP)."
+    if len(tpl) > REQUEST_TEMPLATE_MAX_LENGTH:
+        return f"Le modèle ne doit pas dépasser {REQUEST_TEMPLATE_MAX_LENGTH} caractères."
+    return None
+
+
+def twilio_signature(auth_token: str, url: str, post_params: dict[str, str] | None = None) -> str:
+    """Valeur attendue de l'en-tête X-Twilio-Signature : HMAC-SHA1 (base64) de l'URL complète appelée,
+    suivie des paramètres POST concaténés nom+valeur par ordre de nom (doc « Webhooks security » de Twilio)."""
+    payload = url + "".join(k + v for k, v in sorted((post_params or {}).items()))
+    digest = hmac.new(auth_token.encode("utf-8"), payload.encode("utf-8"), hashlib.sha1).digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+def verify_twilio_signature(auth_token: str, url: str, post_params: dict[str, str] | None,
+                            header: str | None) -> bool:
+    if not header:
+        return False
+    return hmac.compare_digest(twilio_signature(auth_token, url, post_params), header.strip())
 
 
 # ------------------------------------------------------------------------------------------

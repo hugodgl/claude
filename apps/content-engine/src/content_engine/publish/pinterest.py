@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 
 import httpx
 
@@ -73,7 +74,7 @@ class PinterestPublisher:
         token = require_token(ctx.settings.pinterest_access_token, "PINTEREST_ACCESS_TOKEN")
         require_token(ctx.settings.pinterest_board_id, "PINTEREST_BOARD_ID")
         req = plan.requests[0]
-        data = base64.b64encode(open(req.files[0].path, "rb").read()).decode("ascii")
+        data = base64.b64encode(Path(req.files[0].path).read_bytes()).decode("ascii")
         r = client.post(
             req.url,
             json=self.body(ctx, data),

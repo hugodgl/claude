@@ -1,11 +1,16 @@
-"""Brouillon du numéro : sélection diversifiée, 3 appels LLM courts, rendu markdown/HTML/texte."""
+"""Brouillon du numéro : sélection diversifiée, 3 appels LLM courts, rendu markdown/HTML/texte.
+
+Ce qui sort du modèle est traité comme une proposition : champs bornés (`clean_output`), URL vérifiées
+contre celles des items sélectionnés (`strip_unverified_urls`), chiffre vérifié dans l'item cité.
+"""
 from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,12 +19,15 @@ from core.llm import LLM, LLMError, complete_json
 
 from . import db
 from .cases import UseCase, load_cases, pick_case
-from .prompts import item_block, system_prompt
-from .render import date_fr, render_markdown, write_issue_files
+from .prompts import clean_output, item_block, strip_unverified_urls, system_prompt
+from .render import date_fr, first_heading, preheader_from_markdown, render_markdown, write_issue_files
 from .selection import min_published_iso, select_diverse
 from .settings import Settings
 
 log = logging.getLogger(__name__)
+
+# Longueurs maximales des champs rendus par le modèle (caractères).
+MAX_TITLE, MAX_LINE, MAX_SHORT, MAX_BODY, MAX_EDITO = 150, 200, 600, 1500, 3000
 
 
 @dataclass
@@ -35,10 +43,24 @@ class DraftResult:
 
 
 def next_tuesday(today: date | None = None) -> date:
-    """Premier mardi strictement après aujourd'hui (le lundi donne le lendemain)."""
-    today = today or datetime.now(UTC).date()
+    """Premier mardi strictement après aujourd'hui (le lundi donne le lendemain). Date locale : la
+    routine tourne à 5 h, heure de Paris."""
+    today = today or date.today()
     days = (1 - today.weekday()) % 7 or 7
     return today + timedelta(days=days)
+
+
+def _as_date(value: Any, path: Path, key: str) -> date | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError:
+        raise ValueError(f"{path.name} : `{key}` doit être une date AAAA-MM-JJ (reçu {value!r})") from None
 
 
 def load_sponsor(path: Path, issue_date: date) -> dict[str, Any] | None:
@@ -48,10 +70,8 @@ def load_sponsor(path: Path, issue_date: date) -> dict[str, Any] | None:
     data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict) or not data.get("name"):
         return None
-    start, end = data.get("from"), data.get("until")
-    if start and issue_date < (start if isinstance(start, date) else date.fromisoformat(str(start))):
-        return None
-    if end and issue_date > (end if isinstance(end, date) else date.fromisoformat(str(end))):
+    start, end = _as_date(data.get("from"), p, "from"), _as_date(data.get("until"), p, "until")
+    if (start and issue_date < start) or (end and issue_date > end):
         return None
     return {"name": str(data["name"]), "tagline": str(data.get("tagline") or ""),
             "url": str(data.get("url") or ""), "mention": str(data.get("mention") or "Partenaire de ce numéro")}
@@ -62,6 +82,24 @@ def _score_json(item: sqlite3.Row) -> dict[str, Any]:
         return json.loads(item["score_json"] or "{}")
     except json.JSONDecodeError:
         return {}
+
+
+def _item_for(raw: dict[str, Any], by_id: dict[int, sqlite3.Row]) -> sqlite3.Row | None:
+    """L'item désigné par `item_id` dans une réponse du modèle, s'il fait partie de la sélection."""
+    try:
+        return by_id.get(int(raw.get("item_id")))
+    except (TypeError, ValueError):
+        return None
+
+
+def number_in_item(valeur: str, item: Any) -> bool:
+    """Vrai si chaque nombre du chiffre proposé figure tel quel (espaces ignorés) dans l'item cité."""
+    compact = re.sub(r"\s", "", valeur or "")
+    numbers = re.findall(r"\d+(?:[.,]\d+)?", compact)
+    if not numbers:
+        return False
+    haystack = re.sub(r"\s", "", " ".join(filter(None, [item["title"], item["summary"], item["content_text"]])))
+    return all(n in haystack for n in numbers)
 
 
 def _items_prompt(items: list[sqlite3.Row], settings: Settings, max_chars: int = 900) -> str:
@@ -97,7 +135,23 @@ class Drafter:
             return None
         return data if isinstance(data, dict) else None
 
-    def _news(self, items: list[sqlite3.Row]) -> tuple[list[dict[str, Any]], list[str]]:
+    @staticmethod
+    def _scrub(record: dict[str, Any], keys: tuple[str, ...], allowed: list[str]) -> int:
+        """Retire des champs texte les URL que le modèle n'a pas prises dans les items sélectionnés."""
+        removed = 0
+        for key in keys:
+            record[key], n = strip_unverified_urls(record.get(key) or "", allowed)
+            removed += n
+        return removed
+
+    @staticmethod
+    def _links_warning(removed: int) -> list[str]:
+        if not removed:
+            return []
+        return [f"{removed} lien(s) proposé(s) par le modèle hors des items sélectionnés retiré(s) "
+                f"(libellé conservé ou [LIEN À VÉRIFIER])"]
+
+    def _news(self, items: list[sqlite3.Row], allowed: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
         by_id = {i["id"]: i for i in items}
         warnings: list[str] = []
         prompt = (
@@ -116,20 +170,17 @@ class Drafter:
         for raw in data.get("actualites") or []:
             if not isinstance(raw, dict):
                 continue
-            try:
-                item_id = int(raw.get("item_id"))
-            except (TypeError, ValueError):
+            item = _item_for(raw, by_id)
+            if item is None or item["id"] in seen:
                 continue
-            if item_id not in by_id or item_id in seen:
-                continue
-            item = by_id[item_id]
             news.append({
-                "item_id": item_id, "titre": str(raw.get("titre") or item["title"]).strip(),
-                "corps": str(raw.get("corps") or "").strip(),
-                "ce_que_ca_change": str(raw.get("ce_que_ca_change") or "").strip(),
+                "item_id": item["id"],
+                "titre": clean_output(raw.get("titre"), max_chars=MAX_LINE, single_line=True) or item["title"],
+                "corps": clean_output(raw.get("corps"), max_chars=MAX_BODY),
+                "ce_que_ca_change": clean_output(raw.get("ce_que_ca_change"), max_chars=MAX_SHORT),
                 "source": item["source_name"], "url": item["url"], "theme": item["theme"],
             })
-            seen.add(item_id)
+            seen.add(item["id"])
             if len(news) == 3:
                 break
         if len(news) < 3:
@@ -148,9 +199,10 @@ class Drafter:
                     "source": item["source_name"], "url": item["url"], "theme": item["theme"],
                 })
                 seen.add(item["id"])
-        return news, warnings
+        removed = sum(self._scrub(n, ("titre", "corps", "ce_que_ca_change"), allowed) for n in news)
+        return news, warnings + self._links_warning(removed)
 
-    def _extras(self, items: list[sqlite3.Row]) -> tuple[dict | None, dict | None, list[str]]:
+    def _extras(self, items: list[sqlite3.Row], allowed: list[str]) -> tuple[dict | None, dict | None, list[str]]:
         if not items:
             return None, None, ["aucun item disponible pour le chiffre et l'outil"]
         by_id = {i["id"]: i for i in items}
@@ -167,30 +219,37 @@ class Drafter:
         data = self._ask("chiffre_outil", prompt, 700) or {}
         warnings: list[str] = []
         chiffre = outil = None
+        removed = 0
         raw = data.get("chiffre")
-        if isinstance(raw, dict) and raw.get("valeur"):
-            try:
-                item = by_id.get(int(raw.get("item_id")))
-            except (TypeError, ValueError):
-                item = None
-            chiffre = {"valeur": str(raw["valeur"]).strip(), "phrase": str(raw.get("phrase") or "").strip(),
+        if isinstance(raw, dict) and clean_output(raw.get("valeur"), max_chars=60, single_line=True):
+            item = _item_for(raw, by_id)
+            chiffre = {"valeur": clean_output(raw.get("valeur"), max_chars=60, single_line=True),
+                       "phrase": clean_output(raw.get("phrase"), max_chars=MAX_SHORT, single_line=True),
                        "url": item["url"] if item else "", "source": item["source_name"] if item else "",
                        "item_id": item["id"] if item else None}
+            removed += self._scrub(chiffre, ("valeur", "phrase"), allowed)
             if not item:
                 warnings.append("chiffre sans item identifiable : lien source à compléter")
+            elif not number_in_item(chiffre["valeur"], item):
+                chiffre["phrase"] = f"[À VÉRIFIER] {chiffre['phrase']}".strip()
+                warnings.append(f"le chiffre « {chiffre['valeur']} » n'apparaît pas tel quel dans l'item cité "
+                                f"(#{item['id']}, {item['source_name']}) : à vérifier")
         raw = data.get("outil")
-        if isinstance(raw, dict) and raw.get("nom"):
-            try:
-                item = by_id.get(int(raw.get("item_id")))
-            except (TypeError, ValueError):
-                item = None
-            outil = {"nom": str(raw["nom"]).strip(), "usage": str(raw.get("usage") or "").strip(),
-                     "verdict": str(raw.get("verdict") or "").strip(), "limite": str(raw.get("limite") or "").strip(),
+        if isinstance(raw, dict) and clean_output(raw.get("nom"), max_chars=MAX_LINE, single_line=True):
+            item = _item_for(raw, by_id)
+            outil = {"nom": clean_output(raw.get("nom"), max_chars=MAX_LINE, single_line=True),
+                     "usage": clean_output(raw.get("usage"), max_chars=MAX_SHORT),
+                     "verdict": clean_output(raw.get("verdict"), max_chars=MAX_SHORT),
+                     "limite": clean_output(raw.get("limite"), max_chars=MAX_SHORT),
                      "url": item["url"] if item else "", "source": item["source_name"] if item else "",
                      "item_id": item["id"] if item else None}
-        return chiffre, outil, warnings
+            removed += self._scrub(outil, ("nom", "usage", "verdict", "limite"), allowed)
+            if not item:
+                warnings.append("outil sans item identifiable : lien source à compléter")
+        return chiffre, outil, warnings + self._links_warning(removed)
 
-    def _edito(self, number: int, news: list[dict], case: UseCase, chiffre: dict | None) -> dict[str, Any]:
+    def _edito(self, number: int, news: list[dict], case: UseCase, chiffre: dict | None,
+               allowed: list[str]) -> tuple[dict[str, Any], list[str]]:
         lines = "\n".join(f"- {n['titre']}" for n in news)
         prompt = (
             f"Numéro {number}. Actualités du numéro :\n{lines}\n"
@@ -208,12 +267,14 @@ class Drafter:
         fallback_title = f"{self.settings.newsletter_name} n° {number}"
         if news:
             fallback_title += f" — {news[0]['titre']}"
-        return {
-            "title": str(data.get("titre_numero") or fallback_title).strip(),
-            "preheader": str(data.get("preheader") or "").strip(),
-            "edito": str(data.get("edito") or "[ÉDITO À ÉCRIRE]").strip(),
-            "intro_cas": str(data.get("intro_cas") or "").strip(),
+        head = {
+            "title": clean_output(data.get("titre_numero"), max_chars=MAX_TITLE, single_line=True) or fallback_title,
+            "preheader": clean_output(data.get("preheader"), max_chars=MAX_LINE, single_line=True),
+            "edito": clean_output(data.get("edito"), max_chars=MAX_EDITO) or "[ÉDITO À ÉCRIRE]",
+            "intro_cas": clean_output(data.get("intro_cas"), max_chars=MAX_SHORT),
         }
+        removed = self._scrub(head, ("title", "preheader", "edito", "intro_cas"), allowed)
+        return head, self._links_warning(removed)
 
     # ------------------------------------------------------------------ pipeline
     def run(self, number: int, issue_date: date | None = None, *, force_case: str | None = None,
@@ -236,6 +297,7 @@ class Drafter:
         selected = select_diverse(rows, limit=s.issue_items, max_per_theme=s.max_per_theme,
                                   max_per_source=s.max_per_source)
         ids = [r["id"] for r in selected]
+        allowed = [r["url"] for r in selected]
         db.set_items_status(self.conn, ids, "selected")
         warnings: list[str] = []
         if len(selected) < s.issue_items:
@@ -245,18 +307,19 @@ class Drafter:
         cases = load_cases(s.cases_dir)
         case = pick_case(cases, issue_number=number, themes=[r["theme"] for r in selected],
                          recent_slugs=recent, forced_slug=force_case)
+        sponsor = load_sponsor(s.sponsor_file, issue_date)
 
-        news, w = self._news(selected)
+        news, w = self._news(selected, allowed)
         warnings += w
         used = {n["item_id"] for n in news}
         remaining = [r for r in selected if r["id"] not in used] or selected
-        chiffre, outil, w = self._extras(remaining)
+        chiffre, outil, w = self._extras(remaining, allowed)
         warnings += w
         for extra in (chiffre, outil):
             if extra and extra.get("item_id"):
                 used.add(extra["item_id"])
-        head = self._edito(number, news, case, chiffre)
-        sponsor = load_sponsor(s.sponsor_file, issue_date)
+        head, w = self._edito(number, news, case, chiffre, allowed)
+        warnings += w
 
         context: dict[str, Any] = {
             "number": number, "issue_date": issue_date.isoformat(), "date_fr": date_fr(issue_date),
@@ -280,12 +343,19 @@ class Drafter:
                            item_ids=ids, used_item_ids=used_ids, case_slug=case.slug, warnings=warnings)
 
 
-def issue_meta(settings: Settings, issue: sqlite3.Row) -> dict[str, Any]:
-    """Contexte minimal pour re-rendre le HTML depuis le markdown relu."""
+def issue_meta(settings: Settings, issue: sqlite3.Row, md_text: str | None = None) -> dict[str, Any]:
+    """Contexte minimal pour re-rendre le HTML. Avec `md_text`, le titre (H1) et l'aperçu (première
+    citation) viennent du markdown relu, qui fait foi sur la base."""
     content = json.loads(issue["content_json"] or "{}")
     d = date.fromisoformat(issue["issue_date"])
-    return {
+    meta = {
         "number": issue["number"], "date_fr": date_fr(d), "title": issue["title"],
         "preheader": content.get("preheader", ""), "newsletter_name": settings.newsletter_name,
         "newsletter_tagline": settings.newsletter_tagline, "archive_url": settings.archive_url,
     }
+    if md_text is not None:
+        meta["title"] = first_heading(md_text) or meta["title"]
+        preheader = preheader_from_markdown(md_text)
+        if preheader is not None:
+            meta["preheader"] = preheader
+    return meta

@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import date
 
 import pytest
@@ -28,7 +29,7 @@ def test_draft_produces_markdown_html_text(conn, settings, llm, drafted):
     assert md.startswith("# Relancer sans y passer le jeudi")
     assert "n° 1 · mardi 3 novembre 2026" in md
     assert "Source : [" in md and "](https://" in md
-    assert "**60 %**" in md and "Pré-saisie photo" in md
+    assert re.search(r"\*\*\d+ %\*\* — ", md) and "Pré-saisie photo" in md and "[À VÉRIFIER]" not in md
     assert "prêt à copier" in md  # corps du cas d'usage inséré
     assert "Partenaire de ce numéro" not in md  # pas de sponsor.yaml
     html = result.paths["html"].read_text(encoding="utf-8")
@@ -45,7 +46,9 @@ def test_draft_updates_database(conn, settings, drafted):
     issue = db.get_issue(conn, 1)
     assert issue["status"] == "draft" and issue["case_slug"] == drafted.case_slug
     content = json.loads(issue["content_json"])
-    assert len(content["actualites"]) == 3 and content["chiffre"]["valeur"] == "60 %"
+    assert len(content["actualites"]) == 3 and re.fullmatch(r"\d+ %", content["chiffre"]["valeur"])
+    cited = db.get_items(conn, [content["chiffre"]["item_id"]])[0]
+    assert content["chiffre"]["valeur"] in (cited["content_text"] or cited["summary"])  # chiffre pris dans l'item cité
     used = [r["id"] for r in conn.execute("SELECT id FROM items WHERE status = 'used' AND used_in_issue = 1")]
     assert sorted(used) == sorted(drafted.used_item_ids) and len(used) == 5
     assert conn.execute("SELECT COUNT(*) AS n FROM items WHERE status = 'selected'").fetchone()["n"] == 0

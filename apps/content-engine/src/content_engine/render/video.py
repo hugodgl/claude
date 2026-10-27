@@ -21,6 +21,7 @@ from .ffmpeg import (
     ffmpeg_bin,
     ffmpeg_version,
     find_font,
+    have_ffmpeg,
     probe,
     run,
     wrap_text,
@@ -29,6 +30,7 @@ from .subtitles import proportional_segments, split_sentences, write_ass, write_
 
 WIDTH, HEIGHT, FPS = 1080, 1920, 30
 THUMB_W, THUMB_H = 1280, 720
+BAR_H = 18  # barre de progression en bas de la vidéo
 IMAGE_EXTS = (".jpg", ".jpeg", ".png")
 
 
@@ -97,6 +99,9 @@ def _drawtext(
     opts = [
         f"fontfile={font_file}" if font_file else f"font={font_family}",
         f"textfile={textfile}",
+        # Sans `expansion=none`, drawtext interprète « % » (un « 80 % » dans un titre fait
+        # disparaître tout le texte) et développe %{localtime}, %{eif:…}… venus du LLM.
+        "expansion=none",
         f"fontsize={size}",
         f"fontcolor={color}",
         f"x={x}",
@@ -213,9 +218,16 @@ def render_video(
         if tts_result.audio_path
         else ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
     )
+    # Barre de progression : une bande pleine largeur qui glisse de la gauche (overlay évalue
+    # `t` à chaque image sur toutes les versions de ffmpeg, contrairement à drawbox < 7.0).
+    bar_args = [
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c={pal.accent}:s={WIDTH}x{BAR_H}:r={FPS}:d={total_s:.3f}",
+    ]
     chain = (
         f"[0:v]{pre}"
-        f"drawbox=x=0:y=ih-18:w='iw*t/{total_s}':h=18:color={pal.accent}@0.95:t=fill,"
         + _drawtext(
             font_file,
             font.family,
@@ -243,7 +255,8 @@ def render_video(
             border=28,
             enable=f"gte(t,{cta_from:.3f})",
         )
-        + ",subtitles=subs.ass:fontsdir=.,format=yuv420p[v]"
+        + ",subtitles=subs.ass:fontsdir=.[base];"
+        f"[base][2:v]overlay=x='-W+W*t/{total_s}':y=H-{BAR_H}:eof_action=pass,format=yuv420p[v]"
     )
     cmd = [
         ffmpeg_bin(),
@@ -253,6 +266,7 @@ def render_video(
         "-y",
         *bg_args,
         *audio_args,
+        *bar_args,
         "-filter_complex",
         chain,
         "-map",
@@ -278,9 +292,22 @@ def render_video(
         "+faststart",
         "video.mp4",
     ]
-    run(cmd, cwd=out_dir)
+    _run_render(cmd, out_dir, font)
     (out_dir / "ffmpeg-command.txt").write_text(" ".join(cmd), encoding="utf-8")
     return out_dir / "video.mp4", tts_result, total_s
+
+
+def _run_render(cmd: list[str], cwd: Path, font: FontInfo) -> None:
+    """Lance ffmpeg ; sans police trouvée, l'erreur la plus probable est expliquée."""
+    try:
+        run(cmd, cwd=cwd)
+    except RenderError as e:
+        if not font.found:
+            raise RenderError(
+                f"{e}\naucune police trouvée sur ce poste : définir FONT_PATH dans .env "
+                "(ex. /System/Library/Fonts/Supplemental/Arial Bold.ttf)"
+            ) from e
+        raise
 
 
 def render_still(
@@ -318,7 +345,7 @@ def render_still(
         )
     chain = ",".join(parts) + ",format=yuv420p[v]"
     out = out_dir / f"{name}.jpg"
-    run(
+    _run_render(
         [
             ffmpeg_bin(),
             "-hide_banner",
@@ -336,7 +363,8 @@ def render_still(
             "3",
             out.name,
         ],
-        cwd=out_dir,
+        out_dir,
+        font,
     )
     return out
 
@@ -432,6 +460,16 @@ def render_draft(
             f"brouillon #{draft_id} en statut « {row['status']} » : approuver d'abord "
             f"(ce approve {draft_id}) ou utiliser --force pour un aperçu"
         )
+    if not have_ffmpeg():
+        raise RenderError(
+            "ffmpeg et ffprobe sont requis pour le rendu et sont introuvables dans le PATH "
+            "(brew install ffmpeg)"
+        )
+    if settings.font_path and not Path(settings.font_path).expanduser().exists():
+        raise RenderError(
+            f"FONT_PATH pointe vers un fichier absent : {settings.font_path} "
+            "(corriger ou retirer la variable pour la détection automatique)"
+        )
     payload = draft_payload(row)
     product = get_product(row["product"])
     fmt = row["format"]
@@ -453,6 +491,11 @@ def render_draft(
             tts = get_tts(settings)
         video, tts_result, total_s = render_video(payload, product, out_dir, settings, tts, font)
         info = probe(video)
+        if info.duration_s > settings.video_max_seconds + 0.5:  # garde-fou après encodage
+            raise RenderError(
+                f"vidéo rendue de {info.duration_s:.1f} s > {settings.video_max_seconds} s : "
+                "fichier non publiable, raccourcir le script"
+            )
         result.video, result.duration_s = video.name, round(info.duration_s or total_s, 3)
         result.width, result.height = info.width, info.height
         result.audio = tts_result.audio_path.name if tts_result.audio_path else None
@@ -476,10 +519,3 @@ def render_draft(
     if row["status"] in ("approved", "rendered"):
         set_draft_status(conn, draft_id, "rendered")
     return result
-
-
-def load_render_info(out_dir: Path) -> dict | None:
-    p = Path(out_dir) / "render.json"
-    if not p.exists():
-        return None
-    return json.loads(p.read_text(encoding="utf-8"))

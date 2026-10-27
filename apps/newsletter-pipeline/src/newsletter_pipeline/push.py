@@ -5,6 +5,8 @@
   Repli documenté dans le README si l'endpoint n'est pas ouvert sur le plan : copier-coller du HTML.
 - `kessel` : pas d'API publique connue ; on écrit les fichiers et la marche à suivre (copier-coller).
 - `file` : régénère simplement les fichiers HTML/texte depuis le markdown relu.
+
+Dans tous les cas, le titre et l'aperçu envoyés sont ceux du markdown relu (H1, première citation).
 """
 from __future__ import annotations
 
@@ -19,7 +21,7 @@ import httpx
 
 from . import db
 from .draft import issue_meta
-from .render import rerender_from_markdown
+from .render import issue_paths, rerender_from_markdown
 from .settings import Settings
 
 TARGETS = ("beehiiv", "kessel", "file")
@@ -40,10 +42,10 @@ class PushResult:
     messages: list[str] = field(default_factory=list)
 
 
-def build_beehiiv_request(settings: Settings, issue: sqlite3.Row, html: str, meta: dict[str, Any]) -> dict[str, Any]:
+def build_beehiiv_request(settings: Settings, html: str, meta: dict[str, Any]) -> dict[str, Any]:
     publication = settings.beehiiv_publication_id or "pub_XXXXXXXX"
     payload: dict[str, Any] = {
-        "title": issue["title"],
+        "title": meta["title"],
         "subtitle": meta.get("preheader") or settings.newsletter_tagline,
         "status": "draft",
         "content_tags": list(settings.beehiiv_content_tags),
@@ -60,19 +62,22 @@ def build_beehiiv_request(settings: Settings, issue: sqlite3.Row, html: str, met
     }
 
 
-def _prepare(conn: sqlite3.Connection, settings: Settings, number: int, *,
-             render: bool) -> tuple[sqlite3.Row, dict, dict]:
+def prepare_issue(conn: sqlite3.Connection, settings: Settings, number: int, *,
+                  render: bool = True) -> tuple[sqlite3.Row, dict[str, Any], dict[str, Path]]:
+    """Charge le numéro, relit son markdown (titre et aperçu font foi, la base est alignée) et, si
+    demandé, régénère HTML et texte. Retourne (ligne `issues`, métadonnées, chemins)."""
     issue = db.get_issue(conn, number)
     if issue is None:
         raise PushError(f"numéro {number} introuvable : lance d'abord `np draft --issue {number}`")
     md_path = Path(issue["md_path"])
     if not md_path.exists():
-        raise PushError(f"fichier markdown absent : {md_path}")
-    meta = issue_meta(settings, issue)
-    if render:
-        paths = rerender_from_markdown(md_path, meta)
-    else:
-        paths = {"md": md_path, "html": md_path.with_suffix(".html"), "txt": md_path.with_suffix(".txt")}
+        raise PushError(f"fichier markdown absent : {md_path} (relance `np draft --issue {number} --force`)")
+    md_text = md_path.read_text(encoding="utf-8")
+    meta = issue_meta(settings, issue, md_text)
+    if meta["title"] != issue["title"]:
+        db.save_issue(conn, number, title=meta["title"])
+        issue = db.get_issue(conn, number)
+    paths = rerender_from_markdown(md_path, meta, md_text) if render else issue_paths(md_path)
     return issue, meta, paths
 
 
@@ -80,7 +85,7 @@ def push_issue(conn: sqlite3.Connection, settings: Settings, number: int, target
                client: httpx.Client | None = None, render: bool = True) -> PushResult:
     if target not in TARGETS:
         raise PushError(f"cible inconnue : {target!r} (attendu : {', '.join(TARGETS)})")
-    issue, meta, paths = _prepare(conn, settings, number, render=render)
+    issue, meta, paths = prepare_issue(conn, settings, number, render=render)
     out_dir = Path(settings.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     result = PushResult(target=target, live=live, number=number, paths=paths)
@@ -91,7 +96,7 @@ def push_issue(conn: sqlite3.Connection, settings: Settings, number: int, target
         shutil.copyfile(paths["html"], copy)
         result.request_path = out_dir / f"push-file-{number:03d}.json"
         result.request_path.write_text(json.dumps(
-            {"target": "file", "number": number, "title": issue["title"],
+            {"target": "file", "number": number, "title": meta["title"],
              "files": {k: str(v) for k, v in paths.items()}, "copy": str(copy)}, ensure_ascii=False, indent=2),
             encoding="utf-8")
         result.messages.append(f"HTML prêt à coller : {copy}")
@@ -100,7 +105,7 @@ def push_issue(conn: sqlite3.Connection, settings: Settings, number: int, target
     if target == "kessel":
         result.request_path = out_dir / f"push-kessel-{number:03d}.json"
         result.request_path.write_text(json.dumps({
-            "target": "kessel", "mode": "manuel", "number": number, "title": issue["title"],
+            "target": "kessel", "mode": "manuel", "number": number, "title": meta["title"],
             "publication_url": settings.kessel_publication_url,
             "html_path": str(paths["html"]), "txt_path": str(paths["txt"]),
             "instructions": [
@@ -116,7 +121,9 @@ def push_issue(conn: sqlite3.Connection, settings: Settings, number: int, target
         return result
 
     # beehiiv
-    request = build_beehiiv_request(settings, issue, html, meta)
+    if live and (not settings.beehiiv_api_key or not settings.beehiiv_publication_id):
+        raise PushError("BEEHIIV_API_KEY et BEEHIIV_PUBLICATION_ID sont requis pour --live")
+    request = build_beehiiv_request(settings, html, meta)
     result.request_path = out_dir / f"push-beehiiv-{number:03d}.json"
     result.request_path.write_text(json.dumps(
         {"live": live, "note": "Requête exacte ; la clé API est lue dans BEEHIIV_API_KEY au moment de l'envoi.",
@@ -124,14 +131,16 @@ def push_issue(conn: sqlite3.Connection, settings: Settings, number: int, target
     if not live:
         result.messages.append(f"Dry-run : requête écrite dans {result.request_path} (ajoute --live pour envoyer)")
         return result
-    if not settings.beehiiv_api_key or not settings.beehiiv_publication_id:
-        raise PushError("BEEHIIV_API_KEY et BEEHIIV_PUBLICATION_ID sont requis pour --live")
     headers = {**request["headers"], "Authorization": f"Bearer {settings.beehiiv_api_key}"}
+    own_client = client is None
     http = client or httpx.Client(timeout=60)
     try:
         response = http.post(request["url"], json=request["json"], headers=headers)
     except httpx.HTTPError as exc:
         raise PushError(f"beehiiv injoignable : {exc}") from exc
+    finally:
+        if own_client:
+            http.close()
     body: Any
     try:
         body = response.json()

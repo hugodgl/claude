@@ -32,8 +32,8 @@ def test_markdown_to_html_neutralizes_raw_html_and_unsafe_links():
           '[js](javascript:alert(1)) [ok](https://ok.fr/a) ![pix](http://tracker.test/p.gif) [data](data:text/html,x)\n\n'
           '```text\nprompt <b>brut</b>\n```\n')
     html = markdown_to_html(md)
-    assert "<script" not in html and "<iframe" not in html and "<div" not in html and "onclick" not in html
-    assert "&lt;script&gt;" in html and "&lt;div onclick=" in html
+    assert "<script" not in html and "<iframe" not in html and "<div" not in html
+    assert "&lt;script&gt;" in html and '<p>&lt;div onclick="x"&gt;bloc&lt;/div&gt;</p>' in html
     assert 'href="https://ok.fr/a"' in html and "javascript:" not in html and "data:" not in html
     assert "<pre><code" in html and "prompt &lt;b&gt;brut&lt;/b&gt;" in html
     assert 'src="http://tracker.test/p.gif"' in html  # les images http restent (choix de l'auteur du markdown)

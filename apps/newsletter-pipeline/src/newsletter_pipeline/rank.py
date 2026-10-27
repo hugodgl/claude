@@ -14,7 +14,7 @@ from typing import Any
 from core.llm import LLM, LLMError, complete_json
 
 from . import db
-from .prompts import EDITOR_ROLE, GUARD, item_block
+from .prompts import EDITOR_ROLE, GUARD, clean_output, item_block
 from .settings import THEMES, Settings
 
 log = logging.getLogger(__name__)
@@ -156,8 +156,9 @@ class Ranker:
                     "nouveaute": clamp_score(result.get("nouveaute")),
                     "actionnable": clamp_score(result.get("actionnable")),
                     "theme": theme,
-                    "resume_1_phrase": str(result.get("resume_1_phrase") or "").strip(),
-                    "pourquoi_ca_compte": str(result.get("pourquoi_ca_compte") or "").strip(),
+                    "resume_1_phrase": clean_output(result.get("resume_1_phrase"), max_chars=400, single_line=True),
+                    "pourquoi_ca_compte": clean_output(result.get("pourquoi_ca_compte"), max_chars=400,
+                                                       single_line=True),
                     "score": score,
                     "source_weight": float(item["source_weight"] or 1.0),
                     "weights": {"pertinence": self.settings.weight_pertinence,

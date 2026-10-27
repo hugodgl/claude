@@ -86,14 +86,16 @@ class Review:
     reply_draft: str | None
     reply_published_at: str | None
     alerted_at: str | None
+    reply_draft_source: str | None = None  # "llm" | "llm-cleaned" | "fallback" ; None avant la migration 002
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Review:
         return cls(**{k: row[k] for k in cls.__dataclass_fields__})
 
     @property
-    def created(self) -> datetime | None:
-        return parse_iso(self.created_at)
+    def draft_needs_care(self) -> bool:
+        """Brouillon générique ou nettoyé mécaniquement : jamais auto-publié, à relire de près."""
+        return self.reply_draft_source in ("fallback", "llm-cleaned")
 
 
 @dataclass

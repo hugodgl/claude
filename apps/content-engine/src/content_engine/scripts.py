@@ -35,18 +35,31 @@ FORMAT_SPECS: dict[str, FormatSpec] = {
 }
 
 
+# Bornes du schéma : au-delà, la réponse du modèle est hors sujet (script entier dans « hook »,
+# paragraphe dans « title »…) et la variante est redemandée une fois, puis abandonnée.
+MAX_TEXT_CHARS = {"hook": 400, "cta": 400, "title": 200, "description": 3000}
+MAX_BODY_ITEMS, MAX_BODY_ITEM_CHARS = 12, 1200
+MAX_HASHTAGS, MAX_HASHTAG_CHARS = 8, 30  # YouTube : 500 caractères de tags au total
+
+
+class ScriptSchemaError(LLMError):
+    """Réponse hors schéma après relance : la variante est abandonnée, pas tout le sujet."""
+
+
 class ScriptPayload(BaseModel):
-    hook: str = Field(min_length=3)
-    body: list[str] = Field(min_length=1)
-    cta: str = Field(min_length=3)
-    title: str = Field(min_length=3)
-    description: str = ""
+    hook: str = Field(min_length=3, max_length=MAX_TEXT_CHARS["hook"])
+    body: list[str] = Field(min_length=1, max_length=MAX_BODY_ITEMS)
+    cta: str = Field(min_length=3, max_length=MAX_TEXT_CHARS["cta"])
+    title: str = Field(min_length=3, max_length=MAX_TEXT_CHARS["title"])
+    description: str = Field(default="", max_length=MAX_TEXT_CHARS["description"])
     hashtags: list[str] = Field(default_factory=list)
     duration_s: int = 0
 
     @field_validator("hook", "cta", "title", "description", mode="before")
     @classmethod
     def _strip(cls, v):
+        if isinstance(v, (dict, list)):
+            raise ValueError("texte attendu")
         return " ".join(str(v).split()) if v is not None else ""
 
     @field_validator("body", mode="before")
@@ -54,28 +67,39 @@ class ScriptPayload(BaseModel):
     def _body(cls, v):
         if isinstance(v, str):
             v = [p for p in re.split(r"\n+", v) if p.strip()]
-        return [" ".join(str(p).split()) for p in v if str(p).strip()]
+        if not isinstance(v, list):
+            raise ValueError("liste de phrases attendue")
+        return [" ".join(str(p).split()) for p in v if isinstance(p, str) and p.strip()]
+
+    @field_validator("body")
+    @classmethod
+    def _body_lengths(cls, v):
+        if any(len(p) > MAX_BODY_ITEM_CHARS for p in v):
+            raise ValueError(f"une entrée de body dépasse {MAX_BODY_ITEM_CHARS} caractères")
+        return v
 
     @field_validator("hashtags", mode="before")
     @classmethod
     def _hashtags(cls, v):
         if isinstance(v, str):
             v = re.split(r"[\s,]+", v)
+        if not isinstance(v, list):
+            v = []
         out, seen = [], set()
-        for tag in v or []:
+        for tag in v:
             tag = re.sub(
                 r"[^0-9a-zà-ÿ_]", "", str(tag).strip().lstrip("#").lower().replace(" ", "")
             )
-            if tag and tag not in seen:
+            if tag and len(tag) <= MAX_HASHTAG_CHARS and tag not in seen:
                 seen.add(tag)
                 out.append(tag)
-        return out[:8]
+        return out[:MAX_HASHTAGS]
 
     @field_validator("duration_s", mode="before")
     @classmethod
     def _duration(cls, v):
         try:
-            return max(0, int(float(v)))
+            return min(3600, max(0, int(float(v))))
         except (TypeError, ValueError):
             return 0
 

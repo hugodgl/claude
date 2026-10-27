@@ -8,8 +8,9 @@ import sqlite3
 import unicodedata
 from datetime import timedelta
 from typing import Any, Iterable
+from urllib.parse import quote
 
-from .db import now_iso, utcnow
+from .db import month_bounds_utc, normalize_iso, now_iso, utcnow
 from .models import Account, Establishment, Review, ReviewRequest
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -97,7 +98,7 @@ def unique_slug(conn: sqlite3.Connection, name: str) -> str:
 
 
 def review_url_for_place(place_id: str) -> str:
-    return f"https://search.google.com/local/writereview?placeid={place_id.strip()}"
+    return f"https://search.google.com/local/writereview?placeid={quote(place_id.strip(), safe='')}"
 
 
 def create_establishment(
@@ -136,6 +137,13 @@ def get_establishment(
 
 def get_establishment_by_slug(conn: sqlite3.Connection, slug: str) -> Establishment | None:
     row = conn.execute("SELECT * FROM establishments WHERE slug = ?", (slug,)).fetchone()
+    return Establishment.from_row(row) if row else None
+
+
+def get_establishment_by_location(conn: sqlite3.Connection, location_name: str) -> Establishment | None:
+    """Établissement déjà relié à cette fiche Google (une fiche ne peut appartenir qu'à un établissement)."""
+    row = conn.execute("SELECT * FROM establishments WHERE google_location_name = ? ORDER BY id LIMIT 1",
+                       (location_name,)).fetchone()
     return Establishment.from_row(row) if row else None
 
 
@@ -192,14 +200,22 @@ def insert_review(
     reply_status: str = "none",
     reply_published_at: str | None = None,
 ) -> Review:
+    # INSERT OR IGNORE : deux polls simultanés (job + bouton « Synchroniser ») ne doivent ni planter
+    # ni dupliquer ; les horodatages Google (« Z », millisecondes) sont ramenés au format commun.
     with conn:
         cur = conn.execute(
-            "INSERT INTO reviews (establishment_id, platform, external_id, external_name, author, rating,"
-            " text, created_at, updated_at, fetched_at, reply_text, reply_status, reply_published_at)"
+            "INSERT OR IGNORE INTO reviews (establishment_id, platform, external_id, external_name, author,"
+            " rating, text, created_at, updated_at, fetched_at, reply_text, reply_status, reply_published_at)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (establishment_id, platform, external_id, external_name, author, rating, text, created_at,
-             updated_at, now_iso(), reply_text, reply_status, reply_published_at),
+            (establishment_id, platform, external_id, external_name, author, rating, text,
+             normalize_iso(created_at) or created_at, normalize_iso(updated_at), now_iso(), reply_text,
+             reply_status, normalize_iso(reply_published_at)),
         )
+    if cur.rowcount == 0:
+        existing = find_review(conn, establishment_id, platform, external_id)
+        if existing is None:
+            raise sqlite3.IntegrityError("insertion de l'avis refusée par une contrainte")
+        return existing
     return get_review(conn, cur.lastrowid)  # type: ignore[return-value]
 
 
@@ -229,11 +245,13 @@ def list_reviews(
 
 
 def list_reviews_in_month(conn: sqlite3.Connection, establishment_id: int, month: str) -> list[Review]:
-    """`month` au format AAAA-MM."""
+    """`month` au format AAAA-MM, borné dans le fuseau métier (un avis à 00:30 à Paris le 1er compte
+    dans le nouveau mois, pas dans le précédent comme avec un découpage UTC)."""
+    start, end = month_bounds_utc(month)
     rows = conn.execute(
-        "SELECT * FROM reviews WHERE establishment_id = ? AND substr(created_at, 1, 7) = ?"
+        "SELECT * FROM reviews WHERE establishment_id = ? AND created_at >= ? AND created_at < ?"
         " ORDER BY created_at",
-        (establishment_id, month),
+        (establishment_id, start, end),
     )
     return [Review.from_row(r) for r in rows]
 
@@ -296,11 +314,13 @@ def list_review_requests(
 
 
 def count_messages_in_month(conn: sqlite3.Connection, account_id: int, month: str) -> int:
+    """Messages SMS / WhatsApp décomptés du quota pour le mois `AAAA-MM` du fuseau métier."""
+    start, end = month_bounds_utc(month)
     row = conn.execute(
         "SELECT COUNT(*) AS n FROM review_requests rr JOIN establishments e ON e.id = rr.establishment_id"
         " WHERE e.account_id = ? AND rr.channel IN ('sms', 'whatsapp')"
-        " AND rr.status IN ('sent', 'dry-run') AND substr(rr.created_at, 1, 7) = ?",
-        (account_id, month),
+        " AND rr.status IN ('sent', 'dry-run') AND rr.created_at >= ? AND rr.created_at < ?",
+        (account_id, start, end),
     ).fetchone()
     return int(row["n"])
 
@@ -337,15 +357,20 @@ def add_optout(conn: sqlite3.Connection, phone: str, account_id: int | None, sou
     return True
 
 
-def remove_optout(conn: sqlite3.Connection, phone: str, account_id: int | None) -> None:
+def remove_optout(conn: sqlite3.Connection, phone: str, account_id: int | None) -> bool:
+    """Retire un numéro de la liste STOP du compte (ou de la liste globale si account_id est None)."""
     with conn:
-        conn.execute("DELETE FROM optouts WHERE phone = ? AND account_id IS ?", (phone, account_id))
+        cur = conn.execute("DELETE FROM optouts WHERE phone = ? AND account_id IS ?", (phone, account_id))
+    return cur.rowcount > 0
 
 
 def list_optouts(conn: sqlite3.Connection, account_id: int | None) -> list[sqlite3.Row]:
+    """Liste STOP d'un compte (ses propres oppositions uniquement : les oppositions globales restent
+    appliquées à l'envoi mais ne sont pas exposées aux commerçants) ; tout avec account_id=None (CLI)."""
+    if account_id is None:
+        return list(conn.execute("SELECT * FROM optouts ORDER BY created_at DESC"))
     return list(conn.execute(
-        "SELECT * FROM optouts WHERE account_id IS NULL OR account_id = ? ORDER BY created_at DESC",
-        (account_id,),
+        "SELECT * FROM optouts WHERE account_id = ? ORDER BY created_at DESC", (account_id,),
     ))
 
 
@@ -372,13 +397,19 @@ def list_private_messages(conn: sqlite3.Connection, establishment_id: int, limit
     ))
 
 
-def list_events(conn: sqlite3.Connection, account_id: int | None = None, limit: int = 30) -> list[dict[str, Any]]:
-    if account_id is None:
-        rows = conn.execute("SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,))
-    else:
-        rows = conn.execute(
-            "SELECT * FROM events WHERE account_id = ? ORDER BY id DESC LIMIT ?", (account_id, limit)
-        )
+def list_events(conn: sqlite3.Connection, account_id: int | None = None, limit: int = 30,
+                exclude_kinds: Iterable[str] = ()) -> list[dict[str, Any]]:
+    """Derniers événements ; `exclude_kinds` écarte par exemple les vues de page publique du fil d'activité."""
+    excluded = list(exclude_kinds)
+    where, params = [], []
+    if account_id is not None:
+        where.append("account_id = ?")
+        params.append(account_id)
+    if excluded:
+        where.append(f"kind NOT IN ({','.join('?' * len(excluded))})")
+        params.extend(excluded)
+    sql = "SELECT * FROM events" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY id DESC LIMIT ?"
+    rows = conn.execute(sql, [*params, limit])
     out = []
     for r in rows:
         d = dict(r)

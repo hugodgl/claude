@@ -4,18 +4,16 @@ from __future__ import annotations
 import logging
 import sys
 from datetime import date
-from pathlib import Path
 
 import typer
 from core.llm import get_llm
 
 from . import db
 from .collect import Collector, CollectReport
-from .draft import Drafter, issue_meta, next_tuesday
+from .draft import Drafter, next_tuesday
 from .linkedin import generate_linkedin_posts
-from .push import TARGETS, PushError, push_issue
+from .push import TARGETS, PushError, prepare_issue, push_issue
 from .rank import Ranker
-from .render import rerender_from_markdown
 from .settings import Settings, get_settings
 from .stats import collect_stats, format_stats
 
@@ -106,8 +104,11 @@ def collect(
     _print_collect_report(report)
 
 
+LIMIT_HELP = "Nombre max d'items à classer (défaut : RANK_DEFAULT_LIMIT)."
+
+
 @app.command()
-def rank(limit: int = typer.Option(60, "--limit", help="Nombre max d'items à classer.")) -> None:
+def rank(limit: int | None = typer.Option(None, "--limit", help=LIMIT_HELP)) -> None:
     """Classe les items nouveaux avec le LLM (pertinence cabinet, nouveauté, actionnable, thème)."""
     settings = _settings()
     conn = db.open_db(settings)
@@ -128,7 +129,7 @@ def draft(
     conn = db.open_db(settings)
     try:
         result = Drafter(conn, settings, get_llm(settings)).run(issue, _parse_date(date_), force_case=case, force=force)
-    except (FileExistsError, RuntimeError, LookupError, FileNotFoundError) as exc:
+    except (FileExistsError, RuntimeError, LookupError, OSError, ValueError) as exc:
         _fail(str(exc))
     typer.echo(f"Numéro {result.number:03d} du {result.issue_date.isoformat()} : « {result.title} »")
     typer.echo(f"  items sélectionnés : {len(result.item_ids)}, cités : {len(result.used_item_ids)}, "
@@ -142,13 +143,14 @@ def draft(
 
 @app.command()
 def render(issue: int = typer.Option(..., "--issue")) -> None:
-    """Régénère le HTML et le texte depuis le markdown relu."""
+    """Régénère le HTML et le texte depuis le markdown relu (titre et aperçu compris)."""
     settings = _settings()
     conn = db.open_db(settings)
-    row = db.get_issue(conn, issue)
-    if row is None:
-        _fail(f"numéro {issue} introuvable")
-    paths = rerender_from_markdown(Path(row["md_path"]), issue_meta(settings, row))
+    try:
+        _, meta, paths = prepare_issue(conn, settings, issue, render=True)
+    except PushError as exc:
+        _fail(str(exc))
+    typer.echo(f"Numéro {issue:03d} : « {meta['title']} »")
     for k, p in paths.items():
         typer.echo(f"  {k:<4} {p}")
 
@@ -179,7 +181,7 @@ def linkedin(issue: int = typer.Option(..., "--issue")) -> None:
     conn = db.open_db(settings)
     try:
         result = generate_linkedin_posts(conn, settings, get_llm(settings), issue)
-    except (LookupError, RuntimeError) as exc:
+    except (LookupError, RuntimeError, OSError) as exc:
         _fail(str(exc))
     typer.echo(f"{len(result.posts)} posts écrits dans {result.path}")
     for w in result.warnings:
@@ -198,7 +200,7 @@ def stats() -> None:
 def run_monday(
     issue: int | None = typer.Option(None, "--issue", help="Numéro à produire (défaut : dernier + 1)."),
     date_: str | None = typer.Option(None, "--date", help="Date d'envoi (défaut : mardi suivant)."),
-    limit: int = typer.Option(60, "--limit", help="Nombre max d'items à classer."),
+    limit: int | None = typer.Option(None, "--limit", help=LIMIT_HELP),
 ) -> None:
     """Routine du lundi : collecte de toutes les sources actives → classement → brouillon du prochain numéro."""
     settings = _settings()

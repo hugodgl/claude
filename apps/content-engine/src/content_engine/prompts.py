@@ -67,9 +67,16 @@ def _tone(product: Product) -> str:
     return "tutoiement" if product.tone == "tu" else "vouvoiement"
 
 
+def clean_question(question: str, limit: int = 300) -> str:
+    """Question insérée dans un prompt : une seule ligne, sans guillemets « » (délimiteurs du
+    prompt), longueur bornée. Les sujets viennent aussi du LLM : on borne ce qu'on lui renvoie."""
+    q = " ".join(str(question).split()).replace("«", "“").replace("»", "”")
+    return q if len(q) <= limit else q[: limit - 1].rstrip() + "…"
+
+
 def ideas_prompt(product: Product, count: int, existing: list[str]) -> str:
     angles = "\n".join(f"  - {slug} : {desc}" for slug, desc in ANGLES.items())
-    listed = "\n".join(f"- {q}" for q in existing[:80]) or "- (aucune)"
+    listed = "\n".join(f"- {clean_question(q, 160)}" for q in existing[:80]) or "- (aucune)"
     return (
         f"Produit : {product.slug} — {product.label}.\n"
         f"Promesse : {product.promise}. Public : {product.audience}.\n\n"
@@ -91,7 +98,7 @@ def script_prompt(
     return (
         f"Produit : {product.slug} — {product.label}.\n"
         f"Promesse : {product.promise}. Public : {product.audience}. Ton : {_tone(product)}.\n"
-        f"Question du prospect : « {question} »\n"
+        f"Question du prospect : « {clean_question(question)} »\n"
         f"Angle : {angle or 'libre'} — {angle_desc}.\n"
         f"Format : {fmt} — {FORMAT_INSTRUCTIONS[fmt]}\n"
         f"Variante {variant} — approche : {APPROACHES[variant]}.\n\n"

@@ -93,7 +93,8 @@ def test_push_unknown_issue_or_target(conn, settings, drafted):
 
 def test_build_beehiiv_request_defaults(settings, conn, drafted):
     issue = db.get_issue(conn, 1)
-    req = build_beehiiv_request(settings, issue, "<html></html>", {"preheader": ""})
+    req = build_beehiiv_request(settings, "<html></html>", {"title": issue["title"], "preheader": ""})
+    assert req["json"]["title"] == issue["title"]
     assert "pub_XXXXXXXX" in req["url"] and req["json"]["content_tags"] == ["ia", "cabinets"]
     assert req["json"]["subtitle"] == settings.newsletter_tagline
 

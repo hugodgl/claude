@@ -160,7 +160,7 @@ def generate_reply_draft(
     for attempt in range(2):
         prompt = build_prompt(establishment_name, tone, review, max_words, stricter=attempt == 1)
         try:
-            data = complete_json(llm, prompt, system=SYSTEM_REPLY, max_tokens=400)
+            data = complete_json(llm, prompt, system=system_reply(max_words), max_tokens=400)
         except LLMError as e:
             log.warning("brouillon LLM impossible (%s), repli sur un modèle", e)
             break

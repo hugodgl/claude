@@ -4,6 +4,7 @@ bureau » (google-auth-oauthlib), jeton stocké dans data/youtube-token.json."""
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import httpx
@@ -23,6 +24,7 @@ from .base import (
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 THUMB_URL = "https://www.googleapis.com/upload/youtube/v3/thumbnails/set"
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+TAGS_MAX_CHARS = 400
 
 
 def get_access_token(settings: Settings) -> str:
@@ -39,14 +41,29 @@ def get_access_token(settings: Settings) -> str:
     )
     creds = None
     if token_file.exists():
-        creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
+        try:
+            creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
+        except ValueError as e:
+            raise PublishError(f"jeton YouTube illisible ({token_file}) : {e}") from e
     if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
+        try:
+            creds.refresh(Request())
+        except Exception as e:  # RefreshError (jeton révoqué) ou réseau : message lisible
+            raise PublishError(
+                f"rafraîchissement du jeton YouTube impossible : {e} — supprimer {token_file} "
+                "et relancer la publication dans un terminal pour un nouveau consentement"
+            ) from e
     elif not creds or not creds.valid:
         if not secrets.exists():
             raise PublishError(
                 f"{secrets} absent : télécharger l'identifiant OAuth « application de bureau » "
                 "depuis Google Cloud (API YouTube Data v3 activée)"
+            )
+        if not sys.stdin.isatty():  # launchd : pas de navigateur, ne pas bloquer le job
+            raise PublishError(
+                "consentement OAuth YouTube requis : lancer une première fois "
+                "`ce publish --draft-id N --platform youtube --live` dans un terminal "
+                f"(le jeton est ensuite conservé dans {token_file})"
             )
         flow = InstalledAppFlow.from_client_secrets_file(str(secrets), SCOPES)
         creds = flow.run_local_server(port=0, open_browser=True)
@@ -63,7 +80,11 @@ class YouTubePublisher:
 
     def body(self, ctx: PublishContext) -> dict:
         s, p = ctx.settings, ctx.payload
-        tags = hashtags_line(p, ctx.product, limit=8).replace("#", "").split()
+        tags: list[str] = []
+        for tag in hashtags_line(p, ctx.product, limit=8).replace("#", "").split():
+            if sum(len(t) + 1 for t in tags) + len(tag) > TAGS_MAX_CHARS:
+                break  # YouTube : 500 caractères de tags au total (invalidTags sinon)
+            tags.append(tag)
         return {
             "snippet": {
                 "title": youtube_title(p),

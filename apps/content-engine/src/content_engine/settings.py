@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Literal
 
 from core.settings import Settings as CoreSettings
+from pydantic import field_validator
 from pydantic_settings import SettingsConfigDict
+
+DEFAULT_AI_DISCLOSURE = "Contenu créé avec l'aide d'IA, relu par un humain."
 
 
 class Settings(CoreSettings):
@@ -24,7 +27,7 @@ class Settings(CoreSettings):
     landing_url_avis: str = "https://example.com/avis"
     landing_url_marches: str = "https://example.com/marches"
     landing_url_cabinets: str = "https://example.com/cabinets"
-    ai_disclosure: str = "Contenu créé avec l'aide d'IA, relu par un humain."
+    ai_disclosure: str = DEFAULT_AI_DISCLOSURE
 
     # Voix
     tts_provider: Literal["silent", "say", "kokoro", "elevenlabs"] = "say"
@@ -64,16 +67,28 @@ class Settings(CoreSettings):
 
     # TikTok
     tiktok_access_token: str | None = None
-    tiktok_privacy_level: str = "SELF_ONLY"
+    tiktok_privacy_level: Literal[
+        "SELF_ONLY", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "PUBLIC_TO_EVERYONE"
+    ] = "SELF_ONLY"
+    # Tant que l'app TikTok n'a pas passé l'audit Content Posting, la visibilité est forcée à
+    # SELF_ONLY quoi que dise TIKTOK_PRIVACY_LEVEL (voir `tiktok_effective_privacy`).
+    tiktok_app_audited: bool = False
     tiktok_api_base: str = "https://open.tiktokapis.com"
+
+    @field_validator("ai_disclosure", mode="before")
+    @classmethod
+    def _disclosure_never_blank(cls, v):
+        """L'étiquette IA ne peut pas être vidée par la configuration : repli sur le défaut."""
+        text = " ".join(str(v or "").split())
+        return text or DEFAULT_AI_DISCLOSURE
 
     @property
     def db_path(self) -> Path:
         return self.data_dir / "content-engine.db"
 
+    @property
+    def tiktok_effective_privacy(self) -> str:
+        return self.tiktok_privacy_level if self.tiktok_app_audited else "SELF_ONLY"
+
     def landing_url(self, product: str) -> str:
         return getattr(self, f"landing_url_{product}", None) or self.landing_url_avis
-
-
-def get_settings(**overrides) -> Settings:
-    return Settings(**overrides)

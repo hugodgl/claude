@@ -136,7 +136,10 @@ def publish_draft(
     path = write_dry_run(plan, ctx.out_dir, live=live)
     outcome = None
     if live:
-        outcome = pub.send(plan, ctx, client or httpx.Client(timeout=180))
+        try:
+            outcome = pub.send(plan, ctx, client or httpx.Client(timeout=180))
+        except httpx.HTTPError as e:  # réseau coupé, DNS, délai : erreur métier, pas un crash
+            raise PublishError(f"{platform} injoignable ({type(e).__name__}) : {e}") from e
         set_draft_status(conn, draft_id, "published")
     with conn:
         conn.execute(
