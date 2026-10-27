@@ -43,3 +43,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 02:15 — intégration racine
 - Makefile corrigé : `make test` et `make setup` ne faisaient rien pour les apps (règles implicites ignorées sur des cibles `.PHONY`) ; passage en règles statiques, garde sur les venvs existants. `make test-core` vert, lint du socle corrigé.
 - `ACTIONS-HUGO.md` : ajout des premiers essais réels app par app.
+
+### 28/10 02:40 — chantier de nuit Mac mini aligné sur la documentation Claude Code
+- Vérifié contre code.claude.com (headless, permissions, authentication, sessions) : mode `dontAsk` + liste blanche passée via `--settings`, jeton `claude setup-token` dans `CLAUDE_CODE_OAUTH_TOKEN` pour les lancements launchd, clé API retirée de l'environnement, `< /dev/null`, attente des sous-agents, journaux stream-json avec extraction des refus de permission, session neuve à chaque passage.
+- Aucun planificateur local persistant n'existe dans Claude Code : launchd reste la bonne solution ; la tâche planifiée cloud ne peut pas lire le Mac.
