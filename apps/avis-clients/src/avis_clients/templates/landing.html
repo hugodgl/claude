@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ app_name }} : plus d'avis Google, une réponse à chacun{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Plus d'avis, une réponse à chacun, sans y passer du temps.</h1>
+  <p class="lead">Pour les restaurants, coiffeurs, garages, cabinets et commerces indépendants : un QR code et un lien
+    pour collecter des avis Google, des brouillons de réponse rédigés dans votre ton que vous validez en un clic,
+    et un rapport mensuel lisible en deux minutes.</p>
+  <p class="cta">
+    <a class="btn primary" href="/login">Essayer 14 jours gratuitement</a>
+    <a class="btn" href="#formules">Voir les formules</a>
+  </p>
+  <p class="muted small">Sans carte bancaire pour l'essai. Sans engagement ensuite.</p>
+</section>
+
+<section class="grid3">
+  <article class="card">
+    <h3>1. Collecter</h3>
+    <p>QR code à imprimer, page d'avis mobile, demande par SMS après la visite. Tous vos clients sont invités de la
+      même façon : aucun tri par note.</p>
+  </article>
+  <article class="card">
+    <h3>2. Répondre</h3>
+    <p>Chaque nouvel avis arrive avec un brouillon de réponse fidèle à votre ton (chaleureux, sobre ou dynamique).
+      Vous publiez, modifiez ou régénérez en un clic.</p>
+  </article>
+  <article class="card">
+    <h3>3. Suivre</h3>
+    <p>Alerte immédiate sur les avis à 1 ou 2 étoiles. Rapport mensuel : volume, note, mots qui reviennent, délai
+      de réponse et trois recommandations concrètes.</p>
+  </article>
+</section>
+
+<section id="formules">
+  <h2>Formules</h2>
+  <div class="grid3">
+    <article class="card plan">
+      <h3>Solo</h3>
+      <p class="price">19 €<span> HT / mois</span></p>
+      <ul><li>1 établissement</li><li>QR code, page d'avis</li><li>Brouillons de réponse</li><li>Alertes avis négatifs</li></ul>
+    </article>
+    <article class="card plan highlight">
+      <h3>Pro</h3>
+      <p class="price">29 €<span> HT / mois</span></p>
+      <ul><li>Tout Solo</li><li>100 demandes SMS / WhatsApp par mois</li><li>Rapport mensuel</li><li>Auto-publication des réponses 4-5 étoiles (option)</li></ul>
+    </article>
+    <article class="card plan">
+      <h3>Réseau</h3>
+      <p class="price">59 €<span> HT / mois</span></p>
+      <ul><li>Tout Pro</li><li>Jusqu'à 5 établissements</li><li>300 demandes par mois</li><li>Rapport par établissement</li></ul>
+    </article>
+  </div>
+  <p class="muted small">Annuel : 10 mois payés sur 12 (nous contacter). Prix hors taxes.</p>
+</section>
+
+<section>
+  <h2>Questions fréquentes</h2>
+  {% for q, a in faq %}
+  <details class="faq"><summary>{{ q }}</summary><p>{{ a }}</p></details>
+  {% endfor %}
+</section>
+{% endblock %}

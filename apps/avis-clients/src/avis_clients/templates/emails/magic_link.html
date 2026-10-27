@@ -1,0 +1,8 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+<h1 style="font-size:20px;margin:0 0 12px;">Votre lien de connexion</h1>
+<p>Cliquez sur le bouton ci-dessous pour vous connecter à {{ app_name }}. Le lien est valable {{ ttl_minutes }} minutes et ne sert qu'une fois.</p>
+<p style="margin:24px 0;"><a href="{{ url }}" style="background:#2b5d3f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;">Me connecter</a></p>
+<p style="font-size:13px;color:#555;">Ou copiez cette adresse : <br><a href="{{ url }}">{{ url }}</a></p>
+<p style="font-size:13px;color:#555;">Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.</p>
+{% endblock %}

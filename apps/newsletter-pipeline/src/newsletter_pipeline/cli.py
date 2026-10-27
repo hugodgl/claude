@@ -70,7 +70,9 @@ def main(verbose: bool = typer.Option(False, "--verbose", "-v", help="Journal dÃ
 
 
 @app.command()
-def sources(sync: bool = typer.Option(True, "--sync/--no-sync", help="Synchronise sources.yaml avant d'afficher.")) -> None:
+def sources(
+    sync: bool = typer.Option(True, "--sync/--no-sync", help="Synchronise sources.yaml avant d'afficher."),
+) -> None:
     """Liste les sources (et synchronise sources.yaml dans la base)."""
     settings = _settings()
     conn = db.open_db(settings)

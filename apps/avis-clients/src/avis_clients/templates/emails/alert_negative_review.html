@@ -1,0 +1,10 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+<h1 style="font-size:20px;margin:0 0 12px;">Avis {{ review.rating }} étoile{{ 's' if review.rating > 1 else '' }} sur {{ establishment.name }}</h1>
+<p><strong>{{ review.author or 'Anonyme' }}</strong> · {{ review.created_at|date }} · Google</p>
+<blockquote style="border-left:4px solid #d9534f;margin:12px 0;padding:8px 12px;background:#fdf3f2;">{{ review.text or '(avis sans texte)' }}</blockquote>
+<p><strong>Brouillon de réponse proposé</strong> (ton : excuses + invitation à vous contacter) :</p>
+<blockquote style="border-left:4px solid #2b5d3f;margin:12px 0;padding:8px 12px;background:#f2f7f4;">{{ draft }}</blockquote>
+<p style="margin:24px 0;"><a href="{{ inbox_url }}" style="background:#2b5d3f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;">Valider ou modifier la réponse</a></p>
+<p style="font-size:13px;color:#555;">Répondre vite et calmement à un avis négatif est ce qui compte le plus pour les lecteurs suivants. Rien n'est publié sans votre validation.</p>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Rapport {{ month_label }} · {{ establishment.name }}{% endblock %}
+{% block content %}
+<div class="row">
+  <h1>Rapport {{ month_label }} · {{ establishment.name }}</h1>
+  <form method="get" class="inline"><input type="month" name="month" value="{{ month }}"> <button class="btn small">Afficher</button></form>
+</div>
+<p class="muted small">Aperçu de l'email envoyé par le job <code>avis monthly-report</code> (formules Pro et Réseau).</p>
+{% include "emails/_report_body.html" %}
+{% endblock %}

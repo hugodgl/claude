@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Nouvel établissement · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>Votre établissement</h1>
+  {% if limit_reached %}
+    <div class="flash warn">Votre formule permet {{ max_establishments }} établissement(s). <a href="/billing">Changer de formule</a>.</div>
+  {% endif %}
+  {% if errors %}<div class="flash error"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+  <form method="post" action="/app/establishments" class="stack">
+    <label>Nom de l'établissement
+      <input name="name" required minlength="2" maxlength="80" value="{{ form.name if form else '' }}" placeholder="Boulangerie Dupont">
+    </label>
+    <label>Place ID Google
+      <input name="google_place_id" required value="{{ form.google_place_id if form else '' }}" placeholder="ChIJ…" pattern="\S{10,}">
+      <small class="muted">{{ place_id_help }} Nous construisons automatiquement votre lien d'avis
+        <code>https://search.google.com/local/writereview?placeid=…</code></small>
+    </label>
+    <fieldset>
+      <legend>Ton des réponses</legend>
+      {% for code, p in presets.items() %}
+      <label class="radio">
+        <input type="radio" name="style" value="{{ code }}" {% if (form.style if form else 'chaleureux') == code %}checked{% endif %}>
+        <strong>{{ p.label }}</strong> : {{ p.description }}
+      </label>
+      {% endfor %}
+      <small class="muted">Trois exemples de réponses seront générés dans ce ton ; vous pourrez les corriger.</small>
+    </fieldset>
+    <label>Signature en fin de réponse (facultatif)
+      <input name="signature" maxlength="80" value="{{ form.signature if form else '' }}" placeholder="L'équipe de la Boulangerie Dupont">
+    </label>
+    <label>Email de notification (facultatif, sinon votre email de connexion)
+      <input type="email" name="notification_email" value="{{ form.notification_email if form else '' }}">
+    </label>
+    <button class="btn primary" {% if limit_reached %}disabled{% endif %}>Créer et générer mes exemples</button>
+  </form>
+</section>
+{% endblock %}

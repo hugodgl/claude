@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Lien envoyé · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>Vérifiez votre boîte mail</h1>
+  <p>Un lien de connexion a été envoyé à <strong>{{ email }}</strong>. Il est valable 20 minutes et ne sert qu'une fois.</p>
+  {% if mail_provider == 'console' %}
+    <div class="flash warn">Mode développement : l'email est affiché dans la console du serveur (MAIL_PROVIDER=console).</div>
+  {% endif %}
+  <p class="muted small">Rien reçu ? Regardez dans les indésirables, puis <a href="/login">demandez un nouveau lien</a>.</p>
+</section>
+{% endblock %}

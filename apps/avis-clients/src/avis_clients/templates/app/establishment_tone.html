@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Ton des réponses · {{ establishment.name }}{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>Le ton de {{ establishment.name }}</h1>
+  <p>Ces trois exemples guident chaque brouillon. Corrigez-les librement : plus ils vous ressemblent, meilleurs seront
+    les brouillons.</p>
+  <form method="post" action="/app/establishments/{{ establishment.id }}/tone" class="stack">
+    <fieldset>
+      <legend>Style</legend>
+      {% for code, p in presets.items() %}
+      <label class="radio"><input type="radio" name="style" value="{{ code }}" {% if tone.style == code %}checked{% endif %}>
+        <strong>{{ p.label }}</strong> : {{ p.description }}</label>
+      {% endfor %}
+    </fieldset>
+    <label>Signature <input name="signature" maxlength="80" value="{{ tone.signature }}"></label>
+    <div class="grid2">
+      <label>À faire (une consigne par ligne)
+        <textarea name="do" rows="4">{{ tone.do|join('\n') }}</textarea></label>
+      <label>À éviter (une consigne par ligne)
+        <textarea name="dont" rows="4">{{ tone.dont|join('\n') }}</textarea></label>
+    </div>
+    {% for i in range(3) %}
+    <label>Exemple {{ i + 1 }} {% if i == 0 %}(avis 5 étoiles){% elif i == 1 %}(avis 4 étoiles avec une remarque){% else %}(avis 2 étoiles){% endif %}
+      <textarea name="exemple_{{ i + 1 }}" rows="3">{{ tone.exemples[i] if tone.exemples|length > i else '' }}</textarea>
+    </label>
+    {% endfor %}
+    <div class="actions">
+      <button class="btn primary" name="action" value="save">Enregistrer</button>
+      <button class="btn" name="action" value="regenerate" formnovalidate>Régénérer les exemples</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

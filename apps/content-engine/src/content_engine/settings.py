@@ -15,6 +15,7 @@ class Settings(CoreSettings):
     out_dir: Path = Path("out")
     topics_file: Path = Path("topics.yaml")
     assets_dir: Path = Path("assets")
+    assets_synthetic: bool = True  # les images de assets/ sont considérées générées par IA
     timezone: str = "Europe/Paris"
 
     # Marque et pages de capture

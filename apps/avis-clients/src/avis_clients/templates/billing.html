@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Abonnement · {{ app_name }}{% endblock %}
+{% block content %}
+<h1>Abonnement</h1>
+{% if success %}<div class="flash info">Merci ! Votre abonnement est en cours d'activation (quelques secondes).</div>{% endif %}
+{% if canceled %}<div class="flash warn">Paiement annulé : aucune somme n'a été prélevée.</div>{% endif %}
+
+<div class="card">
+  {% if access.state == 'active' %}
+    <p>Formule actuelle : <strong>{{ plan_labels[account.plan] }}</strong> ({{ account.subscription_status }}).</p>
+  {% elif access.state == 'trial' %}
+    <p>Vous êtes en <strong>essai gratuit</strong> ({{ access.days_left }} jour(s) restant(s)), avec les fonctions de la
+      formule Pro et {{ settings.trial_sms_quota }} SMS offerts.</p>
+  {% else %}
+    <p>Votre essai est terminé : choisissez une formule pour reprendre les envois, les brouillons et les publications.</p>
+  {% endif %}
+  {% if account.stripe_customer_id %}
+    <form method="post" action="/billing/portal" class="inline">
+      <button class="btn">Gérer mon abonnement (factures, carte, résiliation)</button>
+    </form>
+  {% endif %}
+  {% if not stripe_enabled %}
+    <p class="muted small">Paiement non configuré sur cette instance (STRIPE_SECRET_KEY absent) : les boutons ci-dessous
+      affichent une erreur explicite.</p>
+  {% endif %}
+</div>
+
+<div class="grid3">
+  {% for p in plans %}
+  <article class="card plan {% if p.highlight %}highlight{% endif %}">
+    <h3>{{ p.name }}</h3>
+    <p class="price">{{ p.price }} €<span> HT / mois</span></p>
+    <ul>{% for f in p.features %}<li>{{ f }}</li>{% endfor %}</ul>
+    <form method="post" action="/billing/checkout">
+      <input type="hidden" name="plan" value="{{ p.code }}">
+      {% if access.state == 'active' and account.plan == p.code %}
+        <button class="btn" disabled>Formule actuelle</button>
+      {% else %}
+        <button class="btn primary">{{ 'Changer pour ' ~ p.name if access.state == 'active' else 'Choisir ' ~ p.name }}</button>
+      {% endif %}
+    </form>
+  </article>
+  {% endfor %}
+</div>
+<p class="muted small">Paiement sécurisé par Stripe. Pour changer de formule en cours d'abonnement, utilisez le portail
+  client : le prorata est calculé automatiquement.</p>
+{% endblock %}

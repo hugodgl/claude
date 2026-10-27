@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord · {{ app_name }}{% endblock %}
+{% block content %}
+<h1>Tableau de bord</h1>
+{% if not establishments %}
+  <div class="card">
+    <h2>Bienvenue !</h2>
+    <p>Commencez par ajouter votre établissement : nom, identifiant Google, choix du ton. Vous obtiendrez votre QR code
+      en deux minutes.</p>
+    <a class="btn primary" href="/app/establishments/new">Ajouter mon établissement</a>
+  </div>
+{% else %}
+  <div class="stats">
+    <div class="stat"><span class="num">{{ pending }}</span><span>réponse(s) à valider</span>
+      {% if pending %}<a href="/app/inbox">Ouvrir la boîte de réception</a>{% endif %}</div>
+    <div class="stat"><span class="num">{{ counts.get('published', 0) }}</span><span>réponse(s) publiée(s)</span></div>
+    <div class="stat"><span class="num">{{ quota.used }} / {{ quota.quota }}</span><span>demandes SMS ce mois-ci</span>
+      <a href="/app/requests">Envoyer une demande</a></div>
+  </div>
+
+  <h2>Établissements</h2>
+  <div class="list">
+    {% for e in establishments %}
+    <article class="card row">
+      <div>
+        <h3><a href="/app/establishments/{{ e.id }}">{{ e.name }}</a></h3>
+        <p class="muted small">Page publique : <a href="{{ public_links[e.id] }}" target="_blank" rel="noopener">{{ public_links[e.id] }}</a>
+          · ton {{ e.tone.style }}{% if e.auto_publish %} · auto-publication 4-5 ★ activée{% endif %}</p>
+      </div>
+      <div class="actions">
+        <a class="btn small" href="/app/establishments/{{ e.id }}/print" target="_blank">Affiche à imprimer</a>
+        <a class="btn small" href="/app/establishments/{{ e.id }}">Réglages</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% if establishments|length < max_establishments %}
+    <p><a class="btn" href="/app/establishments/new">Ajouter un établissement</a></p>
+  {% else %}
+    <p class="muted small">Votre formule permet {{ max_establishments }} établissement(s). <a href="/billing">Passer en Réseau</a> pour en gérer jusqu'à 5.</p>
+  {% endif %}
+
+  <h2>Activité récente</h2>
+  <table class="table">
+    <tbody>
+    {% for ev in events %}
+      <tr><td class="muted small">{{ ev.created_at|datetime }}</td><td>{{ ev.kind }}</td>
+        <td class="muted small">{% for k, v in ev.payload.items() %}{{ k }}={{ v }} {% endfor %}</td></tr>
+    {% else %}
+      <tr><td class="muted">Aucune activité pour l'instant.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

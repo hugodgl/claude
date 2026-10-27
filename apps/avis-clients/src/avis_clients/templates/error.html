@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Erreur {{ code }} · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>{{ 'Page introuvable' if code == 404 else 'Accès refusé' }}</h1>
+  <p>{{ detail }}</p>
+  <p><a class="btn" href="/">Retour à l'accueil</a></p>
+</section>
+{% endblock %}

@@ -60,7 +60,8 @@ def build_beehiiv_request(settings: Settings, issue: sqlite3.Row, html: str, met
     }
 
 
-def _prepare(conn: sqlite3.Connection, settings: Settings, number: int, *, render: bool) -> tuple[sqlite3.Row, dict, dict]:
+def _prepare(conn: sqlite3.Connection, settings: Settings, number: int, *,
+             render: bool) -> tuple[sqlite3.Row, dict, dict]:
     issue = db.get_issue(conn, number)
     if issue is None:
         raise PushError(f"numéro {number} introuvable : lance d'abord `np draft --issue {number}`")
@@ -146,5 +147,6 @@ def push_issue(conn: sqlite3.Connection, settings: Settings, number: int, target
     result.response = body if isinstance(body, dict) else {"body": body}
     db.save_issue(conn, number, status="pushed", pushed_target="beehiiv", pushed_at=db.now_iso())
     post_id = (result.response.get("data") or {}).get("id") if isinstance(result.response.get("data"), dict) else None
-    result.messages.append(f"Brouillon créé sur beehiiv{f' (id {post_id})' if post_id else ''} ; réponse : {response_path}")
+    suffix = f" (id {post_id})" if post_id else ""
+    result.messages.append(f"Brouillon créé sur beehiiv{suffix} ; réponse : {response_path}")
     return result

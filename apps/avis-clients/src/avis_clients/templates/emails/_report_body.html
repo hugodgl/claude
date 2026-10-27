@@ -1,0 +1,23 @@
+<div class="report">
+  <div class="stats">
+    <div class="stat"><span class="num">{{ stats.count }}</span><span>avis reçus</span>
+      <span class="muted small">mois précédent : {{ stats.prev_count }}</span></div>
+    <div class="stat"><span class="num">{{ stats.avg_rating if stats.avg_rating is not none else '–' }}</span><span>note moyenne</span>
+      <span class="muted small">{% if stats.delta_avg is not none %}{{ '+' if stats.delta_avg >= 0 else '' }}{{ stats.delta_avg }} vs mois précédent{% else %}pas de comparaison{% endif %}</span></div>
+    <div class="stat"><span class="num">{{ stats.reply_rate if stats.reply_rate is not none else '–' }}{% if stats.reply_rate is not none %} %{% endif %}</span><span>avis avec réponse</span>
+      <span class="muted small">délai moyen : {{ stats.avg_reply_delay_h ~ ' h' if stats.avg_reply_delay_h is not none else '–' }}</span></div>
+  </div>
+  <h3>Répartition des notes</h3>
+  <table class="table compact">
+    <tbody>
+    {% for star in [5, 4, 3, 2, 1] %}
+      <tr><td>{{ star|stars }}</td><td>{{ stats.distribution.get(star, 0) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <h3>Mots qui reviennent</h3>
+  <p>{% for word, n in stats.top_words %}<span class="tag">{{ word }} ({{ n }})</span> {% else %}<span class="muted">Pas assez de texte ce mois-ci.</span>{% endfor %}</p>
+  <h3>Trois recommandations</h3>
+  <ol>{% for r in stats.recommendations %}<li>{{ r }}</li>{% endfor %}</ol>
+  {% if stats.recommendations_source == 'fallback' %}<p class="muted small">Recommandations génériques (pas assez d'avis ou modèle indisponible).</p>{% endif %}
+</div>

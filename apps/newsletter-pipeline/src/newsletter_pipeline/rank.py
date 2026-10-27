@@ -14,7 +14,7 @@ from typing import Any
 from core.llm import LLM, LLMError, complete_json
 
 from . import db
-from .prompts import GUARD, item_block
+from .prompts import EDITOR_ROLE, GUARD, item_block
 from .settings import THEMES, Settings
 
 log = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ class Ranker:
             report.batches += 1
             try:
                 data = complete_json(self.llm, build_rank_prompt(batch, self.settings),
-                                     system=None, max_tokens=256 * len(batch) + 256)
+                                     system=EDITOR_ROLE, max_tokens=256 * len(batch) + 256)
             except LLMError as exc:
                 report.failed_batches += 1
                 log.warning("lot de classement en échec (%d items) : %s", len(batch), exc)

@@ -41,9 +41,12 @@ testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 extend-exclude = [".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Form", "fastapi.File", "fastapi.Depends", "typer.Option", "typer.Argument"]

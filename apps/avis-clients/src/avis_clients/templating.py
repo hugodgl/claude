@@ -50,5 +50,5 @@ def get_env() -> Environment:
     return _env
 
 
-def render(name: str, **context: Any) -> str:
-    return get_env().get_template(name).render(**context)
+def render(template_name: str, **context: Any) -> str:
+    return get_env().get_template(template_name).render(**context)

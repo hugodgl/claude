@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Message envoyé · {{ establishment.name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="public">
+<main class="public-card">
+  <h1>Merci, votre message a été transmis.</h1>
+  <p>{{ establishment.name }} vous répondra si vous avez laissé un moyen de contact.</p>
+  <a class="btn primary xl" href="{{ establishment.review_url }}" rel="noopener">Laisser un avis Google</a>
+  <p><a href="/r/{{ establishment.slug }}">Retour</a></p>
+</main>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Connexion · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>Connexion</h1>
+  <p>Indiquez votre email : nous vous envoyons un lien de connexion, sans mot de passe à retenir.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" class="stack">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Email professionnel
+      <input type="email" name="email" value="{{ email or '' }}" required autofocus placeholder="vous@exemple.fr">
+    </label>
+    <button class="btn primary">Recevoir mon lien de connexion</button>
+  </form>
+  <p class="muted small">Première visite ? Le lien crée votre compte et démarre votre essai gratuit de 14 jours.</p>
+</section>
+{% endblock %}

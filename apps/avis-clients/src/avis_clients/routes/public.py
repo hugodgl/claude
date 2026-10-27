@@ -1,10 +1,9 @@
 """Pages publiques : landing, pages légales, page d'avis `/r/{slug}`."""
 from __future__ import annotations
 
+from core.mail import Email
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
-
-from core.mail import Email
 
 from ..db import log_event
 from ..deps import get_db, get_services, not_found, render_template

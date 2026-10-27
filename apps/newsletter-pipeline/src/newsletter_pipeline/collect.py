@@ -8,6 +8,7 @@ Règles :
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sqlite3
@@ -18,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from html import unescape
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -286,6 +288,8 @@ class Collector:
                 response.content, response_headers={"content-type": response.headers.get("content-type", "")}
             )
         else:
+            if not Path(url).exists():
+                raise FileNotFoundError(f"fichier de flux introuvable : {url}")
             parsed = feedparser.parse(url)  # chemin local (tests, fixtures, exports)
         if parsed.get("bozo") and not parsed.entries:
             raise ValueError(f"flux illisible : {parsed.get('bozo_exception')}")
@@ -321,8 +325,6 @@ class Collector:
 
     # -- pages -------------------------------------------------------------------------------
     def _fetch_page_source(self, source: sqlite3.Row) -> list[FetchedItem]:
-        import json
-
         listing = self._get(source["url"])
         patterns = json.loads(source["include_patterns"] or "[]")
         links = discover_links(listing.text, str(listing.url), patterns, self.settings.max_links_per_page)

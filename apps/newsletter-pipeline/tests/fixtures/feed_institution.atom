@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Institution Test — actualités</title>
+  <link href="https://institution-test.gouv.fr/actualites" rel="alternate"/>
+  <updated>2026-10-23T12:00:00Z</updated>
+  <id>urn:uuid:institution-test</id>
+  <entry>
+    <title>Commentaires publiés sur la facturation électronique des petites entreprises</title>
+    <link rel="alternate" href="https://institution-test.gouv.fr/actualite/facturation-electronique-commentaires"/>
+    <id>urn:uuid:a1</id>
+    <updated>2026-10-20T09:00:00Z</updated>
+    <author><name>Direction de la législation</name></author>
+    <summary type="html">&lt;p&gt;Les commentaires précisent les mentions obligatoires et le calendrier. Le calendrier est confirmé.&lt;/p&gt;</summary>
+    <content type="html">&lt;p&gt;Les commentaires précisent les mentions obligatoires et le calendrier. Le calendrier est confirmé. Les plateformes agréées sont au nombre de 87 à ce jour.&lt;/p&gt;&lt;p&gt;Les entreprises doivent conserver les factures au format structuré pendant dix ans.&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <title>Décret : nouvelles obligations d'information sur l'usage de l'IA dans les prestations de conseil</title>
+    <link rel="alternate" href="https://institution-test.gouv.fr/actualite/decret-information-ia-conseil"/>
+    <id>urn:uuid:a2</id>
+    <updated>2026-10-21T09:00:00Z</updated>
+    <summary>Le décret impose une information écrite du client lorsque des outils d'intelligence artificielle participent à la production d'un livrable de conseil. Entrée en vigueur le 1er janvier 2027.</summary>
+  </entry>
+  <entry>
+    <title>Guide pratique : les contrôles de cohérence de la DSN renforcés</title>
+    <link rel="alternate" href="https://institution-test.gouv.fr/actualite/dsn-controles-coherence"/>
+    <id>urn:uuid:a3</id>
+    <updated>2026-10-22T09:00:00Z</updated>
+    <summary>Nouvelle version du guide : 12 contrôles supplémentaires à la réception des DSN à partir de novembre. Les anomalies bloquantes seront notifiées sous 48 heures.</summary>
+  </entry>
+  <entry>
+    <title>Baromètre : 60 % des experts-comptables utilisent l'IA pour des analyses</title>
+    <link rel="alternate" href="https://institution-test.gouv.fr/actualite/barometre-ia-experts-comptables"/>
+    <id>urn:uuid:a4</id>
+    <updated>2026-10-22T15:00:00Z</updated>
+    <summary>L'enquête annuelle auprès de 1 200 professionnels montre que 60 % utilisent déjà un outil d'IA pour des analyses, contre 38 % l'an dernier. Les usages les plus cités : rédaction, synthèse de textes, préparation de rendez-vous.</summary>
+  </entry>
+  <entry>
+    <title>Un modèle de langage généraliste publié en libre accès</title>
+    <link rel="alternate" href="https://institution-test.gouv.fr/actualite/modele-langage-libre-acces"/>
+    <id>urn:uuid:a5</id>
+    <updated>2026-10-23T08:00:00Z</updated>
+    <summary>Un laboratoire publie un modèle de 14 milliards de paramètres utilisable localement. Les performances annoncées sur les tâches de synthèse en français sont comparables aux modèles propriétaires de taille moyenne.</summary>
+  </entry>
+</feed>

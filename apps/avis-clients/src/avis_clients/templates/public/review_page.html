@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Votre avis sur {{ establishment.name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="public">
+<main class="public-card">
+  <p class="stars big">★★★★★</p>
+  <h1>Merci pour votre visite chez {{ establishment.name }} !</h1>
+  <p>Votre avis compte pour nous et aide d'autres clients à nous découvrir. Il ne prend que 30 secondes.</p>
+  <a class="btn primary xl" href="{{ establishment.review_url }}" rel="noopener">Laisser un avis Google</a>
+  <p class="muted small">Vous serez redirigé vers Google. Tous les avis sont les bienvenus, quelle que soit votre note.</p>
+
+  <details class="private">
+    <summary>Nous écrire en privé (facultatif)</summary>
+    <p class="small">Une remarque à nous transmettre directement ? Ce message est envoyé au gérant et ne remplace pas votre avis public.</p>
+    <form method="post" action="/r/{{ establishment.slug }}/message" class="stack">
+      <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <label>Votre message <textarea name="message" rows="4" required maxlength="2000"></textarea></label>
+      <label>Votre nom (facultatif) <input name="name" maxlength="100"></label>
+      <label>Email ou téléphone pour vous répondre (facultatif) <input name="contact" maxlength="200"></label>
+      <button class="btn">Envoyer au gérant</button>
+    </form>
+  </details>
+  <p class="muted tiny">Page fournie par {{ app_name }} · <a href="/legal/confidentialite">Confidentialité</a></p>
+</main>
+</body>
+</html>

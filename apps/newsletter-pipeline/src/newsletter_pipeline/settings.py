@@ -29,7 +29,7 @@ class Settings(CoreSettings):
     newsletter_name: str = "L'IA en cabinet"
     newsletter_tagline: str = "Chaque mardi, ce que l'IA change pour votre cabinet, en 5 minutes."
     author_name: str = "Hugo"
-    author_signature: str = "Hugo — veille assistée par IA, relue et signée par un humain"
+    author_signature: str = "Hugo"  # affiché après « relue et signée par un humain : »
     reply_to_email: str | None = None
     archive_url: str | None = None  # page d'archives publique (beehiiv, Kessel…)
 

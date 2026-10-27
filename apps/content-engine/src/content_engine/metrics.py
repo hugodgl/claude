@@ -1,0 +1,185 @@
+"""Métriques : import des exports CSV (YouTube Studio, TikTok Studio), classement des angles."""
+from __future__ import annotations
+
+import csv
+import re
+import sqlite3
+from pathlib import Path
+
+from .db import utc_now_iso
+from .scripts import draft_payload, list_drafts
+from .topics import normalize_question
+
+ALIASES: dict[str, list[str]] = {
+    "remote_id": ["contenu", "content", "video id", "id de la video", "video_id", "id", "post id"],
+    "title": ["titre de la video", "video title", "titre", "title", "nom de la video", "video name",
+              "post title", "description"],
+    "views": ["vues", "views", "video views", "vues de la video", "nombre de vues", "total views",
+              "vues totales"],
+    "likes": ["mentions j'aime", "mentions jaime", "likes", "j'aime", "jaime", "total likes",
+              "mentions j aime"],
+    "comments": ["commentaires", "comments", "total comments"],
+    "shares": ["partages", "shares", "total shares"],
+    "impressions": ["impressions"],
+    "ctr": ["taux de clics des impressions (%)", "impressions click-through rate (%)", "ctr",
+            "taux de clics", "click-through rate"],
+    "avg_view_pct": ["pourcentage moyen visionne (%)", "average percentage viewed (%)",
+                     "pourcentage moyen de visionnage (%)", "average percentage viewed"],
+    "watch_time_h": ["duree de visionnage (heures)", "watch time (hours)"],
+    "published_at": ["heure de publication de la video", "video publish time", "post time",
+                     "date de publication", "publish time", "date"],
+}
+
+
+def norm_header(h: str) -> str:
+    s = normalize_question(h.replace("’", "'"))
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _alias_keys() -> dict[str, dict[str, str]]:
+    return {field: {norm_header(a): a for a in aliases} for field, aliases in ALIASES.items()}
+
+
+def map_columns(headers: list[str]) -> dict[str, str]:
+    """Champ interne → nom de colonne du CSV (première colonne qui correspond)."""
+    normalized = {norm_header(h): h for h in headers if h}
+    mapping: dict[str, str] = {}
+    for field, aliases in _alias_keys().items():
+        for norm, _ in aliases.items():
+            if norm in normalized and normalized[norm] not in mapping.values():
+                mapping[field] = normalized[norm]
+                break
+    return mapping
+
+
+def parse_number(value: str | None) -> float | None:
+    if value is None:
+        return None
+    s = str(value).strip().replace(" ", "").replace("\xa0", "").replace(" ", "").rstrip("%")
+    if not s or s in ("-", "—"):
+        return None
+    if "," in s and "." not in s:
+        s = s.replace(",", "") if re.fullmatch(r"\d{1,3}(,\d{3})+", s) else s.replace(",", ".")
+    elif "," in s and "." in s:
+        s = s.replace(",", "")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def detect_platform(headers: list[str], filename: str = "") -> str:
+    norm = {norm_header(h) for h in headers}
+    name = filename.lower()
+    if "tiktok" in name or {"video views", "vues de la video"} & norm:
+        return "tiktok"
+    if "youtube" in name or {"duree de visionnage (heures)", "watch time (hours)", "contenu",
+                             "content"} & norm:
+        return "youtube"
+    return "unknown"
+
+
+def _draft_titles(conn: sqlite3.Connection) -> dict[str, int]:
+    titles: dict[str, int] = {}
+    for row in list_drafts(conn):
+        p = draft_payload(row)
+        key = normalize_question(p.get("title", ""))
+        if key and key not in titles:
+            titles[key] = row["id"]
+    return titles
+
+
+def link_draft(conn: sqlite3.Connection, platform: str, remote_id: str | None, title: str | None,
+               titles: dict[str, int]) -> int | None:
+    if remote_id:
+        row = conn.execute(
+            "SELECT draft_id FROM publications WHERE platform = ? AND remote_id = ? AND dry_run = 0 "
+            "ORDER BY id DESC LIMIT 1", (platform, remote_id),
+        ).fetchone()
+        if row:
+            return int(row["draft_id"])
+    if title:
+        return titles.get(normalize_question(title))
+    return None
+
+
+def read_csv(path: Path) -> tuple[list[str], list[dict]]:
+    text = path.read_text(encoding="utf-8-sig")
+    sample = text[:4096]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.DictReader(text.splitlines(), dialect=dialect)
+    rows = [r for r in reader if any((v or "").strip() for v in r.values())]
+    return list(reader.fieldnames or []), rows
+
+
+def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None = None) -> dict:
+    """Importe un export CSV ; remplace les lignes déjà importées pour le même contenu."""
+    path = Path(path)
+    headers, rows = read_csv(path)
+    mapping = map_columns(headers)
+    if "views" not in mapping:
+        raise ValueError(f"colonne « vues » introuvable dans {path.name} (colonnes : {headers})")
+    platform = platform or detect_platform(headers, path.name)
+    titles = _draft_titles(conn)
+    imported = linked = skipped = 0
+    for r in rows:
+        remote_id = (r.get(mapping.get("remote_id", ""), "") or "").strip() or None
+        title = (r.get(mapping.get("title", ""), "") or "").strip() or None
+        if (remote_id or "").lower() in ("total", "totaux") or (title or "").lower() == "total":
+            skipped += 1
+            continue
+        views = parse_number(r.get(mapping["views"]))
+        if views is None:
+            skipped += 1
+            continue
+
+        def num(field: str) -> float | None:
+            col = mapping.get(field)
+            return parse_number(r.get(col)) if col else None
+
+        draft_id = link_draft(conn, platform, remote_id, title, titles)
+        linked += draft_id is not None
+        with conn:
+            if remote_id:
+                conn.execute("DELETE FROM metrics WHERE platform = ? AND remote_id = ?",
+                             (platform, remote_id))
+            elif title:
+                conn.execute("DELETE FROM metrics WHERE platform = ? AND remote_id IS NULL AND title = ?",
+                             (platform, title))
+            conn.execute(
+                "INSERT INTO metrics (platform, remote_id, title, draft_id, views, likes, comments, "
+                "shares, impressions, ctr, avg_view_pct, watch_time_h, published_at, imported_at, "
+                "source_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (platform, remote_id, title, draft_id, int(views), int(num("likes") or 0),
+                 int(num("comments") or 0), int(num("shares") or 0),
+                 int(num("impressions")) if num("impressions") is not None else None,
+                 num("ctr"), num("avg_view_pct"), num("watch_time_h"),
+                 (r.get(mapping.get("published_at", ""), "") or "").strip() or None,
+                 utc_now_iso(), path.name),
+            )
+        imported += 1
+    return {"platform": platform, "imported": imported, "linked": linked, "skipped": skipped,
+            "columns": mapping}
+
+
+def angle_ranking(conn: sqlite3.Connection, product: str | None = None) -> list[dict]:
+    """Angles classés par vues moyennes (contenus liés à un brouillon uniquement)."""
+    sql = (
+        "SELECT t.product, COALESCE(t.angle, 'libre') AS angle, COUNT(*) AS n, "
+        "SUM(m.views) AS views_total, AVG(m.views) AS views_avg, AVG(m.ctr) AS ctr_avg, "
+        "AVG(m.avg_view_pct) AS view_pct_avg, AVG(m.likes) AS likes_avg "
+        "FROM metrics m JOIN drafts d ON d.id = m.draft_id JOIN topics t ON t.id = d.topic_id "
+    )
+    params: list = []
+    if product:
+        sql += "WHERE t.product = ? "
+        params.append(product)
+    sql += "GROUP BY t.product, angle ORDER BY views_avg DESC"
+    return [dict(r) for r in conn.execute(sql, params)]
+
+
+def unlinked_count(conn: sqlite3.Connection) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM metrics WHERE draft_id IS NULL").fetchone()[0])

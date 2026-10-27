@@ -62,5 +62,6 @@ def format_stats(stats: dict[str, Any]) -> str:
         lines += ["", "Thèmes : " + ", ".join(f"{r['theme']} {r['n']}" for r in stats["themes"])]
     lines += ["", f"Numéros produits : {len(stats['issues'])}"]
     for i in stats["issues"]:
-        lines.append(f"  n° {i['number']:03d}  {i['issue_date']}  [{i['status']}]  {i['title']}  (cas : {i['case_slug']})")
+        lines.append(f"  n° {i['number']:03d}  {i['issue_date']}  [{i['status']}]  {i['title']}  "
+                     f"(cas : {i['case_slug']})")
     return "\n".join(lines)

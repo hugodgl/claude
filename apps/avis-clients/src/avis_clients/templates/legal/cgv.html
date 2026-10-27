@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Conditions générales de vente · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="narrow legal">
+  <h1>Conditions générales de vente et d'utilisation</h1>
+  <p class="flash warn">Modèle à compléter et à faire relire avant la mise en ligne.</p>
+  <h2>1. Objet</h2>
+  <p>[RAISON SOCIALE] (« l'Éditeur ») fournit à des professionnels (« le Client ») un service en ligne de collecte
+    d'avis clients, d'aide à la réponse aux avis et de reporting (« le Service »).</p>
+  <h2>2. Formules et prix</h2>
+  <p>Solo : 19 € HT/mois (1 établissement). Pro : 29 € HT/mois (100 demandes d'avis par SMS ou WhatsApp par mois,
+    rapport mensuel). Réseau : 59 € HT/mois (jusqu'à 5 établissements, 300 demandes par mois). Essai gratuit de
+    14 jours. Paiement mensuel par carte via Stripe, sans engagement, résiliable à tout moment depuis le portail
+    client ; la résiliation prend effet à la fin de la période en cours.</p>
+  <h2>3. Obligations du Client</h2>
+  <ul>
+    <li>Ne solliciter que des clients ayant réellement bénéficié d'une prestation et consenti à être contactés ;
+      respecter les demandes de désinscription (STOP).</li>
+    <li>Ne jamais rédiger ni commander de faux avis, ni dissuader des clients de publier un avis négatif
+      (articles L.121-2 et suivants du code de la consommation, règles de Google).</li>
+    <li>Relire et assumer chaque réponse publiée sous son nom, y compris en mode d'auto-publication.</li>
+  </ul>
+  <h2>4. Données personnelles et sous-traitance</h2>
+  <p>Pour les numéros de téléphone et emails des clients finaux, le Client est responsable de traitement et
+    l'Éditeur agit comme sous-traitant au sens de l'article 28 du RGPD. L'accord de sous-traitance (DPA) figure en
+    annexe : [LIEN OU TEXTE DU DPA]. Hébergement en Union européenne, sous-traitants ultérieurs : [HÉBERGEUR],
+    [FOURNISSEUR SMS], [FOURNISSEUR EMAIL], Stripe. Suppression des données au plus tard 30 jours après la
+    résiliation.</p>
+  <h2>5. Disponibilité et responsabilité</h2>
+  <p>Le Service dépend d'API tierces (Google, fournisseurs SMS, Stripe). L'Éditeur s'engage à une obligation de
+    moyens ; sa responsabilité est limitée au montant des sommes versées au cours des 12 derniers mois.</p>
+  <h2>6. Droit applicable</h2>
+  <p>Droit français. Tribunal compétent : [VILLE]. Médiation de la consommation : non applicable (clients
+    professionnels).</p>
+</section>
+{% endblock %}

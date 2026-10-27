@@ -39,18 +39,26 @@ class FakeResponder:
         product = _PRODUCT_RE.search(prompt).group(1) if _PRODUCT_RE.search(prompt) else "avis"
         existing = _EXISTING_RE.findall(prompt)
         angles = ["pas-a-pas", "mythe", "checklist", "erreur-frequente", "outil", "cas-concret"]
+        templates = [
+            "Quel budget prévoir la première année pour {p}, et sur quoi ne pas lésiner ?",
+            "Faut-il déléguer {p} à un prestataire ou tout faire soi-même au début ?",
+            "Combien de temps par semaine demande vraiment {p} quand on est seul ?",
+            "Quelles erreurs de débutant coûtent le plus cher sur {p} ?",
+            "Par quel outil gratuit commencer pour {p} sans se tromper ?",
+            "Comment mesurer en un mois si {p} apporte des clients ?",
+            "Que faire quand un concurrent est mieux placé sur {p} ?",
+            "Est-ce encore utile de s'occuper de {p} en zone rurale ?",
+        ]
         questions = []
         if existing:  # un doublon volontaire : le dédoublonnage doit l'écarter
             questions.append({"question": existing[0], "angle": "mythe"})
         for _ in range(count):
             self.ideas_counter += 1
             n = self.ideas_counter
-            questions.append(
-                {
-                    "question": f"Question simulée numéro {n} sur le thème {product} : par où commencer ?",
-                    "angle": angles[n % len(angles)],
-                }
-            )
+            tpl = templates[n % len(templates)]
+            suffix = f" (variante {n // len(templates)})" if n >= len(templates) else ""
+            questions.append({"question": tpl.format(p=f"le sujet {product}") + suffix,
+                              "angle": angles[n % len(angles)]})
         return json.dumps({"questions": questions}, ensure_ascii=False)
 
     def _script(self, prompt: str) -> str:

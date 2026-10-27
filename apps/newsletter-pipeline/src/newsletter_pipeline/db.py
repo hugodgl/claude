@@ -63,7 +63,7 @@ def mark_source_fetched(conn: sqlite3.Connection, source_id: int, error: str | N
     with conn:
         conn.execute(
             "UPDATE sources SET last_fetched_at = ?, last_error = ?, updated_at = ? WHERE id = ?",
-            (now_iso(), (error or None) and error[:500], now_iso(), source_id),
+            (now_iso(), error[:500] if error else None, now_iso(), source_id),
         )
 
 

@@ -93,7 +93,7 @@ def create_app(settings: AppSettings | None = None, services: Services | None = 
         wants_html = "text/html" in request.headers.get("accept", "") and not is_htmx(request)
         if wants_html and exc.status_code in (403, 404):
             return render_template(request, "error.html", status_code=exc.status_code,
-                                   status_code=exc.status_code, detail=exc.detail)
+                                   code=exc.status_code, detail=exc.detail)
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
 
     app.include_router(public_routes.router)

@@ -1,0 +1,7 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+<h1 style="font-size:20px;margin:0 0 12px;">Merci pour votre visite{% if prenom %}, {{ prenom }}{% endif %} !</h1>
+<p>Chez {{ establishment.name }}, votre avis compte. Si vous avez 30 secondes, un avis Google nous aide beaucoup.</p>
+<p style="margin:24px 0;"><a href="{{ lien }}" style="background:#2b5d3f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;">Laisser un avis</a></p>
+<p style="font-size:13px;color:#555;">Vous recevez cet email à la suite de votre passage chez {{ establishment.name }}. Il ne contient aucune offre commerciale ; répondez simplement « STOP » pour ne plus être sollicité.</p>
+{% endblock %}

@@ -159,7 +159,9 @@ class TwilioSMS:
         if channel == "whatsapp":
             if not self.whatsapp_from:
                 raise SMSError("TWILIO_WHATSAPP_FROM manquant pour le canal WhatsApp")
-            sender = self.whatsapp_from if self.whatsapp_from.startswith("whatsapp:") else f"whatsapp:{self.whatsapp_from}"
+            sender = self.whatsapp_from
+            if not sender.startswith("whatsapp:"):
+                sender = f"whatsapp:{sender}"
             recipient = f"whatsapp:{to}"
         else:
             sender, recipient = self.from_number, to

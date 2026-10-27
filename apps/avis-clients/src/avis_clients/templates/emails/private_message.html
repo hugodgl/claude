@@ -1,0 +1,7 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+<h1 style="font-size:20px;margin:0 0 12px;">Message privé d'un client · {{ establishment.name }}</h1>
+<p><strong>De :</strong> {{ name or 'anonyme' }} · <strong>Contact :</strong> {{ contact or 'non renseigné' }}</p>
+<blockquote style="border-left:4px solid #2b5d3f;margin:12px 0;padding:8px 12px;background:#f2f7f4;white-space:pre-wrap;">{{ message }}</blockquote>
+<p style="font-size:13px;color:#555;">Ce message a été envoyé depuis votre page d'avis, après le lien Google. Il n'a aucune incidence sur la possibilité pour ce client de laisser un avis public.</p>
+{% endblock %}

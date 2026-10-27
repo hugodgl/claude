@@ -133,7 +133,8 @@ class Drafter:
             if len(news) == 3:
                 break
         if len(news) < 3:
-            warnings.append(f"le modèle n'a rendu que {len(news)} actualité(s) : complété avec les résumés de classement")
+            warnings.append(f"le modèle n'a rendu que {len(news)} actualité(s) : "
+                            "complété avec les résumés de classement")
             for item in items:
                 if len(news) == 3:
                     break
@@ -173,7 +174,8 @@ class Drafter:
             except (TypeError, ValueError):
                 item = None
             chiffre = {"valeur": str(raw["valeur"]).strip(), "phrase": str(raw.get("phrase") or "").strip(),
-                       "url": item["url"] if item else "", "item_id": item["id"] if item else None}
+                       "url": item["url"] if item else "", "source": item["source_name"] if item else "",
+                       "item_id": item["id"] if item else None}
             if not item:
                 warnings.append("chiffre sans item identifiable : lien source à compléter")
         raw = data.get("outil")
@@ -184,7 +186,8 @@ class Drafter:
                 item = None
             outil = {"nom": str(raw["nom"]).strip(), "usage": str(raw.get("usage") or "").strip(),
                      "verdict": str(raw.get("verdict") or "").strip(), "limite": str(raw.get("limite") or "").strip(),
-                     "url": item["url"] if item else "", "item_id": item["id"] if item else None}
+                     "url": item["url"] if item else "", "source": item["source_name"] if item else "",
+                     "item_id": item["id"] if item else None}
         return chiffre, outil, warnings
 
     def _edito(self, number: int, news: list[dict], case: UseCase, chiffre: dict | None) -> dict[str, Any]:

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Demandes d'avis · {{ app_name }}{% endblock %}
+{% block content %}
+<h1>Demandes d'avis</h1>
+{% if not establishments %}
+  <div class="card"><p>Ajoutez d'abord un établissement.</p><a class="btn primary" href="/app/establishments/new">Ajouter</a></div>
+{% else %}
+<div class="stats">
+  <div class="stat"><span class="num">{{ quota.used }} / {{ quota.quota }}</span><span>SMS / WhatsApp utilisés ce mois-ci</span>
+    {% if quota.quota == 0 %}<a href="/billing">Formule Pro : 100 par mois</a>{% endif %}</div>
+  <div class="stat"><span class="num">{{ optouts|length }}</span><span>numéro(s) en liste STOP</span></div>
+  <div class="stat"><span class="num">{{ sms_provider }}</span><span>fournisseur SMS{% if sms_provider == 'dry-run' %} (simulation : rien n'est envoyé){% endif %}</span></div>
+</div>
+
+<div class="grid2">
+  <article class="card">
+    <h2>Envoyer une demande</h2>
+    <form method="post" action="/app/requests/send" class="stack">
+      <label>Établissement
+        <select name="establishment_id">{% for e in establishments %}<option value="{{ e.id }}" {% if selected and e.id == selected.id %}selected{% endif %}>{{ e.name }}</option>{% endfor %}</select>
+      </label>
+      <label>Canal
+        <select name="channel">
+          <option value="sms">SMS</option>
+          <option value="whatsapp" {% if not whatsapp_available %}disabled{% endif %}>WhatsApp{% if not whatsapp_available %} (Twilio uniquement){% endif %}</option>
+          <option value="email">Email</option>
+        </select>
+      </label>
+      <label>Téléphone mobile ou email <input name="recipient" required placeholder="06 12 34 56 78"></label>
+      <label>Prénom (facultatif) <input name="first_name" maxlength="60" placeholder="Camille"></label>
+      <button class="btn primary">Envoyer</button>
+    </form>
+    <p class="muted small">Rappel : uniquement des clients ayant réellement bénéficié de votre prestation et acceptant
+      d'être contactés. Le message n'a aucun contenu commercial et propose la désinscription (STOP).</p>
+  </article>
+
+  <article class="card">
+    <h2>Import CSV</h2>
+    <form method="post" action="/app/requests/import" enctype="multipart/form-data" class="stack">
+      <label>Établissement
+        <select name="establishment_id">{% for e in establishments %}<option value="{{ e.id }}" {% if selected and e.id == selected.id %}selected{% endif %}>{{ e.name }}</option>{% endfor %}</select>
+      </label>
+      <label>Canal <select name="channel"><option value="sms">SMS</option>{% if whatsapp_available %}<option value="whatsapp">WhatsApp</option>{% endif %}</select></label>
+      <label>Fichier CSV (colonnes <code>telephone;prenom</code>, séparateur , ou ;) <input type="file" name="file" accept=".csv,text/csv" required></label>
+      <button class="btn">Importer et envoyer</button>
+    </form>
+
+    <h2>Modèle de message</h2>
+    {% if selected %}
+    <form method="post" action="/app/requests/template" class="stack">
+      <input type="hidden" name="establishment_id" value="{{ selected.id }}">
+      <textarea name="request_template" rows="4">{{ selected.request_template }}</textarea>
+      <small class="muted">Variables : {prenom}, {etablissement}, {lien}. Aperçu : « {{ preview }} » ({{ preview|length }} caractères).</small>
+      <button class="btn small">Enregistrer le modèle</button>
+    </form>
+    {% endif %}
+  </article>
+</div>
+
+<h2>Historique</h2>
+<table class="table">
+  <thead><tr><th>Date</th><th>Canal</th><th>Destinataire</th><th>Prénom</th><th>Statut</th><th>Fournisseur</th></tr></thead>
+  <tbody>
+  {% for r in history %}
+    <tr><td class="small">{{ r.created_at|datetime }}</td><td>{{ r.channel }}</td><td>{{ r.recipient }}</td><td>{{ r.first_name or '' }}</td>
+      <td><span class="tag {{ r.status }}">{{ r.status }}</span>{% if r.error %} <span class="muted small">{{ r.error }}</span>{% endif %}</td>
+      <td class="small muted">{{ r.provider or '' }} {{ r.provider_message_id or '' }}</td></tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">Aucune demande envoyée pour l'instant.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Liste STOP</h2>
+<div class="grid2">
+  <form method="post" action="/app/requests/optouts" class="stack">
+    <label>Ajouter un numéro à ne plus solliciter <input name="phone" required placeholder="06 12 34 56 78"></label>
+    <button class="btn small">Ajouter à la liste STOP</button>
+  </form>
+  <table class="table">
+    <tbody>
+    {% for o in optouts %}
+      <tr><td>{{ o['phone'] }}</td><td class="muted small">{{ o['source'] }} · {{ o['created_at']|date }}</td>
+        <td><form method="post" action="/app/requests/optouts/remove" class="inline"><input type="hidden" name="phone" value="{{ o['phone'] }}"><button class="link small">retirer</button></form></td></tr>
+    {% else %}
+      <tr><td class="muted">Aucun numéro. Les réponses STOP reçues par le webhook SMS s'ajoutent ici automatiquement.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

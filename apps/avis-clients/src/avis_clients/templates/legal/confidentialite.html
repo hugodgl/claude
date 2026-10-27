@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Politique de confidentialité · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="narrow legal">
+  <h1>Politique de confidentialité</h1>
+  <p class="flash warn">Modèle à compléter : responsable de traitement, contact, sous-traitants.</p>
+  <h2>Responsable de traitement</h2>
+  <p>[RAISON SOCIALE], [ADRESSE], [EMAIL DE CONTACT RGPD].</p>
+  <h2>Données traitées</h2>
+  <ul>
+    <li><strong>Comptes commerçants</strong> : email, journal de connexion, informations d'abonnement (identifiants
+      Stripe ; aucune donnée de carte n'est stockée chez nous). Base légale : exécution du contrat. Durée : durée du
+      contrat + 3 ans (prescription), factures 10 ans.</li>
+    <li><strong>Clients finaux des commerçants</strong> : numéro de téléphone ou email et prénom saisis par le
+      commerçant pour une demande d'avis, liste d'opposition (STOP). Nous agissons comme sous-traitant du commerçant.
+      Durée : 12 mois après la demande, liste STOP conservée 3 ans.</li>
+    <li><strong>Avis publics</strong> : contenu des avis publiés sur Google (auteur affiché, note, texte) et nos
+      réponses, récupérés via l'API Google avec l'autorisation du commerçant.</li>
+    <li><strong>Messages privés</strong> envoyés depuis la page d'avis : nom et contact facultatifs, message ;
+      transmis au commerçant. Durée : 12 mois.</li>
+  </ul>
+  <h2>Sous-traitants</h2>
+  <p>[HÉBERGEUR] (hébergement UE), [FOURNISSEUR SMS] (envoi des SMS), [FOURNISSEUR EMAIL] (emails
+    transactionnels), Stripe (paiement), [FOURNISSEUR LLM : « modèle exécuté sur nos serveurs » ou Anthropic] pour
+    la rédaction des brouillons de réponse (les textes des avis, publics, lui sont transmis ; jamais les numéros de
+    téléphone).</p>
+  <h2>Vos droits</h2>
+  <p>Accès, rectification, effacement, opposition, limitation, portabilité : écrivez à [EMAIL DE CONTACT RGPD].
+    Réclamation possible auprès de la CNIL. Pour les demandes d'avis reçues par SMS : répondez STOP pour ne plus
+    être contacté.</p>
+  <h2>Cookies</h2>
+  <p>Un seul cookie technique de session (connexion), aucun cookie de mesure d'audience ni publicitaire.</p>
+</section>
+{% endblock %}

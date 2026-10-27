@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Boîte de réception · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="row">
+  <h1>Boîte de réception</h1>
+  <form method="post" action="/app/inbox/sync" class="inline"><button class="btn small">Synchroniser maintenant</button></form>
+</div>
+<nav class="tabs">
+  {% for code, label in filters.items() %}
+    <a href="/app/inbox?status={{ code }}{% if selected_establishment %}&establishment={{ selected_establishment }}{% endif %}" {% if status == code %}class="active"{% endif %}>{{ label }}</a>
+  {% endfor %}
+  {% if establishments|length > 1 %}
+    <span class="spacer"></span>
+    {% for e in establishments %}<a href="/app/inbox?status={{ status }}&establishment={{ e.id }}" {% if selected_establishment == e.id %}class="active"{% endif %}>{{ e.name }}</a>{% endfor %}
+  {% endif %}
+</nav>
+{% if not establishments %}
+  <div class="card"><p>Ajoutez d'abord un établissement.</p><a class="btn primary" href="/app/establishments/new">Ajouter</a></div>
+{% elif not reviews %}
+  <div class="card"><p class="muted">Aucun avis dans cette vue. Le job <code>avis poll-reviews</code> tourne toutes les 15 minutes ;
+    vous pouvez aussi synchroniser maintenant.</p></div>
+{% endif %}
+<div class="list" id="reviews">
+  {% for review in reviews %}
+    {% with establishment = establishments_by_id[review.establishment_id] %}
+      {% include "partials/review_card.html" %}
+    {% endwith %}
+  {% endfor %}
+</div>
+{% endblock %}

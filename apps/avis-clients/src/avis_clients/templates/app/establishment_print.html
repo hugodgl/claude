@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Affiche · {{ establishment.name }}</title>
+  <style>
+    @page { size: A6; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: #1b1b1b; background: #eee; }
+    .sheet { width: 105mm; height: 148mm; margin: 10mm auto; background: #fff; padding: 8mm 7mm; display: flex; flex-direction: column;
+             align-items: center; justify-content: space-between; text-align: center; border: 1px solid #ddd; }
+    h1 { font-size: 22pt; margin: 0 0 2mm; letter-spacing: -0.02em; }
+    .name { font-size: 12pt; font-weight: 600; color: #444; margin: 0; }
+    .qr { width: 58mm; height: 58mm; }
+    .how { font-size: 10pt; color: #333; margin: 0; }
+    .url { font-size: 8pt; color: #666; word-break: break-all; margin: 0; }
+    .stars { color: #f5a623; font-size: 18pt; letter-spacing: 2px; }
+    .toolbar { text-align: center; margin: 6mm; }
+    button { font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid #333; background: #fff; cursor: pointer; }
+    @media print { body { background: #fff; } .sheet { margin: 0; border: 0; } .toolbar { display: none; } }
+  </style>
+</head>
+<body>
+<div class="toolbar"><button onclick="window.print()">Imprimer (format A6)</button> <a href="/app/establishments/{{ establishment.id }}">Retour</a></div>
+<section class="sheet">
+  <div>
+    <div class="stars">★★★★★</div>
+    <h1>Votre avis compte</h1>
+    <p class="name">{{ establishment.name }}</p>
+  </div>
+  <img class="qr" src="/app/establishments/{{ establishment.id }}/qr.png" alt="QR code">
+  <div>
+    <p class="how">Scannez le code pour laisser un avis Google en 30 secondes.<br>Merci pour votre visite !</p>
+    <p class="url">{{ public_url }}</p>
+  </div>
+</section>
+</body>
+</html>

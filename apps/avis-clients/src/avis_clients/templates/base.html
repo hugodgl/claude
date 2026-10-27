@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">{{ app_name }}</a>
+  <nav>
+    {% if account %}
+      <a href="/app" {% if request.url.path == '/app' %}class="active"{% endif %}>Tableau de bord</a>
+      <a href="/app/inbox" {% if request.url.path.startswith('/app/inbox') %}class="active"{% endif %}>Boîte de réception</a>
+      <a href="/app/requests" {% if request.url.path.startswith('/app/requests') %}class="active"{% endif %}>Demandes d'avis</a>
+      <a href="/billing" {% if request.url.path.startswith('/billing') %}class="active"{% endif %}>Abonnement</a>
+      <form method="post" action="/logout" class="inline"><button class="link">Déconnexion</button></form>
+    {% else %}
+      <a href="/#formules">Formules</a>
+      <a href="/login" class="btn small">Connexion</a>
+    {% endif %}
+  </nav>
+</header>
+{% if account and access and access.state != 'active' %}
+  <div class="banner {{ 'warn' if access.state == 'readonly' else 'info' }}">
+    {% if access.state == 'trial' %}
+      Essai gratuit : {{ access.days_left }} jour(s) restant(s). <a href="/billing">Choisir une formule</a>
+    {% else %}
+      Essai terminé : vos données restent consultables, mais toute modification nécessite un abonnement. <a href="/billing">Voir les formules</a>
+    {% endif %}
+  </div>
+{% endif %}
+<main class="container">
+  {% if flash %}<div class="flash {{ flash.category }}">{{ flash.message }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="footer">
+  <span>{{ app_name }} · réponses préparées avec l'aide d'une IA, toujours validées par vous</span>
+  <nav><a href="/legal/mentions">Mentions légales</a> · <a href="/legal/cgv">CGV</a> · <a href="/legal/confidentialite">Confidentialité</a></nav>
+</footer>
+</body>
+</html>
