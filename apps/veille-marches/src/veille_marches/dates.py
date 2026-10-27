@@ -1,0 +1,82 @@
+"""Dates : analyse tolérante des formats rencontrés dans les API et formatage français."""
+from __future__ import annotations
+
+import re
+from datetime import date, datetime, timedelta, timezone
+
+_COMPACT = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
+_TED_DATE_TZ = re.compile(r"^(\d{4}-\d{2}-\d{2})([+-]\d{2}:\d{2}|Z)$")
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def parse_dt(value) -> datetime | None:
+    """Convertit une date d'API en datetime UTC « aware ». Retourne None si vide ou illisible.
+
+    Formats acceptés : ISO 8601 (avec ou sans heure et fuseau), `2026-10-20+02:00` (TED),
+    `20261020` (TED compact), objets date/datetime.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+    text = str(value).strip()
+    if not text:
+        return None
+    m = _COMPACT.match(text)
+    if m:
+        text = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    m = _TED_DATE_TZ.match(text)
+    if m:
+        text = m.group(1)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            dt = datetime.fromisoformat(text[:10])
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def to_iso(dt: datetime | None) -> str | None:
+    return dt.isoformat() if dt else None
+
+
+def days_until(deadline: datetime | None, now: datetime | None = None) -> int | None:
+    if deadline is None:
+        return None
+    now = now or utcnow()
+    return (deadline.date() - now.date()).days
+
+
+def fr_date(dt: datetime | None, with_time: bool = False) -> str:
+    if dt is None:
+        return "non précisée"
+    local = dt
+    text = f"{local.day:02d}/{local.month:02d}/{local.year}"
+    if with_time and (local.hour or local.minute):
+        text += f" {local.hour:02d}h{local.minute:02d}"
+    return text
+
+
+def since_date(days: int, now: datetime | None = None) -> date:
+    return ((now or utcnow()) - timedelta(days=days)).date()
+
+
+def fr_amount(amount: float | None) -> str:
+    if amount is None:
+        return "montant non précisé"
+    if amount >= 1_000_000:
+        return f"{amount / 1_000_000:.1f} M€ HT".replace(".", ",")
+    if amount >= 1_000:
+        return f"{amount / 1_000:.0f} k€ HT"
+    return f"{amount:.0f} € HT"

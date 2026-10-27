@@ -1,0 +1,247 @@
+# Sources de veille. `np collect` synchronise ce fichier dans la base (table `sources`).
+#
+# Champs : name (unique), url, kind (rss | page), category (editeurs | presse_pro | institutions |
+#          ia_generale | newsletters_en | autre), lang, weight (poids multiplicatif du score, ]0 ; 3]),
+#          active, verify (URL à vérifier à la main au premier passage réel), include_patterns (pour
+#          kind=page : regex des liens à suivre depuis la page de liste), notes.
+#
+# Les URL de flux sont plausibles mais n'ont pas pu être vérifiées depuis le sandbox : toute source
+# marquée `verify: true` est à contrôler avec `np collect --source "<name>" --dry-run` sur le Mac mini.
+
+defaults:
+  lang: fr
+  weight: 1.0
+  active: true
+  verify: true
+
+sources:
+  # ----------------------------------------------------------------- éditeurs comptables (0.9)
+  - name: Dext (blog FR)
+    url: https://dext.com/fr/ressources/blog-actualite-comptable
+    kind: page
+    category: editeurs
+    weight: 0.9
+    include_patterns: ["/blog-actualite-comptable/single/"]
+  - name: Pennylane (blog)
+    url: https://www.pennylane.com/fr/blog/
+    kind: page
+    category: editeurs
+    weight: 0.9
+    include_patterns: ["/fr/blog/[a-z0-9-]+"]
+  - name: Cegid (blog)
+    url: https://www.cegid.com/fr/blog/feed/
+    kind: rss
+    category: editeurs
+    weight: 0.9
+    notes: Site WordPress, le flux /feed/ est probable ; sinon passer en kind=page sur /fr/blog/.
+  - name: Sage Advice France
+    url: https://www.sage.com/fr-fr/blog/feed/
+    kind: rss
+    category: editeurs
+    weight: 0.9
+  - name: ACD (actualités)
+    url: https://www.acd-groupe.fr/actualites/
+    kind: page
+    category: editeurs
+    weight: 0.9
+  - name: MyUnisoft (blog)
+    url: https://www.myunisoft.fr/blog
+    kind: page
+    category: editeurs
+    weight: 0.9
+  - name: Tiime (blog)
+    url: https://www.tiime.fr/blog
+    kind: page
+    category: editeurs
+    weight: 0.8
+  - name: Agicap (blog)
+    url: https://agicap.com/fr/blog/
+    kind: page
+    category: editeurs
+    weight: 0.8
+  - name: Qonto (blog)
+    url: https://qonto.com/fr/blog
+    kind: page
+    category: editeurs
+    weight: 0.8
+  - name: Inqom (blog)
+    url: https://www.inqom.com/blog
+    kind: page
+    category: editeurs
+    weight: 0.9
+  - name: Yooz (blog FR)
+    url: https://www.getyooz.com/fr/blog
+    kind: page
+    category: editeurs
+    weight: 0.8
+
+  # ----------------------------------------------------------------- presse professionnelle (1.1)
+  - name: Compta Online
+    url: https://www.compta-online.com/rss
+    kind: rss
+    category: presse_pro
+    weight: 1.1
+  - name: Revue Fiduciaire (actualités)
+    url: https://revuefiduciaire.grouperf.com/actualites
+    kind: page
+    category: presse_pro
+    weight: 1.1
+  - name: Lefebvre Dalloz actualités
+    url: https://www.lefebvre-dalloz.fr/actualites
+    kind: page
+    category: presse_pro
+    weight: 1.1
+  - name: actuEL Expert-Comptable
+    url: https://www.actuel-expert-comptable.fr/
+    kind: page
+    category: presse_pro
+    weight: 1.1
+    notes: Contenu en partie réservé aux abonnés ; la page d'accueil liste les titres.
+  - name: Option Finance
+    url: https://www.optionfinance.fr/rss
+    kind: rss
+    category: presse_pro
+    weight: 1.0
+  - name: Le Monde du Chiffre
+    url: https://www.lemondeduchiffre.fr/feed
+    kind: rss
+    category: presse_pro
+    weight: 1.1
+  - name: La Profession Comptable
+    url: https://www.laprofessioncomptable.com/
+    kind: page
+    category: presse_pro
+    weight: 1.0
+  - name: Fiscalonline
+    url: https://www.fiscalonline.com/spip.php?page=backend
+    kind: rss
+    category: presse_pro
+    weight: 1.0
+    notes: Site SPIP, le flux backend est la convention habituelle.
+
+  # ----------------------------------------------------------------- institutions (1.2)
+  - name: BOFiP (actualités)
+    url: https://bofip.impots.gouv.fr/bofip/actualites
+    kind: page
+    category: institutions
+    weight: 1.2
+    include_patterns: ["/bofip/actualite/"]
+  - name: URSSAF (actualités)
+    url: https://www.urssaf.fr/accueil/actualites.html
+    kind: page
+    category: institutions
+    weight: 1.2
+    include_patterns: ["/actualites/"]
+  - name: impots.gouv.fr (professionnels)
+    url: https://www.impots.gouv.fr/actualites?type=professionnel
+    kind: page
+    category: institutions
+    weight: 1.2
+    include_patterns: ["/actualite/"]
+  - name: Ordre des experts-comptables
+    url: https://www.experts-comptables.fr/actualites
+    kind: page
+    category: institutions
+    weight: 1.2
+  - name: CNCC
+    url: https://www.cncc.fr/actualites
+    kind: page
+    category: institutions
+    weight: 1.0
+  - name: entreprendre.service-public.fr (actualités)
+    url: https://entreprendre.service-public.fr/actualites
+    kind: page
+    category: institutions
+    weight: 1.1
+    include_patterns: ["/actualites/A\\d+"]
+  - name: CNIL (actualités)
+    url: https://www.cnil.fr/fr/rss.xml
+    kind: rss
+    category: institutions
+    weight: 1.0
+    notes: Utile pour RGPD et IA ; filtrer sur la pertinence cabinet au classement.
+  - name: ANC (Autorité des normes comptables)
+    url: https://www.anc.gouv.fr/
+    kind: page
+    category: institutions
+    weight: 1.0
+
+  # ----------------------------------------------------------------- IA générale (0.8)
+  - name: Anthropic (news)
+    url: https://www.anthropic.com/news
+    kind: page
+    category: ia_generale
+    lang: en
+    weight: 0.8
+    include_patterns: ["/news/[a-z0-9-]+"]
+  - name: OpenAI (news)
+    url: https://openai.com/news/rss.xml
+    kind: rss
+    category: ia_generale
+    lang: en
+    weight: 0.8
+  - name: Mistral AI (news)
+    url: https://mistral.ai/news
+    kind: page
+    category: ia_generale
+    weight: 0.9
+    include_patterns: ["/news/[a-z0-9-]+"]
+  - name: Google (blog IA)
+    url: https://blog.google/technology/ai/rss/
+    kind: rss
+    category: ia_generale
+    lang: en
+    weight: 0.7
+  - name: Hugging Face (blog)
+    url: https://huggingface.co/blog/feed.xml
+    kind: rss
+    category: ia_generale
+    lang: en
+    weight: 0.6
+    verify: false
+
+  # ----------------------------------------------------------------- newsletters anglophones (0.7)
+  - name: Ben's Bites
+    url: https://bensbites.beehiiv.com/feed
+    kind: rss
+    category: newsletters_en
+    lang: en
+    weight: 0.7
+  - name: The Rundown AI
+    url: https://www.therundown.ai/feed
+    kind: rss
+    category: newsletters_en
+    lang: en
+    weight: 0.7
+  - name: One Useful Thing (Ethan Mollick)
+    url: https://www.oneusefulthing.org/feed
+    kind: rss
+    category: newsletters_en
+    lang: en
+    weight: 0.8
+    verify: false
+  - name: Simon Willison
+    url: https://simonwillison.net/atom/everything/
+    kind: rss
+    category: newsletters_en
+    lang: en
+    weight: 0.6
+    verify: false
+  - name: Accounting Today (technology)
+    url: https://www.accountingtoday.com/feed?rss=true
+    kind: rss
+    category: newsletters_en
+    lang: en
+    weight: 0.8
+  - name: CPA Practice Advisor
+    url: https://www.cpapracticeadvisor.com/rss/
+    kind: rss
+    category: newsletters_en
+    lang: en
+    weight: 0.7
+  - name: AccountingWEB (UK)
+    url: https://www.accountingweb.co.uk/rss
+    kind: rss
+    category: newsletters_en
+    lang: en
+    weight: 0.7

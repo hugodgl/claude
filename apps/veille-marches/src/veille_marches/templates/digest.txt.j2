@@ -1,0 +1,46 @@
+{{ settings.product_name|upper }} — VOS MARCHÉS DU {{ date_label }}
+
+Bonjour {{ digest.subscriber.display_name }}, {{ digest.total }} nouveau{{ 'x' if digest.total > 1 }} avis{% if digest.subscriber.departments %} pour les départements {{ digest.subscriber.departments|join(', ') }}{% else %} pour toute la France{% endif %}{% if digest.subscriber.cpv_prefixes %} (CPV {{ digest.subscriber.cpv_prefixes|join(', ') }}){% endif %}.
+
+{% macro block(item, compact=False) %}
+[{{ item.score }}/100] {{ item.notice.title }}
+  Acheteur : {{ item.notice.buyer_name or 'non précisé' }}{% if item.notice.all_departments %} · dép. {{ item.notice.all_departments|join(', ') }}{% endif %} · {{ item.notice.source|upper }}
+  Montant : {{ item.notice.estimated_amount|fr_amount }} · Date limite : {{ item.notice.deadline_at|fr_date(true) }}{% if item.days_left is not none %} ({{ item.days_left }} j){% endif %}
+{% if item.notice.procedure_type %}
+  Procédure : {{ item.notice.procedure_type }}
+{% endif %}
+{% if not compact %}
+  Résumé : {{ item.summary.resume }}
+{% if item.summary.lieu and item.summary.lieu != 'non précisé' %}
+  Lieu : {{ item.summary.lieu }}
+{% endif %}
+{% if item.summary.pieces_a_fournir %}
+  Pièces à fournir : {{ item.summary.pieces_a_fournir|join(' ; ') }}
+{% endif %}
+{% if item.summary.criteres and item.summary.criteres != 'non précisés' %}
+  Critères : {{ item.summary.criteres }}
+{% endif %}
+{% if item.llm_used %}
+  Avis de l'assistant : {{ item.summary.verdict }}{% if item.summary.raison %} — {{ item.summary.raison }}{% endif %}
+{% endif %}
+{% endif %}
+{% if item.flags %}
+  Mentions : {{ item.flags|join(', ') }}
+{% endif %}
+  Avis original : {{ item.notice.url }}
+
+{% endmacro %}
+{% if digest.priority %}
+== À REGARDER EN PRIORITÉ (score ≥ {{ threshold }}) ==
+
+{% for item in digest.priority %}{{ block(item) }}{% endfor %}
+{% endif %}
+{% if digest.others %}
+== AUTRES MARCHÉS ==
+
+{% for item in digest.others %}{{ block(item, compact=True) }}{% endfor %}
+{% endif %}
+--
+Résumé assisté par IA : vérifiez toujours l'avis original (dates, montants, pièces) avant de préparer une réponse.
+Pour modifier vos réglages (départements, CPV, montants) ou vous désabonner, répondez à cet email.
+{{ settings.source_label }} · Sources : BOAMP (DILA), TED (Union européenne).

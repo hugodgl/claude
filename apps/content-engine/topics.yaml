@@ -1,0 +1,56 @@
+# Banque de sujets d'amorçage. `ce init` charge ce fichier dans la table `topics` (idempotent).
+# Règle : chaque question est une question qu'un prospect tape vraiment (Google, forums, DM).
+# `angle` : voir la liste des angles dans src/content_engine/products.py (`ce angles --list`).
+products:
+  avis:
+    label: "Plus d'avis Google pour les commerces de proximité"
+    questions:
+      - { q: "Comment demander un avis Google à un client sans le gêner ?", angle: script-pret-a-dire }
+      - { q: "Pourquoi mes clients contents ne laissent jamais d'avis ?", angle: mythe }
+      - { q: "Que répondre à un avis négatif injuste sur Google ?", angle: script-pret-a-dire }
+      - { q: "Peut-on faire supprimer un faux avis Google sur sa fiche ?", angle: pas-a-pas }
+      - { q: "Un QR code pour les avis, ça marche vraiment en caisse ?", angle: outil }
+      - { q: "Combien d'avis faut-il pour passer devant le concurrent d'à côté ?", angle: question-piege }
+      - { q: "Faut-il répondre à tous les avis, même les 5 étoiles ?", angle: mythe }
+      - { q: "Comment relancer un client par SMS pour un avis sans passer pour un spammeur ?", angle: script-pret-a-dire }
+      - { q: "Les avis Google comptent-ils pour apparaître sur Google Maps ?", angle: mythe }
+      - { q: "Est-ce légal d'offrir un café contre un avis ?", angle: question-piege }
+      - { q: "Que faire quand un avis cite un employé par son prénom ?", angle: cas-concret }
+      - { q: "Comment afficher ses avis Google sur son site et sur Instagram ?", angle: outil }
+      - { q: "Les erreurs qui font fuir les clients qui lisent ta fiche Google", angle: erreur-frequente }
+      - { q: "Ma note Google a baissé : comment la remonter en quelques mois ?", angle: pas-a-pas }
+  marches:
+    label: "Les marchés publics sans jargon pour les entreprises d'espaces verts et les artisans"
+    questions:
+      - { q: "Où trouver les appels d'offres d'entretien d'espaces verts près de chez moi ?", angle: outil }
+      - { q: "Un artisan seul peut-il répondre à un marché public ?", angle: mythe }
+      - { q: "C'est quoi un MAPA, expliqué en une minute ?", angle: pas-a-pas }
+      - { q: "Que mettre dans un mémoire technique quand on n'en a jamais écrit ?", angle: checklist }
+      - { q: "Faut-il un compte sur une plateforme (PLACE, DUME) pour répondre à un marché ?", angle: pas-a-pas }
+      - { q: "Quels documents préparer une fois pour toutes pour répondre vite à un appel d'offres ?", angle: checklist }
+      - { q: "Comment savoir si un marché est gagnable avant d'y passer trois jours ?", angle: question-piege }
+      - { q: "Pourquoi tant de petits marchés d'entretien n'ont qu'une seule réponse ?", angle: cas-concret }
+      - { q: "Que faire quand on ne comprend pas le CCTP ?", angle: pas-a-pas }
+      - { q: "Peut-on poser des questions à l'acheteur public avant de répondre ?", angle: mythe }
+      - { q: "Comment fixer un prix sans se brader sur un marché d'entretien ?", angle: erreur-frequente }
+      - { q: "Sous-traitance ou groupement : lequel choisir pour un premier marché ?", angle: comparatif }
+      - { q: "Marché perdu : comment demander les notes et les motifs du rejet ?", angle: script-pret-a-dire }
+      - { q: "Combien de temps pour être payé par une mairie après un marché ?", angle: question-piege }
+      - { q: "Les erreurs qui font rejeter une offre avant même la lecture du prix", angle: erreur-frequente }
+  cabinets:
+    label: "L'IA concrète en cabinet d'expertise comptable"
+    questions:
+      - { q: "Par quoi commencer avec l'IA dans un cabinet de dix personnes ?", angle: pas-a-pas }
+      - { q: "L'IA peut-elle lire des factures fournisseurs sans erreur ?", angle: mythe }
+      - { q: "Quel outil d'IA utiliser sans faire sortir les données des clients du cabinet ?", angle: outil }
+      - { q: "Comment rédiger les mails de relance de pièces manquantes avec l'IA ?", angle: script-pret-a-dire }
+      - { q: "L'IA va-t-elle remplacer les collaborateurs comptables ?", angle: question-piege }
+      - { q: "Peut-on utiliser un assistant IA pour une note de synthèse fiscale, et avec quelles précautions ?", angle: erreur-frequente }
+      - { q: "Comment préparer un rendez-vous bilan en dix minutes avec l'IA ?", angle: pas-a-pas }
+      - { q: "Faut-il une charte IA dans le cabinet, et que mettre dedans ?", angle: checklist }
+      - { q: "Comment obtenir un résumé automatique d'un appel client ?", angle: outil }
+      - { q: "Quelles tâches du cabinet automatiser en premier, et lesquelles jamais ?", angle: comparatif }
+      - { q: "Un modèle d'IA local sur un Mac, ça suffit pour un cabinet ?", angle: cas-concret }
+      - { q: "Comment vérifier une réponse d'IA avant de l'envoyer à un client ?", angle: checklist }
+      - { q: "Combien coûte vraiment l'IA pour un cabinet de taille moyenne ?", angle: question-piege }
+      - { q: "Facturation électronique : l'IA peut-elle aider le cabinet dans la transition ?", angle: cas-concret }

@@ -1,0 +1,7 @@
+# Copier en `sponsor.yaml` quand un numéro est sponsorisé. Absent = pas de mention sponsor.
+name: "Exemple Logiciel"
+tagline: "La pré-comptabilité pensée pour les cabinets de 5 à 50 personnes."
+url: "https://exemple.fr/?utm_source=newsletter-ia-cabinet"
+from: 2026-11-01     # optionnel : première date d'envoi concernée
+until: 2026-11-30    # optionnel : dernière date d'envoi concernée
+mention: "Partenaire de ce numéro"

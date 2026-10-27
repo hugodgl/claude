@@ -1,0 +1,49 @@
+[project]
+name = "avis-clients"
+version = "0.1.0"
+description = "SaaS « avis clients pour commerces de proximité » : QR code et demandes d'avis, boîte de réception, brouillons de réponse, Stripe, rapport mensuel"
+requires-python = ">=3.11"
+dependencies = [
+  "core",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "itsdangerous>=2.2",
+  "typer>=0.12",
+  "qrcode[pil]>=7.4",
+  "stripe>=10",
+  "httpx>=0.27",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "google-auth>=2.30",
+  "google-auth-oauthlib>=1.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5", "httpx>=0.27"]
+
+[project.scripts]
+avis = "avis_clients.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/avis_clients"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B"]

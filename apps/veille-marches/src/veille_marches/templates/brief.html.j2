@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ subject }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2937;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;">
+<tr><td align="center" style="padding:16px 8px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">
+  <tr><td style="background:#1e3a5f;color:#ffffff;padding:20px 24px;">
+    <div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.85;">{{ settings.product_name }} · brief hebdo</div>
+    <div style="font-size:22px;font-weight:700;margin-top:4px;">Qui a gagné quoi, {{ period }}</div>
+    <div style="font-size:15px;margin-top:8px;opacity:.95;">
+      {{ brief.count }} attribution{{ 's' if brief.count > 1 }}
+      {% if brief.subscriber.departments %}dans les départements {{ brief.subscriber.departments|join(', ') }}{% else %}en France{% endif %}
+      {% if brief.subscriber.cpv_prefixes %}(CPV {{ brief.subscriber.cpv_prefixes|join(', ') }}){% endif %}
+      {% if brief.with_amount %}· {{ brief.total_amount|fr_amount }} cumulés sur {{ brief.with_amount }} marché{{ 's' if brief.with_amount > 1 }} avec montant{% endif %}
+    </div>
+  </td></tr>
+
+  <tr><td style="padding:20px 24px 4px 24px;">
+    <h2 style="font-size:18px;margin:0 0 12px 0;color:#1e3a5f;">Attributions de la semaine</h2>
+    {% for dept, awards in brief.by_dept.items() %}
+    <h3 style="font-size:15px;margin:12px 0 8px 0;color:#374151;">Département {{ dept }}</h3>
+    {% for a in awards %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;margin:0 0 10px 0;">
+      <tr><td style="padding:12px 14px;font-size:15px;line-height:1.45;">
+        <div style="font-weight:700;color:#111827;">{{ a.title }}</div>
+        <div style="color:#4b5563;font-size:14px;margin-top:4px;">{{ a.buyer_name or 'Acheteur non précisé' }} → <strong>{{ a.holder_label }}</strong></div>
+        <div style="font-size:14px;margin-top:4px;">{{ a.amount|fr_amount }} · notifié le {{ a.notified_at|fr_date }}{% if a.procedure_type %} · {{ a.procedure_type }}{% endif %}{% if a.duration_months %} · {{ a.duration_months }} mois{% endif %}</div>
+      </td></tr>
+    </table>
+    {% endfor %}
+    {% endfor %}
+
+    {% if brief.top_buyers %}
+    <h2 style="font-size:18px;margin:20px 0 10px 0;color:#1e3a5f;">Acheteurs actifs (12 derniers mois)</h2>
+    <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;border-collapse:collapse;">
+      <tr style="background:#f3f4f6;"><th align="left">Acheteur</th><th align="right">Marchés</th><th align="right">Cette semaine</th><th align="right">Montant</th></tr>
+      {% for c in brief.top_buyers %}
+      <tr style="border-bottom:1px solid #e5e7eb;"><td>{{ c.name }}</td><td align="right">{{ c.count }}</td><td align="right">{{ c.recent }}</td><td align="right">{{ c.amount|fr_amount if c.amount else '—' }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if brief.recurring_holders %}
+    <h2 style="font-size:18px;margin:20px 0 10px 0;color:#1e3a5f;">Titulaires récurrents (12 derniers mois)</h2>
+    <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;border-collapse:collapse;">
+      <tr style="background:#f3f4f6;"><th align="left">Entreprise</th><th align="right">Marchés</th><th align="right">Montant cumulé</th></tr>
+      {% for c in brief.recurring_holders %}
+      <tr style="border-bottom:1px solid #e5e7eb;"><td>{{ c.name }}</td><td align="right">{{ c.count }}</td><td align="right">{{ c.amount|fr_amount if c.amount else '—' }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </td></tr>
+
+  <tr><td style="padding:12px 24px 24px 24px;font-size:13px;color:#6b7280;line-height:1.5;border-top:1px solid #e5e7eb;">
+    <p style="margin:12px 0 0 0;">Données essentielles de la commande publique (DECP, data.economie.gouv.fr), publiées par les acheteurs avec un délai variable : certains marchés de la semaine apparaîtront dans un prochain brief. Les montants sont ceux déclarés (HT).</p>
+    <p style="margin:8px 0 0 0;">{{ settings.source_label }} · pour modifier votre zone ou vous désabonner, répondez à cet email.</p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>

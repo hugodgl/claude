@@ -1,0 +1,32 @@
+{{ settings.product_name|upper }} — BRIEF HEBDO, {{ period }}
+
+{{ brief.count }} attribution{{ 's' if brief.count > 1 }}{% if brief.subscriber.departments %} dans les départements {{ brief.subscriber.departments|join(', ') }}{% else %} en France{% endif %}{% if brief.subscriber.cpv_prefixes %} (CPV {{ brief.subscriber.cpv_prefixes|join(', ') }}){% endif %}{% if brief.with_amount %} · {{ brief.total_amount|fr_amount }} cumulés sur {{ brief.with_amount }} marché(s) avec montant{% endif %}.
+
+== ATTRIBUTIONS DE LA SEMAINE ==
+{% for dept, awards in brief.by_dept.items() %}
+
+-- Département {{ dept }} --
+{% for a in awards %}
+* {{ a.title }}
+  {{ a.buyer_name or 'Acheteur non précisé' }} -> {{ a.holder_label }}
+  {{ a.amount|fr_amount }} · notifié le {{ a.notified_at|fr_date }}{% if a.procedure_type %} · {{ a.procedure_type }}{% endif %}{% if a.duration_months %} · {{ a.duration_months }} mois{% endif %}
+
+{% endfor %}
+{% endfor %}
+{% if brief.top_buyers %}
+== ACHETEURS ACTIFS (12 derniers mois) ==
+{% for c in brief.top_buyers %}
+- {{ c.name }} : {{ c.count }} marché(s), {{ c.recent }} cette semaine{% if c.amount %}, {{ c.amount|fr_amount }}{% endif %}
+
+{% endfor %}
+{% endif %}
+{% if brief.recurring_holders %}
+== TITULAIRES RÉCURRENTS (12 derniers mois) ==
+{% for c in brief.recurring_holders %}
+- {{ c.name }} : {{ c.count }} marché(s){% if c.amount %}, {{ c.amount|fr_amount }} cumulés{% endif %}
+
+{% endfor %}
+{% endif %}
+--
+Source : données essentielles de la commande publique (DECP, data.economie.gouv.fr), publiées avec un délai variable.
+{{ settings.source_label }} · pour modifier votre zone ou vous désabonner, répondez à cet email.

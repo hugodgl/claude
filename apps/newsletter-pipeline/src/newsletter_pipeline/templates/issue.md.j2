@@ -1,0 +1,73 @@
+# {{ title }}
+
+*{{ newsletter_name }} · n° {{ number }} · {{ date_fr }}*
+
+{% if preheader %}> {{ preheader }}
+{% endif %}
+{% if sponsor %}
+> **Partenaire de ce numéro :** [{{ sponsor.name }}]({{ sponsor.url }}) — {{ sponsor.tagline }} *(contenu sponsorisé)*
+{% endif %}
+
+## Édito
+
+[À RELIRE]
+
+{{ edito }}
+
+— {{ author_name }}
+
+## Trois actualités de la semaine
+
+{% for a in actualites %}
+### {{ loop.index }}. {{ a.titre }}
+
+{{ a.corps }}
+
+**Ce que ça change pour un cabinet :** {{ a.ce_que_ca_change }}
+
+Source : [{{ a.source }}]({{ a.url }})
+
+{% endfor %}
+## Cas d'usage : {{ case.title }}
+
+{% if intro_cas %}{{ intro_cas }}
+
+{% endif %}
+{{ case.body }}
+
+## Le chiffre
+
+{% if chiffre %}
+**{{ chiffre.valeur }}** — {{ chiffre.phrase }} ([source]({{ chiffre.url }}))
+{% else %}
+[CHIFFRE À TROUVER] — aucun chiffre sourcé dans les items de la semaine ; en ajouter un à la main (baromètre, étude, statistique officielle) avec son lien.
+{% endif %}
+
+## L'outil testé
+
+{% if outil %}
+**{{ outil.nom }}** — {{ outil.usage }}
+
+Verdict : {{ outil.verdict }}{% if outil.limite %} Limite : {{ outil.limite }}{% endif %}
+{% if outil.url %}
+Lien : [{{ outil.url }}]({{ outil.url }})
+{% endif %}
+{% else %}
+[OUTIL À TESTER] — aucun outil ressorti cette semaine ; décrire un outil réellement essayé au cabinet (ce qu'il fait, pour qui, verdict, limite).
+{% endif %}
+
+## La question de lecteur
+
+> [QUESTION DE LECTEUR À INSÉRER] — Répondre à une question reçue cette semaine (ou poser celle qu'on vous pose le plus souvent). Pas de conseil fiscal personnalisé : on informe, on ne conseille pas.
+
+Une question ? Répondez simplement à cet email{% if reply_to_email %} ({{ reply_to_email }}){% endif %}.
+
+---
+
+*Veille assistée par IA, relue et signée par un humain.* {{ author_signature }}.
+{% if sponsor %}
+*Ce numéro est soutenu par {{ sponsor.name }} ; le contenu sponsorisé est signalé comme tel et n'influence pas la sélection des actualités.*
+{% endif %}
+
+*Vous recevez cet email parce que vous vous êtes inscrit(e) à {{ newsletter_name }} (inscription confirmée en double opt-in). Le lien de désinscription en un clic est ajouté par la plateforme d'envoi.*
+{% if archive_url %}*Archives : {{ archive_url }}*{% endif %}
