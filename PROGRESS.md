@@ -26,3 +26,8 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 01:10 — newsletter-pipeline livrée (P3-1, P3-2)
 - `apps/newsletter-pipeline` : 60 tests verts, ruff propre, CLI `np` (collect RSS/pages avec trafilatura, dédoublonnage, rank LLM par lots, draft du numéro en markdown + HTML + texte, push beehiiv en dry-run, posts LinkedIn, stats, `run-monday` aligné sur le service launchd). 39 sources d'amorçage dont 36 à vérifier au premier passage réel. Vérifié par la session principale.
 - Décisions de l'agent : markdown = source de vérité, 3 appels LLM courts par numéro avec replis `[À RELIRE]`, trafilatura pour l'extraction.
+
+### 28/10 01:25 — avis-clients livrée (P1-1, P1-2, P1-3)
+- `apps/avis-clients` : 57 tests verts, ruff propre, app FastAPI importable. Lien magique, onboarding avec QR et affiche A6, page publique sans filtrage d'avis, demandes SMS/WhatsApp/email avec quotas et liste STOP, client Google Business Profile (mock + réel), brouillons LLM avec garde-fous, boîte de réception HTMX, Stripe (Checkout, portail, webhook signé, garde d'accès), rapport mensuel, CLI `avis`. Vérifié par la session principale.
+- Décision confirmée : web + jobs de cette app sur la même machine (SQLite) ; le `deploy/vps` racine fait tout tourner sur le VPS, l'app documente aussi l'option « tout sur le Mac mini derrière Cloudflare Tunnel ».
+- Lancé : QA-1 (revue croisée) sur `avis-clients` et `newsletter-pipeline`.

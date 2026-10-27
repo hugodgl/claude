@@ -1,0 +1,18 @@
+# Variante tout-sur-le-VPS : timers systemd à la place de launchd (voir README, section déploiement).
+# /etc/systemd/system/avis-clients-poll.service :
+#   [Service]
+#   Type=oneshot
+#   User=avis
+#   WorkingDirectory=/srv/avis-clients/apps/avis-clients
+#   EnvironmentFile=/srv/avis-clients/apps/avis-clients/.env
+#   ExecStart=/srv/avis-clients/apps/avis-clients/.venv/bin/avis poll-reviews
+[Unit]
+Description=Avis Clients : poll des avis toutes les 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

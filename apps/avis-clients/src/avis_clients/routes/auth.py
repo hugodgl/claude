@@ -40,7 +40,10 @@ def login_submit(request: Request, email: str = Form(""), next: str = Form("/app
         return render_template(request, "login.html", status_code=400, next=_safe_next(next),
                                error="Adresse email invalide.", email=email)
     token = create_magic_link(conn, email, services.settings.magic_link_ttl_s)
-    send_magic_link_email(services.mailer, services.settings, email, token)
+    url = send_magic_link_email(services.mailer, services.settings, email, token)
+    if services.mailer.name == "console":
+        # en développement, le lien doit être lisible dans la sortie du serveur
+        print(f"[avis] lien de connexion pour {email} : {url}", flush=True)
     log_event(conn, "magic_link_sent", email=email)
     return render_template(request, "login_sent.html", email=email)
 

@@ -38,7 +38,7 @@ allow-direct-references = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["ignore::DeprecationWarning"]
+filterwarnings = ["ignore::DeprecationWarning", "ignore:Using .httpx. with .starlette.testclient.*"]
 
 [tool.ruff]
 line-length = 120

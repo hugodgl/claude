@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>fr.avisclients.web</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/hugo/claude/apps/avis-clients/.venv/bin/uvicorn</string>
+    <string>avis_clients.web:app</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8000</string>
+    <string>--proxy-headers</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/hugo/claude/apps/avis-clients</string>
+  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/hugo/claude/apps/avis-clients/data/logs/web.log</string>
+  <key>StandardErrorPath</key><string>/Users/hugo/claude/apps/avis-clients/data/logs/web.log</string>
+</dict>
+</plist>
