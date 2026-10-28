@@ -133,8 +133,10 @@ def test_facebook_recommendations_are_converted_to_stars():
     # avis sans publication (story masquée) : identifiant de repli stable, pas de cible de réponse ;
     # ni note ni recommandation : 3 étoiles ; un booléen n'est pas une note
     r = FacebookReview.from_api({"reviewer": {"id": "9"}, "created_time": "2026-10-01T00:00:00+0000"}, FB_PAGE)
-    assert r.rating == 3 and r.review_id == "9:2026-10-01T00:00:00+0000" and r.name == "" and "3 étoiles" in r.rating_note
-    assert FacebookReview.from_api({"rating": True, "recommendation_type": "positive", "created_time": "x"}, FB_PAGE).rating == 5
+    assert r.rating == 3 and r.review_id == "9:2026-10-01T00:00:00+0000" and r.name == ""
+    assert "3 étoiles" in r.rating_note
+    boolean = FacebookReview.from_api({"rating": True, "recommendation_type": "positive", "created_time": "x"}, FB_PAGE)
+    assert boolean.rating == 5
 
 
 def _facebook_transport(calls, *, token="tok", auth_error=False):
@@ -392,13 +394,15 @@ def test_poll_covers_all_linked_sources_with_isolated_counters(logged_client, es
     assert nadia.rating == 1 and nadia.alerted_at and "désolés" in nadia.reply_draft.lower()
     assert "rembours" not in nadia.reply_draft.lower()
     julien = reviews[("facebook", f"{FB_PAGE}_1002")]
-    assert julien.rating == 5 and "comptée 5 étoiles" in julien.rating_note and julien.external_name == f"{FB_PAGE}_1002"
+    assert julien.rating == 5 and "comptée 5 étoiles" in julien.rating_note
+    assert julien.external_name == f"{FB_PAGE}_1002"
     assert reviews[("tripadvisor", "1")].reply_status == "published"
     assert reviews[("tripadvisor", "1")].reply_text == "Merci Camille !"
     assert reviews[("tripadvisor", "2")].reply_status == "draft" and reviews[("tripadvisor", "2")].alerted_at
     with services.db.session() as conn:
         sources = list_sources(conn, establishment_id)
-        ev = conn.execute("SELECT payload_json FROM events WHERE kind = 'poll_done' ORDER BY id DESC LIMIT 1").fetchone()
+        ev = conn.execute("SELECT payload_json FROM events WHERE kind = 'poll_done'"
+                          " ORDER BY id DESC LIMIT 1").fetchone()
     assert all(s.status == "active" and s.last_synced_at and s.last_error is None for s in sources)
     assert json.loads(ev[0])["by_platform"]["facebook"]["new"] == 4
     # boîte de réception : badges, mention de conversion, filtres par plateforme
@@ -438,7 +442,8 @@ def test_poll_isolates_source_errors_and_marks_expired_token(tmp_path):
         _env_file=None, llm_provider="mock", mail_provider="console", sms_provider="dry-run", gbp_mode="mock",
         facebook_mode="live", tokens_key=TEST_TOKENS_KEY, data_dir=tmp_path / "data", db_path=tmp_path / "live.db",
         session_secret="secret-de-test", app_base_url="http://testserver",
-        gbp_fixtures_file=FIXTURES / "gbp_reviews.json", tripadvisor_fixtures_file=FIXTURES / "tripadvisor_reviews.json",
+        gbp_fixtures_file=FIXTURES / "gbp_reviews.json",
+        tripadvisor_fixtures_file=FIXTURES / "tripadvisor_reviews.json",
     )
     services = build_services(settings, mailer=ConsoleMailer(quiet=True), llm=MockLLM(responses=smart_llm),
                               gbp=MockGBPClient(fixtures_path=FIXTURES / "gbp_reviews.json"),

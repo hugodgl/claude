@@ -5,9 +5,8 @@
 --    (colonne conservée et maintenue en miroir par le code).
 -- 2. `reviews` : statut `published_manually` (Tripadvisor, réponse copiée-collée par le commerçant) et
 --    colonne `rating_note` (recommandation Facebook sans note convertie en étoiles). SQLite ne modifie pas
---    une contrainte CHECK : la table est reconstruite.
-BEGIN;
-
+--    une contrainte CHECK : la table est reconstruite. Atomicité : `core.db.migrate` exécute chaque fichier
+--    dans un SAVEPOINT : aucun encadrement de transaction dans ce fichier.
 CREATE TABLE review_sources (
   id INTEGER PRIMARY KEY,
   establishment_id INTEGER NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
@@ -64,5 +63,3 @@ DROP TABLE reviews;
 ALTER TABLE reviews_new RENAME TO reviews;
 CREATE INDEX idx_reviews_status ON reviews(establishment_id, reply_status);
 CREATE INDEX idx_reviews_platform ON reviews(establishment_id, platform);
-
-COMMIT;

@@ -92,3 +92,8 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 01:35 — content-engine : métriques et angles (P4-4)
 - 57 → 73 tests verts, ruff propre. `ce metrics --pull` (YouTube Data + Analytics optionnel, Pinterest, TikTok après audit, LinkedIn non disponible), historique daté des relevés, score des angles (projection selon l'âge, normalisation par plateforme, lissage bayésien, pause et réactivation), `ce run-daily` qui exploite les angles qui marchent (70 % exploitation / 30 % exploration) et garde le comportement d'origine sans métriques. Vérifié par la session principale.
 - À faire par Hugo : refaire le consentement YouTube pour obtenir les portées lecture et analytics ; premier `ce metrics --pull --dry-run` réel pour valider les formes de réponses.
+
+### 28/10 01:44 — avis-clients : Facebook et Tripadvisor (P1-4)
+- 95 → 118 tests verts, ruff propre. Abstraction par plateforme, table `review_sources` (jetons chiffrés Fernet avec `TOKENS_KEY`), Facebook en lecture + réponse (vérification que le jeton de Page correspond bien à la Page saisie), Tripadvisor en lecture + flux « réponse à copier » (pas d'API de réponse), poll multi-plateformes avec erreurs isolées, badges et filtres, page publique avec liens secondaires, rapport mensuel ventilé. Vérifié par la session principale.
+- Dépend d'Hugo : app Meta (permissions et App Review pour les Pages d'autres commerçants), clé Tripadvisor Content API, `TOKENS_KEY` en production.
+- Toutes les tâches de construction du backlog sont faites. Restent en cours : QA-2 (socle) et SMOKE-1 (script de fumée).

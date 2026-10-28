@@ -65,9 +65,8 @@ class PollSummary:
 
     def platform_line(self, key: str = "fetched") -> str:
         """« Google 5, Facebook 4 » pour les messages de l'interface."""
-        parts = [f"{platform_label(p)} {c.get(key, 0)}" for p in PLATFORMS if p in self.by_platform
-                 for c in [self.by_platform[p]]]
-        return ", ".join(parts)
+        return ", ".join(f"{platform_label(p)} {self.by_platform[p].get(key, 0)}" for p in PLATFORMS
+                         if p in self.by_platform)
 
 
 def review_payload(review: Review | dict) -> dict:

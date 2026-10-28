@@ -19,6 +19,7 @@ Coche au fur et à mesure. Rien ici ne bloque le développement, mais tout bloqu
 - [ ] TikTok : compte développeur, app « Content Posting » (audit requis avant publication directe)
 - [ ] beehiiv (ou Kessel) : publication créée, clé API
 - [ ] Anthropic (optionnel) : clé API avec plafond de dépense mensuel
+- [ ] Plus tard, pour les avis Facebook : app Meta avec `pages_read_user_content`, `pages_manage_engagement`, `pages_show_list` (App Review nécessaire pour relier les Pages d'autres commerçants) ; pour Tripadvisor : clé Content API (lecture seule, quota mensuel) ; en production générer `TOKENS_KEY` et la sauvegarder avec `data/`
 
 ## Mac mini (30 minutes)
 - [ ] **Chantier de nuit en local** : suivre le bloc « Passer sur le Mac mini » de `NIGHT-RUN.md` (install, `claude` dans le dossier, `claude setup-token` → fichier de jeton, `gh auth login`, copie de la liste blanche après relecture, `night-shift.sh test` puis `enable`). À partir de là c'est le Mac mini qui développe la nuit et la session cloud se met en retrait toute seule.

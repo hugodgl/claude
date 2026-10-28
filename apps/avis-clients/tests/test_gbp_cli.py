@@ -98,7 +98,7 @@ def test_cli_demo_and_jobs(tmp_path, monkeypatch):
     runner = CliRunner()
     r = runner.invoke(cli.app, ["init-db"])
     assert r.exit_code == 0, r.output
-    r = runner.invoke(cli.app, ["demo"])
+    r = runner.invoke(cli.app, ["demo", "--google-only"])
     assert r.exit_code == 0, r.output
     assert '"new": 5' in r.output
     r = runner.invoke(cli.app, ["poll-reviews"])

@@ -162,9 +162,11 @@ def update_establishment(conn: sqlite3.Connection, establishment_id: int, **fiel
     reste la saisie du commerçant, la table des sources est ce que le poll parcourt)."""
     if "tone_profile" in fields:
         fields["tone_profile_json"] = json.dumps(fields.pop("tone_profile"), ensure_ascii=False)
-    _update(conn, "establishments", establishment_id, fields)
     if "google_location_name" in fields:
+        # d'abord la source (peut lever SourceConflict), pour ne pas laisser la colonne pointer vers une
+        # fiche reliée à un autre établissement
         sync_google_source(conn, establishment_id, fields["google_location_name"])
+    _update(conn, "establishments", establishment_id, fields)
 
 
 def delete_establishment(conn: sqlite3.Connection, establishment_id: int) -> None:

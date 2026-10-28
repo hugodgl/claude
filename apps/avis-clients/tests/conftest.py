@@ -7,12 +7,16 @@ from core.llm import MockLLM
 from core.mail import ConsoleMailer
 from fastapi.testclient import TestClient
 
+from avis_clients.crypto import generate_key
+from avis_clients.facebook import MockFacebookClient
 from avis_clients.gbp import MockGBPClient
 from avis_clients.services import build_services
 from avis_clients.settings import AppSettings
+from avis_clients.tripadvisor import MockTripadvisorClient
 from avis_clients.web import create_app
 
 FIXTURES = Path(__file__).parent / "fixtures"
+TEST_TOKENS_KEY = generate_key()  # clé Fernet de test (jetons de Page chiffrés en base)
 
 
 def smart_llm(prompt: str, system: str | None) -> str:
@@ -66,6 +70,9 @@ def settings(tmp_path: Path) -> AppSettings:
         app_base_url="http://testserver", stripe_secret_key="sk_test_x", stripe_webhook_secret="whsec_test",
         stripe_price_solo="price_solo", stripe_price_pro="price_pro", stripe_price_reseau="price_reseau",
         gbp_fixtures_file=FIXTURES / "gbp_reviews.json", trial_sms_quota=3,
+        facebook_mode="mock", facebook_fixtures_file=FIXTURES / "facebook_ratings.json",
+        tripadvisor_mode="mock", tripadvisor_fixtures_file=FIXTURES / "tripadvisor_reviews.json",
+        tokens_key=TEST_TOKENS_KEY,
     )
 
 
@@ -76,6 +83,8 @@ def services(settings):
         mailer=ConsoleMailer(quiet=True),
         llm=MockLLM(responses=smart_llm),
         gbp=MockGBPClient(fixtures_path=FIXTURES / "gbp_reviews.json"),
+        facebook=MockFacebookClient(fixtures_path=FIXTURES / "facebook_ratings.json"),
+        tripadvisor=MockTripadvisorClient(fixtures_path=FIXTURES / "tripadvisor_reviews.json"),
         stripe=FakeStripeGateway(settings),
     )
 

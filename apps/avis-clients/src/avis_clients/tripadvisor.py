@@ -30,6 +30,8 @@ CONTENT_API = "https://api.content.tripadvisor.com/api/v1"
 OWNERS_URL = "https://www.tripadvisor.fr/Owners"  # espace propriétaire (Centre de gestion → Avis)
 PACKAGE_FIXTURE = Path(__file__).parent / "fixtures" / "tripadvisor_reviews.json"
 LOCATION_ID_RE = re.compile(r"^\d{1,12}$")
+# sous-domaines facultatifs + tripadvisor.<tld> (fr, com, co.uk, com.au…) et rien après
+TRIPADVISOR_HOST_RE = re.compile(r"(?:[a-z0-9-]+\.)*tripadvisor\.(?:[a-z]{2,3}|co\.[a-z]{2}|com\.[a-z]{2})")
 NO_REPLY_API_MESSAGE = ("Tripadvisor ne propose pas d'API de réponse : copiez la réponse et publiez-la depuis "
                         "votre espace propriétaire Tripadvisor, puis confirmez ici.")
 
@@ -51,7 +53,7 @@ def safe_tripadvisor_url(url: str | None) -> str | None:
     except ValueError:
         return None
     host = (parsed.hostname or "").lower()
-    if parsed.scheme != "https" or not (host == "tripadvisor.com" or re.search(r"(^|\.)tripadvisor\.[a-z.]+$", host)):
+    if parsed.scheme != "https" or not TRIPADVISOR_HOST_RE.fullmatch(host):
         return None
     return url
 
