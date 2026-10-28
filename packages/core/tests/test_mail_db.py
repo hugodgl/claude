@@ -35,8 +35,9 @@ def test_migrate_is_idempotent(tmp_path: Path):
 
 
 def test_failed_migration_leaves_nothing(tmp_path: Path):
-    import pytest
     import sqlite3 as _sqlite3
+
+    import pytest
 
     mig = tmp_path / "migrations"
     mig.mkdir()
