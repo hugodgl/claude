@@ -51,3 +51,16 @@ def test_failed_migration_leaves_nothing(tmp_path: Path):
     assert {r["name"] for r in conn.execute("SELECT name FROM schema_migrations")} == {"001_ok.sql"}
     (mig / "002_bad.sql").write_text("CREATE TABLE b (id INTEGER PRIMARY KEY);")
     assert migrate(conn, mig) == ["002_bad.sql"]
+
+
+def test_migration_with_own_transaction(tmp_path: Path):
+    mig = tmp_path / "migrations"
+    mig.mkdir()
+    (mig / "001_wrapped.sql").write_text("-- en-tête\nBEGIN TRANSACTION;\nCREATE TABLE t (id INTEGER PRIMARY KEY);\nCOMMIT;\n")
+    (mig / "002_plain.sql").write_text("ALTER TABLE t ADD COLUMN v TEXT")
+    conn = connect(tmp_path / "x.db")
+    conn.execute("CREATE TABLE pending (id INTEGER)")
+    conn.execute("INSERT INTO pending VALUES (1)")  # transaction ouverte au moment de migrer
+    assert migrate(conn, mig) == ["001_wrapped.sql", "002_plain.sql"]
+    conn.execute("INSERT INTO t (v) VALUES ('ok')")
+    assert conn.execute("SELECT v FROM t").fetchone()["v"] == "ok"

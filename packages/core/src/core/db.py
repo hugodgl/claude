@@ -1,9 +1,27 @@
 """SQLite avec migrations SQL simples (fichiers numérotés, appliqués une fois)."""
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+
+_BEGIN_RE = re.compile(r"^\s*BEGIN(\s+(DEFERRED|IMMEDIATE|EXCLUSIVE))?(\s+TRANSACTION)?\s*;", re.IGNORECASE)
+_END_RE = re.compile(r";?\s*(COMMIT|END)(\s+TRANSACTION)?\s*;?\s*$", re.IGNORECASE)
+
+
+def _strip_transaction_wrapper(sql: str) -> str:
+    """Retire un BEGIN/COMMIT que le fichier aurait ajouté lui-même : la transaction est gérée ici."""
+    sql = sql.strip()
+    # commentaires d'en-tête avant un éventuel BEGIN
+    lines = sql.splitlines()
+    i = 0
+    while i < len(lines) and (not lines[i].strip() or lines[i].strip().startswith("--")):
+        i += 1
+    head, body = "\n".join(lines[:i]), "\n".join(lines[i:])
+    body = _BEGIN_RE.sub("", body, count=1)
+    body = _END_RE.sub("", body, count=1)
+    return ("\n".join(x for x in (head, body) if x)).strip().rstrip(";")
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
@@ -34,7 +52,7 @@ def migrate(conn: sqlite3.Connection, migrations_dir: str | Path) -> list[str]:
     for f in sorted(Path(migrations_dir).glob("*.sql")):
         if f.name in done:
             continue
-        sql = f.read_text(encoding="utf-8").strip().rstrip(";")
+        sql = _strip_transaction_wrapper(f.read_text(encoding="utf-8"))
         stamp = datetime.now(UTC).isoformat()
         name = f.name.replace("'", "''")
         # SAVEPOINT plutôt que BEGIN : fonctionne qu'une transaction soit déjà ouverte ou non
