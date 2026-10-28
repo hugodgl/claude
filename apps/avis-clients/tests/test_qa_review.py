@@ -312,6 +312,9 @@ def test_commercial_promises_and_system_prompt_word_limit():
     ("+330612345678", "+33612345678"),
     ("0033 (0)6 12 34 56 78", "+33612345678"),
     ("06 12 34 56 78", "+33612345678"),
+    ("33612345678", "+33612345678"),  # callback smsmode : international sans « + »
+    ("41791234567", "+41791234567"),
+    ("0612345678901", None),
 ])
 def test_normalize_phone_prefixes_and_trunk_zero(raw, expected):
     assert normalize_phone(raw) == expected

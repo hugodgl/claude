@@ -68,6 +68,8 @@ def normalize_phone(raw: str | None, default_country: str = "33") -> str | None:
         return f"+{default_country}{s[1:]}"
     if len(s) == 9 and s[0] != "0":
         return f"+{default_country}{s}"
+    if 11 <= len(s) <= 15 and s[0] != "0":
+        return "+" + s  # international sans « + » (format des callbacks smsmode : 33612345678)
     return None
 
 
