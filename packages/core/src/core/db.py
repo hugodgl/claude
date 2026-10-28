@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -35,18 +35,23 @@ def migrate(conn: sqlite3.Connection, migrations_dir: str | Path) -> list[str]:
         if f.name in done:
             continue
         sql = f.read_text(encoding="utf-8").strip().rstrip(";")
-        stamp = datetime.now(timezone.utc).isoformat()
+        stamp = datetime.now(UTC).isoformat()
         name = f.name.replace("'", "''")
+        # SAVEPOINT plutôt que BEGIN : fonctionne qu'une transaction soit déjà ouverte ou non
+        # (connexions en autocommit=False ou avec une écriture en attente).
         script = (
-            "BEGIN;\n" + sql + ";\n"
+            "SAVEPOINT core_migration;\n" + sql + ";\n"
             f"INSERT INTO schema_migrations (name, applied_at) VALUES ('{name}', '{stamp}');\n"
-            "COMMIT;"
+            "RELEASE SAVEPOINT core_migration;"
         )
         try:
             conn.executescript(script)
         except Exception:
-            if conn.in_transaction:
-                conn.execute("ROLLBACK")
+            try:
+                conn.execute("ROLLBACK TO SAVEPOINT core_migration")
+                conn.execute("RELEASE SAVEPOINT core_migration")
+            except sqlite3.Error:
+                pass
             raise
         applied.append(f.name)
     return applied
