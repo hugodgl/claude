@@ -28,6 +28,7 @@ Coche au fur et à mesure. Rien ici ne bloque le développement, mais tout bloqu
 - [ ] Remplir les `.env` de chaque app à partir des `.env.example`
 - [ ] Faire un premier appel réel : `cd apps/veille-marches && .venv/bin/vm collect --limit 20` et me coller la sortie si les champs ne correspondent pas aux fixtures (les API n'étaient pas joignables depuis le sandbox)
 - [ ] Sauvegarde : Time Machine + une copie hors site du dossier `data/`
+- [ ] VPS (si tu choisis cette option pour le SaaS avis) : `cd deploy/vps && docker compose build` puis `up -d` ; l'image n'a pas pu être construite depuis le sandbox (pas de démon Docker), le Dockerfile est donc à valider à ce moment-là
 
 ## Premiers essais réels, app par app (après `deploy/macmini/install.sh`)
 - [ ] Veille : `cd apps/veille-marches && .venv/bin/vm collect --limit 20 && .venv/bin/vm stats`. Si « sans CPV » ou « sans département » domine, me coller la sortie : les API n'étaient pas joignables depuis le sandbox et le mapping des champs BOAMP/TED/DECP est à confirmer (liste précise dans le README de l'app).

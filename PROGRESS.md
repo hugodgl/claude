@@ -84,3 +84,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - Le passage aux migrations atomiques a cassé deux fois le SaaS avis (import `UTC` perdu par un correctif de lint, puis une migration de l'app qui s'enveloppe elle-même dans BEGIN/COMMIT). Corrigé : SAVEPOINT au lieu de BEGIN, enveloppe BEGIN/COMMIT du fichier retirée, 2 tests ajoutés au socle. Les commits intermédiaires cassés ont été poussés puis réparés dans la foulée ; leçon notée : plus de commit derrière une commande de test dont le code de sortie est masqué par un tube.
 - `make test` complet : core 17, veille 102, contenu 57, avis 95, newsletter 93 = **364 tests verts**.
 - Service launchd `content.metrics` (23:30) ajouté pour P4-4, en cours.
+
+### 28/10 01:28 — vérifications d'installation, deux tâches ajoutées
+- `make setup-veille-marches` depuis zéro (venv supprimé puis recréé) : OK, 102 tests. Image Docker du VPS : non testable ici (pas de démon Docker) ; à vérifier sur le VPS, noté dans `ACTIONS-HUGO.md`.
+- Lancé : QA-2 (revue du socle `packages/core`) et SMOKE-1 (script de fumée de bout en bout). Toujours en cours : P4-4 (métriques contenu), P1-4 (avis Facebook/Tripadvisor).

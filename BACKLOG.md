@@ -32,5 +32,10 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 - [~] **P4-4** `apps/content-engine` : récupération des métriques (YouTube Analytics, TikTok), sélection automatique des angles qui marchent
 - [~] **P1-4** `apps/avis-clients` : adaptateurs Facebook et Tripadvisor, mode auto-publication pour les avis ≥ 4 étoiles
 
+## Phase 4 : ajouts décidés pendant la nuit
+- [~] **QA-2** revue croisée de `packages/core` (jamais relu : LLM, mail, migrations, JSON) + README du socle
+- [~] **SMOKE-1** `scripts/smoke.sh` + `make smoke` : test de fumée de bout en bout en mode simulation, à lancer sur le Mac mini après l'installation
+- [x] **DEP-2** `make setup` vérifié depuis zéro (venv recréé, 102 tests), image Docker du VPS non testable ici (pas de démon Docker dans le sandbox)
+
 ## Matin (dernier passage à 06:45)
 - [ ] Tout tester, tout pousser, résumé du matin en tête de `PROGRESS.md`, `ACTIONS-HUGO.md` à jour
