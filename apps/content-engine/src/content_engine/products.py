@@ -86,9 +86,6 @@ ANGLES: dict[str, str] = {
     "question-piege": "la question que personne n'ose poser, avec une réponse honnête",
 }
 
-FORMAT_LABELS = {"short": "Short", "long": "Long", "linkedin": "LinkedIn", "pin": "Pin"}
-
-
 def get_product(slug: str) -> Product:
     try:
         return PRODUCTS[slug]

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from core.mail import Email
 
 from .billing import account_access, sms_quota
-from .db import log_event, now_iso, utcnow
+from .db import local_month, log_event, now_iso
 from .models import Account, Establishment, ReviewRequest
 from .repo import (
     add_optout,
@@ -21,7 +21,7 @@ from .repo import (
     is_valid_email,
     last_request_account_for_phone,
 )
-from .sms import SMSError, looks_like_stop, normalize_phone, render_message
+from .sms import SMSError, clean_first_name, looks_like_stop, normalize_phone, render_message
 from .templating import render
 
 log = logging.getLogger(__name__)
@@ -38,7 +38,8 @@ class SendOutcome:
 
 
 def current_month() -> str:
-    return utcnow().strftime("%Y-%m")
+    """Mois du quota dans le fuseau métier (Europe/Paris), pas en UTC."""
+    return local_month()
 
 
 def quota_status(conn: sqlite3.Connection, account: Account, settings) -> dict[str, int]:
@@ -64,6 +65,7 @@ def send_review_request(
 ) -> SendOutcome:
     settings = services.settings
     link = public_link(settings, establishment)
+    first_name = clean_first_name(first_name)  # saisie manuelle ou CSV : une ligne, sans préfixe de formule
     message = render_message(establishment.request_template, prenom=first_name,
                              etablissement=establishment.name, lien=link)
 
@@ -81,7 +83,9 @@ def send_review_request(
             req = insert_review_request(conn, establishment_id=establishment.id, channel=channel,
                                         recipient=phone, first_name=first_name, message=message,
                                         status="blocked_quota")
-            return SendOutcome(req, False, f"quota mensuel atteint ({q['used']}/{q['quota']})")
+            reason = ("votre formule n'inclut pas de demandes par SMS ou WhatsApp (formule Pro : 100 par mois)"
+                      if q["quota"] == 0 else f"quota mensuel atteint ({q['used']}/{q['quota']})")
+            return SendOutcome(req, False, reason)
         try:
             result = services.sms.send(phone, message, channel=channel)
         except SMSError as e:

@@ -1,6 +1,8 @@
 """Connexion par lien magique, session, déconnexion."""
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Form, Request
 
 from ..auth import (
@@ -9,6 +11,7 @@ from ..auth import (
     create_magic_link,
     create_session,
     delete_session,
+    recent_magic_link_exists,
     send_magic_link_email,
 )
 from ..db import log_event
@@ -17,11 +20,18 @@ from ..repo import get_or_create_account, is_valid_email
 
 router = APIRouter()
 
+MAGIC_LINK_RESEND_DELAY_S = 60  # anti-rafale : un lien par adresse et par minute tant qu'il n'est pas utilisé
+
 
 def _safe_next(value: str | None) -> str:
-    if value and value.startswith("/") and not value.startswith("//"):
-        return value
-    return "/app"
+    """N'accepte qu'un chemin interne. Refuse `//hôte`, `/\\hôte` (que les navigateurs normalisent en `//`)
+    et toute URL absolue : pas de redirection ouverte après connexion."""
+    if not value or not value.startswith("/") or value.startswith(("//", "/\\")) or "\\" in value:
+        return "/app"
+    parsed = urlparse(value)
+    if parsed.scheme or parsed.netloc:
+        return "/app"
+    return value
 
 
 @router.get("/login")
@@ -39,6 +49,10 @@ def login_submit(request: Request, email: str = Form(""), next: str = Form("/app
     if not is_valid_email(email):
         return render_template(request, "login.html", status_code=400, next=_safe_next(next),
                                error="Adresse email invalide.", email=email)
+    if recent_magic_link_exists(conn, email, MAGIC_LINK_RESEND_DELAY_S):
+        # un lien valide vient d'être envoyé : même page, sans nouvel email (ni indice sur l'existence du compte)
+        log_event(conn, "magic_link_throttled", email=email)
+        return render_template(request, "login_sent.html", email=email)
     token = create_magic_link(conn, email, services.settings.magic_link_ttl_s)
     url = send_magic_link_email(services.mailer, services.settings, email, token)
     if services.mailer.name == "console":

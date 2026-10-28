@@ -33,6 +33,22 @@ def billing_page(request: Request, success: int = 0, canceled: int = 0):
                            quotas=PLAN_SMS_QUOTA, max_est=PLAN_MAX_ESTABLISHMENTS)
 
 
+def _portal_redirect(request: Request, account, services):
+    """Ouvre le portail client Stripe (factures, carte, changement de formule, résiliation)."""
+    if not account.stripe_customer_id:
+        return redirect("/billing", flash="Aucun abonnement Stripe associé à ce compte.", category="warn")
+    try:
+        url = services.stripe.create_portal_session(
+            customer_id=account.stripe_customer_id,
+            return_url=f"{services.settings.app_base_url.rstrip('/')}/billing",
+        )
+    except BillingError as e:
+        return redirect("/billing", flash=str(e), category="error")
+    except Exception as e:  # noqa: BLE001 - erreur Stripe : on l'affiche sans planter
+        return redirect("/billing", flash=f"Stripe a renvoyé une erreur : {e}", category="error")
+    return redirect(url)
+
+
 @router.post("/checkout")
 def billing_checkout(request: Request, plan: str = Form("")):
     account = require_account(request)
@@ -40,6 +56,14 @@ def billing_checkout(request: Request, plan: str = Form("")):
     base = services.settings.app_base_url.rstrip("/")
     if plan not in VALID_PLANS:
         return redirect("/billing", flash="Formule inconnue.", category="error")
+    if account_access(account, services.settings).state == "active":
+        # un nouveau Checkout créerait un second abonnement facturé en parallèle du premier :
+        # le changement de formule passe par le portail (prorata géré par Stripe)
+        if not account.stripe_customer_id:
+            return redirect("/billing", category="warn",
+                            flash="Votre formule a été attribuée manuellement : contactez-nous pour en changer.")
+        log_event(get_db(request), "checkout_redirected_to_portal", account_id=account.id, plan=plan)
+        return _portal_redirect(request, account, services)
     try:
         url = services.stripe.create_checkout_session(
             account=account, plan=plan, success_url=f"{base}/billing?success=1",
@@ -56,16 +80,4 @@ def billing_checkout(request: Request, plan: str = Form("")):
 @router.post("/portal")
 def billing_portal(request: Request):
     account = require_account(request)
-    services = get_services(request)
-    if not account.stripe_customer_id:
-        return redirect("/billing", flash="Aucun abonnement Stripe associé à ce compte.", category="warn")
-    try:
-        url = services.stripe.create_portal_session(
-            customer_id=account.stripe_customer_id,
-            return_url=f"{services.settings.app_base_url.rstrip('/')}/billing",
-        )
-    except BillingError as e:
-        return redirect("/billing", flash=str(e), category="error")
-    except Exception as e:  # noqa: BLE001
-        return redirect("/billing", flash=f"Stripe a renvoyé une erreur : {e}", category="error")
-    return redirect(url)
+    return _portal_redirect(request, account, get_services(request))

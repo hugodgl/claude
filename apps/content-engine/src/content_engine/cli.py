@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import shutil
+import sqlite3
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -16,7 +17,7 @@ from rich.table import Table
 from . import __version__
 from .db import open_db
 from .llm import get_engine_llm
-from .metrics import angle_ranking, import_csv, unlinked_count
+from .metrics import MIN_CONTENTS_PER_ANGLE, angle_ranking, import_csv, unlinked_count
 from .planning import build_plan, list_schedule, local_now, run_daily, run_publish, save_plan
 from .products import ANGLES, PRODUCTS
 from .publish import PLATFORMS, PublishError, publish_draft
@@ -38,7 +39,17 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
-ERRORS = (ValueError, LookupError, LLMError, RenderError, PublishError, TTSError, FileNotFoundError)
+# OSError couvre disque plein, permissions, fichier absent ; sqlite3.Error la base verrouillée.
+ERRORS = (
+    ValueError,
+    LookupError,
+    LLMError,
+    RenderError,
+    PublishError,
+    TTSError,
+    OSError,
+    sqlite3.Error,
+)
 
 
 def _settings() -> Settings:
@@ -122,6 +133,8 @@ def add_topic_cmd(
     angle: str | None = typer.Option(None, "--angle", help="Voir `ce angles --list`."),
 ):
     """Ajoute un sujet à la main."""
+    if angle and angle not in ANGLES:
+        raise ValueError(f"angle inconnu : {angle} (voir `ce angles --list`)")
     conn = _db(_settings())
     topic_id = add_topic(conn, product, question, angle, source="manual")
     if topic_id is None:
@@ -179,7 +192,7 @@ def review():
         for r in conn.execute("SELECT status, COUNT(*) AS n FROM drafts GROUP BY status")
     }
     console.print(
-        "Statuts : " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "aucun"
+        "Statuts : " + (", ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "aucun")
     )
 
 
@@ -255,11 +268,21 @@ def render(
     if not ids:
         console.print("Aucun brouillon approuvé à rendre.")
         return
+    failed = 0
     for did in ids:
-        res = render_draft(conn, did, s, force=force)
+        try:
+            res = render_draft(conn, did, s, force=force)
+        except ERRORS as e:
+            if len(ids) == 1:
+                raise
+            failed += 1  # un brouillon en échec n'empêche pas de rendre les autres
+            console.print(f"[red]#{did} non rendu : {e}[/red]")
+            continue
         files = ", ".join(f for f in (res.video, res.cover, res.thumb, res.text_file) if f)
         dur = f" · {res.duration_s:.1f} s" if res.video else ""
         console.print(f"#{did} rendu ({res.format}) → {res.out_dir}/ [{files}]{dur}")
+    if failed:
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -456,11 +479,19 @@ def angles(
         )
     console.print(table)
     if rows:
-        best, worst = rows[0], rows[-1]
-        msg = f"À décliner : {best['product']}/{best['angle']}"
-        if len(rows) > 1:
-            msg += f" · à revoir : {worst['product']}/{worst['angle']}"
-        console.print(msg)
+        # un angle mesuré sur un ou deux contenus ne dit rien : on ne conclut qu'au-delà du seuil
+        reliable = [r for r in rows if r["n"] >= MIN_CONTENTS_PER_ANGLE]
+        if reliable:
+            best, worst = reliable[0], reliable[-1]
+            msg = f"À décliner : {best['product']}/{best['angle']}"
+            if len(reliable) > 1:
+                msg += f" · à revoir : {worst['product']}/{worst['angle']}"
+            console.print(msg)
+        else:
+            console.print(
+                f"Trop peu de données : au moins {MIN_CONTENTS_PER_ANGLE} contenus mesurés par "
+                "angle avant de conclure."
+            )
     else:
         console.print(
             "Pas encore de métriques liées : `ce metrics --import export.csv` après publication."
@@ -485,7 +516,10 @@ def doctor():
     console.print(f"ffmpeg : {ok + ' ' + ver if ver else ko + ' (brew install ffmpeg)'}")
     console.print(f"ffprobe : {ok if shutil.which('ffprobe') else ko}")
     font = find_font(s.font_path)
-    console.print(f"police : {font.path or '[yellow]défaut système[/yellow]'} ({font.family})")
+    if s.font_path and not Path(s.font_path).expanduser().exists():
+        console.print(f"police : [red]FONT_PATH introuvable : {s.font_path}[/red]")
+    else:
+        console.print(f"police : {font.path or '[yellow]défaut système[/yellow]'} ({font.family})")
     console.print(f"TTS : {s.tts_provider}", end="")
     if s.tts_provider == "say":
         if shutil.which("say"):
@@ -513,6 +547,11 @@ def doctor():
     }
     for name, present in keys.items():
         console.print(f"clé {name} : {ok if present else '[yellow]manquante (dry-run)[/yellow]'}")
+    console.print(
+        f"TikTok : visibilité {s.tiktok_effective_privacy} "
+        + ("(app auditée)" if s.tiktok_app_audited else "(app non auditée : SELF_ONLY forcé)")
+        + f" · YouTube : {s.youtube_privacy_status}"
+    )
     conn = _db(s)
     console.print(
         f"base : {s.db_path} · sujets new : {count_topics(conn)} · "

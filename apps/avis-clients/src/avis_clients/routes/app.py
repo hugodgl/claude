@@ -1,18 +1,22 @@
 """Espace connecté : tableau de bord, établissements (onboarding, ton, QR, impression, réglages)."""
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import Response
 
 from ..billing import account_access, max_establishments
 from ..db import log_event
 from ..deps import get_db, get_services, not_found, redirect, render_template, require_account
+from ..gbp import GBPError
 from ..qr import qr_png, qr_svg
 from ..repo import (
     count_reviews_by_status,
     create_establishment,
     delete_establishment,
     get_establishment,
+    get_establishment_by_location,
     is_valid_email,
     list_establishments,
     list_events,
@@ -22,9 +26,9 @@ from ..repo import (
     review_url_for_place,
     update_establishment,
 )
-from ..reports import build_monthly_report, default_report_month, month_label
+from ..reports import build_monthly_report, default_report_month, is_valid_month, month_label
 from ..requests_service import public_link, quota_status
-from ..sms import DEFAULT_REQUEST_TEMPLATE
+from ..sms import DEFAULT_REQUEST_TEMPLATE, validate_request_template
 from ..tone import PRESETS, default_profile, generate_examples
 
 router = APIRouter(prefix="/app")
@@ -34,6 +38,12 @@ PLACE_ID_HELP = (
     "tapez le nom de votre commerce dans l'outil « Place ID Finder » et copiez l'identifiant (il commence "
     "souvent par « ChIJ »)."
 )
+PLACE_ID_ERROR = "Le Place ID Google semble invalide (identifiant sans espace, ex. ChIJ…)."
+PLACE_ID_RE = re.compile(r"^[A-Za-z0-9_\-:.=]{10,255}$")  # base64url, parfois « : » ou « . » dans les anciens formats
+LOCATION_NAME_RE = re.compile(r"^accounts/[A-Za-z0-9_\-]+/locations/[A-Za-z0-9_\-]+$")
+NAME_MAX_LENGTH = 80
+EXAMPLE_MAX_LENGTH = 1000
+DASHBOARD_HIDDEN_EVENTS = ("public_page_view",)  # comptées, mais elles noieraient le fil d'activité
 
 
 def _owned_establishment(request: Request, establishment_id: int):
@@ -42,6 +52,27 @@ def _owned_establishment(request: Request, establishment_id: int):
     if not est:
         raise not_found("Établissement introuvable.")
     return account, est
+
+
+def _location_error(conn, services, est, location_name: str, place_id: str | None) -> str | None:
+    """Garde-fou sur la fiche Google saisie à la main : format d'une ressource v4, unicité entre
+    établissements et, en mode live, correspondance avec le Place ID. Sans cela, un compte pourrait relier
+    la fiche d'un autre commerçant, lire ses avis et publier des réponses en son nom via le jeton opérateur."""
+    if not LOCATION_NAME_RE.match(location_name):
+        return "Le format de la fiche Google est invalide (attendu : accounts/…/locations/…)."
+    other = get_establishment_by_location(conn, location_name)
+    if other and other.id != est.id:
+        return "Cette fiche Google est déjà reliée à un autre établissement."
+    if services.settings.gbp_mode == "live":
+        try:
+            locations = services.gbp.list_locations()
+        except GBPError as e:
+            return f"Impossible de vérifier la fiche auprès de Google pour le moment ({e})."
+        match = next((loc for loc in locations if loc.get("name") == location_name), None)
+        if not match or not place_id or match.get("placeId") != place_id:
+            return ("Cette fiche n'est pas accessible ou ne correspond pas au Place ID de l'établissement : "
+                    "vérifiez l'invitation en tant que gestionnaire, ou utilisez `avis google link`.")
+    return None
 
 
 @router.get("")
@@ -54,7 +85,8 @@ def dashboard(request: Request):
     counts = count_reviews_by_status(conn, ids)
     return render_template(
         request, "app/dashboard.html", establishments=establishments, counts=counts,
-        pending=counts.get("draft", 0), events=list_events(conn, account.id, limit=10),
+        pending=counts.get("draft", 0),
+        events=list_events(conn, account.id, limit=10, exclude_kinds=DASHBOARD_HIDDEN_EVENTS),
         quota=quota_status(conn, account, services.settings),
         max_establishments=max_establishments(account_access(account, services.settings)),
         public_links={e.id: public_link(services.settings, e) for e in establishments},
@@ -86,12 +118,13 @@ def establishment_create(
     conn = get_db(request)
     services = get_services(request)
     settings = services.settings
-    name, place_id = name.strip(), google_place_id.strip()
+    name, place_id = name.strip()[:NAME_MAX_LENGTH], google_place_id.strip()
+    signature = signature.strip()[:NAME_MAX_LENGTH]
     errors = []
     if len(name) < 2:
         errors.append("Le nom de l'établissement est requis.")
-    if len(place_id) < 10 or any(c.isspace() for c in place_id):
-        errors.append("Le Place ID Google semble invalide (identifiant sans espace, ex. ChIJ…).")
+    if not PLACE_ID_RE.match(place_id):
+        errors.append(PLACE_ID_ERROR)
     if notification_email.strip() and not is_valid_email(notification_email.strip()):
         errors.append("L'email de notification est invalide.")
     access = account_access(account, settings)
@@ -148,9 +181,9 @@ def establishment_tone_save(
     account, est = _owned_establishment(request, establishment_id)
     conn = get_db(request)
     services = get_services(request)
-    profile = default_profile(style, est.name, signature)
-    profile["do"] = [line.strip() for line in do.splitlines() if line.strip()] or profile["do"]
-    profile["dont"] = [line.strip() for line in dont.splitlines() if line.strip()] or profile["dont"]
+    profile = default_profile(style, est.name, signature.strip()[:NAME_MAX_LENGTH])
+    profile["do"] = [line.strip()[:200] for line in do.splitlines() if line.strip()][:20] or profile["do"]
+    profile["dont"] = [line.strip()[:200] for line in dont.splitlines() if line.strip()][:20] or profile["dont"]
     if action == "regenerate":
         examples, from_llm = generate_examples(services.llm, est.name, profile)
         profile["exemples"] = examples
@@ -159,7 +192,7 @@ def establishment_tone_save(
                         flash="Nouveaux exemples générés." if from_llm else
                         "Modèle indisponible : exemples par défaut proposés.",
                         category="info" if from_llm else "warn")
-    profile["exemples"] = [e.strip() for e in (exemple_1, exemple_2, exemple_3) if e.strip()]
+    profile["exemples"] = [e.strip()[:EXAMPLE_MAX_LENGTH] for e in (exemple_1, exemple_2, exemple_3) if e.strip()]
     update_establishment(conn, est.id, tone_profile=profile)
     log_event(conn, "tone_updated", account_id=account.id, establishment_id=est.id, style=profile["style"])
     return redirect(f"/app/establishments/{est.id}", flash="Ton enregistré. Voici votre QR code.")
@@ -193,20 +226,33 @@ def establishment_settings(
 ):
     account, est = _owned_establishment(request, establishment_id)
     conn = get_db(request)
+    services = get_services(request)
+    name, place_id = name.strip()[:NAME_MAX_LENGTH], google_place_id.strip()
+    location, notif, template = google_location_name.strip(), notification_email.strip(), request_template.strip()
+
+    def fail(message: str):
+        return redirect(f"/app/establishments/{est.id}", flash=message, category="error")
+
+    if place_id and place_id != est.google_place_id and not PLACE_ID_RE.match(place_id):
+        return fail(PLACE_ID_ERROR)
+    if notif and not is_valid_email(notif):
+        return fail("Email de notification invalide.")
+    error = validate_request_template(template)
+    if error:
+        return fail(error)
+    if location and location != est.google_location_name:
+        error = _location_error(conn, services, est, location, place_id or est.google_place_id)
+        if error:
+            return fail(error)
     fields: dict = {}
-    if name.strip() and len(name.strip()) >= 2:
-        fields["name"] = name.strip()
-    if google_place_id.strip() and google_place_id.strip() != est.google_place_id:
-        fields["google_place_id"] = google_place_id.strip()
-        fields["review_url"] = review_url_for_place(google_place_id.strip())
-    fields["google_location_name"] = google_location_name.strip() or est.google_location_name
-    if notification_email.strip() and not is_valid_email(notification_email.strip()):
-        return redirect(f"/app/establishments/{est.id}", flash="Email de notification invalide.", category="error")
-    fields["notification_email"] = notification_email.strip() or None
-    if "{lien}" not in request_template:
-        return redirect(f"/app/establishments/{est.id}",
-                        flash="Le modèle de message doit contenir {lien}.", category="error")
-    fields["request_template"] = request_template.strip()[:320]
+    if len(name) >= 2:
+        fields["name"] = name
+    if place_id and place_id != est.google_place_id:
+        fields["google_place_id"] = place_id
+        fields["review_url"] = review_url_for_place(place_id)
+    fields["google_location_name"] = location or est.google_location_name
+    fields["notification_email"] = notif or None
+    fields["request_template"] = template
     fields["auto_publish_positive"] = 1 if auto_publish_positive in ("1", "on", "true") else 0
     update_establishment(conn, est.id, **fields)
     log_event(conn, "establishment_updated", account_id=account.id, establishment_id=est.id,
@@ -247,9 +293,11 @@ def establishment_print(request: Request, establishment_id: int):
 
 @router.get("/establishments/{establishment_id}/report")
 def establishment_report(request: Request, establishment_id: int, month: str | None = None):
-    _, est = _owned_establishment(request, establishment_id)
+    account, est = _owned_establishment(request, establishment_id)
     services = get_services(request)
-    month = month if month and len(month) == 7 else default_report_month()
-    stats = build_monthly_report(get_db(request), services, est, month)
+    month = month if is_valid_month(month) else default_report_month()
+    # en lecture seule (essai terminé), l'aperçu n'appelle pas le modèle : pas de coût LLM pour un compte inactif
+    use_llm = account_access(account, services.settings).can_write
+    stats = build_monthly_report(get_db(request), services, est, month, use_llm=use_llm)
     return render_template(request, "app/report.html", establishment=est, stats=stats, month=month,
                            month_label=month_label(month))

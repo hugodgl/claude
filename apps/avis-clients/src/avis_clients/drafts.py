@@ -35,7 +35,7 @@ FALLBACK_BY_RATING = {
 }
 
 COMMERCIAL_WORDS = re.compile(
-    r"\b(rembours\w*|remise|réduction|reduction|gratuit\w*|offr\w*|cadeau|bon d'achat|avoir commercial|"
+    r"\b(rembours\w*|remise|réduction|reduction|gratuit\w*|offr\w*|offert\w*|cadeau|bon d'achat|avoir commercial|"
     r"geste commercial|dédommag\w*|dedommag\w*|compens\w*|à nos frais|a nos frais|-\s?\d+\s?%)",
     re.IGNORECASE,
 )

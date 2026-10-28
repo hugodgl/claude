@@ -105,10 +105,19 @@ class ScriptPayload(BaseModel):
 
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])\s+")
+# Chiffre « à risque » : pourcentage, montant, multiplicateur, proportion (« 9 sur 10 »), nombre
+# d'au moins trois chiffres, « pour cent » en toutes lettres. Les séparateurs de milliers
+# (espace, insécable, fine) sont couverts par \s.
 RISKY_NUMBER_RE = re.compile(
-    r"\d[\d\s ]*(?:[.,]\d+)?\s*(?:%|€|k€|m€|euros?|millions?|milliers?|fois)|\b\d{3,}\b",
+    r"\d[\d\s]*(?:[.,]\d+)?\s*"
+    r"(?:%|‰|€|\$|k€|m€|eur\b|euros?\b|dollars?\b|millions?\b|milliards?\b|milliers?\b|fois\b|x\b)"
+    r"|\b\d+\s+(?:\w+\s+){0,2}sur\s+\d+\b"
+    r"|\bpour\s?cents?\b|\bpourcents?\b"
+    r"|\b\d{3,}\b",
     re.IGNORECASE,
 )
+# La source doit être explicite (« Source : … »), pas un mot qui contient « source » (ressource…).
+SOURCE_RE = re.compile(r"\bsources?\s*:", re.IGNORECASE)
 
 
 def narration_parts(payload: dict) -> list[str]:
@@ -138,8 +147,10 @@ def check_payload(payload: dict, fmt: str) -> dict:
     est = estimate_duration_s(text)
     warnings: list[str] = []
     spoken = " ".join([payload["hook"], *payload["body"], payload["cta"], payload["title"]])
-    if RISKY_NUMBER_RE.search(spoken) and "source" not in payload.get("description", "").lower():
-        warnings.append("chiffre ou montant sans « Source : » dans la description")
+    description = payload.get("description", "")
+    # la description est publiée telle quelle (YouTube, Pinterest) : elle est contrôlée aussi
+    if RISKY_NUMBER_RE.search(f"{spoken} {description}") and not SOURCE_RE.search(description):
+        warnings.append("chiffre, pourcentage ou montant sans « Source : » dans la description")
     if re.search(r"\b(the|and|with|your|business)\b", spoken, re.IGNORECASE):
         warnings.append("mots anglais détectés")
     if fmt == "short" and est > spec.max_duration_s:
@@ -175,7 +186,8 @@ def _request_variant(llm: LLM, prompt: str) -> ScriptPayload:
         try:
             return ScriptPayload.model_validate(data)
         except ValidationError as e2:
-            raise LLMError(f"script invalide après relance : {e2}") from e2
+            detail = " ".join(line.strip() for line in str(e2).splitlines()[1:3])
+            raise ScriptSchemaError(f"script invalide après relance : {detail}") from e2
 
 
 def generate_scripts(
@@ -187,23 +199,32 @@ def generate_scripts(
     topic = get_topic(conn, topic_id)
     product = get_product(topic["product"])
     ids: list[int] = []
-    for variant in range(1, variants + 1):
-        approach = variant if variant in APPROACHES else ((variant - 1) % len(APPROACHES)) + 1
-        payload = _request_variant(
-            llm, script_prompt(product, topic["question"], topic["angle"], fmt, approach)
-        )
-        data = payload.model_dump()
-        data["checks"] = check_payload(data, fmt)
-        data["approach"] = APPROACHES[approach]
-        with conn:
-            cur = conn.execute(
-                "INSERT INTO drafts (topic_id, format, variant, payload_json, status, created_at)"
-                " VALUES (?, ?, ?, ?, 'draft', ?)",
-                (topic_id, fmt, variant, json.dumps(data, ensure_ascii=False), utc_now_iso()),
-            )
-        ids.append(int(cur.lastrowid))
-    if topic["status"] == "new":
-        set_topic_status(conn, topic_id, "used")
+    dropped: list[str] = []
+    try:
+        for variant in range(1, variants + 1):
+            approach = variant if variant in APPROACHES else ((variant - 1) % len(APPROACHES)) + 1
+            prompt = script_prompt(product, topic["question"], topic["angle"], fmt, approach)
+            try:
+                payload = _request_variant(llm, prompt)
+            except ScriptSchemaError as e:  # une variante hors schéma ne condamne pas les autres
+                dropped.append(f"variante {variant} abandonnée ({e})")
+                continue
+            data = payload.model_dump()
+            data["checks"] = check_payload(data, fmt)
+            data["approach"] = APPROACHES[approach]
+            with conn:
+                cur = conn.execute(
+                    "INSERT INTO drafts (topic_id, format, variant, payload_json, status, "
+                    "created_at) VALUES (?, ?, ?, ?, 'draft', ?)",
+                    (topic_id, fmt, variant, json.dumps(data, ensure_ascii=False), utc_now_iso()),
+                )
+            ids.append(int(cur.lastrowid))
+    finally:
+        # dès qu'un brouillon existe, le sujet est consommé (sinon il serait rescripté demain)
+        if ids and topic["status"] == "new":
+            set_topic_status(conn, topic_id, "used")
+    if not ids:
+        raise LLMError(f"aucune variante valide pour le sujet #{topic_id} : " + " ; ".join(dropped))
     return ids
 
 

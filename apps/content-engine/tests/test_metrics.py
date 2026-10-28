@@ -63,3 +63,31 @@ def test_import_links_live_publication_by_remote_id(conn, llm, settings, tmp_pat
     ranking = angle_ranking(conn)
     assert ranking[0]["angle"] == "mythe" and ranking[0]["views_avg"] == 5000
     assert angle_ranking(conn, product="cabinets") == []
+
+
+def test_read_csv_tolerates_excel_exports(conn, llm, tmp_path):
+    import pytest
+
+    draft_id = make_draft(conn, llm, topic_id=1, status="rendered")
+    title = draft_payload(get_draft(conn, draft_id))["title"]
+    # export retouché sous Excel : cp1252, point-virgule, titre sur deux lignes entre guillemets,
+    # une ligne avec une colonne en trop, une ligne sans identifiant ni titre
+    body = (
+        "Contenu;Titre de la vidéo;Vues;Durée de visionnage (heures)\n"
+        f'abc;"{title}\n(suite)";1 034;10,1\n'
+        'def;"Vidéo, avec virgule";200;2,4;colonne en trop\n'
+        ";;7;0,5\n"
+    )
+    path = tmp_path / "export.csv"
+    path.write_bytes(body.encode("cp1252"))
+    rep = import_csv(conn, path)
+    assert rep["platform"] == "youtube" and rep["imported"] == 2
+    assert rep["linked"] == 1 and rep["skipped"] == 1
+    rows = conn.execute("SELECT * FROM metrics ORDER BY id").fetchall()
+    assert rows[0]["views"] == 1034 and rows[0]["draft_id"] == draft_id
+    assert rows[1]["views"] == 200 and rows[1]["title"] == "Vidéo, avec virgule"
+    path16 = tmp_path / "export16.csv"
+    path16.write_bytes("Content,Video title,Views\nxyz,Autre,42\n".encode("utf-16"))
+    assert import_csv(conn, path16, platform="YouTube")["imported"] == 1
+    with pytest.raises(ValueError, match="plateforme inconnue"):
+        import_csv(conn, path16, platform="mastodon")

@@ -12,12 +12,21 @@ from core.llm import LLM, LLMError, complete_json
 from core.mail import Email
 
 from .billing import account_access
-from .db import log_event, parse_iso, utcnow
+from .db import local_month, log_event, parse_iso
+from .drafts import check_reply, sanitize_reply
 from .models import Establishment, Review
 from .repo import get_account, list_establishments, list_reviews_in_month
 from .templating import render
 
 log = logging.getLogger(__name__)
+
+MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+RECO_MAX_WORDS = 40  # le prompt demande 25 mots ; au-delà de 40 on tronque, un lien ou des coordonnées éliminent
+REPORT_CACHE_SIZE = 256
+
+
+def is_valid_month(month: str | None) -> bool:
+    return bool(month and MONTH_RE.match(month))
 
 STOPWORDS_FR = set("""
 a à ai au aux avec ce ces cet cette c d dans de des du elle elles en et était été être eu il ils je j l la le
@@ -75,8 +84,8 @@ def previous_month(month: str) -> str:
 
 
 def default_report_month(now: datetime | None = None) -> str:
-    """Par défaut, le mois précédent (le job tourne en début de mois)."""
-    return previous_month((now or utcnow()).strftime("%Y-%m"))
+    """Par défaut, le mois précédent dans le fuseau métier (le job tourne en début de mois)."""
+    return previous_month(local_month(now))
 
 
 def top_words(texts: list[str], n: int = 8) -> list[tuple[str, int]]:
@@ -134,15 +143,45 @@ def generate_recommendations(llm: LLM, establishment: Establishment, stats: Mont
         log.warning("recommandations LLM impossibles : %s", e)
         return list(FALLBACK_RECOMMENDATIONS), "fallback"
     recos = data.get("recommandations") if isinstance(data, dict) else None
-    recos = [r.strip() for r in recos if isinstance(r, str) and r.strip()] if isinstance(recos, list) else []
+    recos = [_clean_recommendation(r) for r in recos if isinstance(r, str)] if isinstance(recos, list) else []
+    recos = [r for r in recos if r]
     if len(recos) < 3:
         return list(FALLBACK_RECOMMENDATIONS), "fallback"
     return recos[:3], "llm"
 
 
-def build_monthly_report(conn: sqlite3.Connection, services, establishment: Establishment, month: str) -> MonthlyStats:
+def _clean_recommendation(text: str) -> str | None:
+    """Contrôle de sortie : les avis du mois entrent dans le prompt, une recommandation qui contient un lien,
+    un email ou un numéro est une injection probable (elle part dans un email au commerçant) → écartée ;
+    le reste est borné à RECO_MAX_WORDS mots."""
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return None
+    issues = check_reply(text, RECO_MAX_WORDS)
+    if any(issue in ("lien", "email", "telephone") for issue in issues):
+        return None
+    return sanitize_reply(text, RECO_MAX_WORDS)
+
+
+def build_monthly_report(conn: sqlite3.Connection, services, establishment: Establishment, month: str, *,
+                         use_llm: bool = True) -> MonthlyStats:
+    """Statistiques du mois + recommandations. `use_llm=False` (compte en lecture seule) : recommandations
+    génériques sans appel au modèle. Les recommandations LLM sont mises en cache par (établissement, mois,
+    contenu) pour que l'aperçu web n'appelle pas le modèle à chaque affichage."""
     stats = compute_monthly_stats(conn, establishment, month)
-    stats.recommendations, stats.recommendations_source = generate_recommendations(services.llm, establishment, stats)
+    if not use_llm:
+        stats.recommendations, stats.recommendations_source = list(FALLBACK_RECOMMENDATIONS), "fallback"
+        return stats
+    cache = services.report_cache
+    key = (establishment.id, month, stats.count, stats.avg_rating, stats.replied)
+    cached = cache.get(key)
+    if cached is None:
+        cached = generate_recommendations(services.llm, establishment, stats)
+        if cached[1] == "llm":  # un repli (modèle indisponible) n'est pas mémorisé : on réessaiera
+            if len(cache) >= REPORT_CACHE_SIZE:
+                cache.pop(next(iter(cache)))
+            cache[key] = cached
+    stats.recommendations, stats.recommendations_source = list(cached[0]), cached[1]
     return stats
 
 

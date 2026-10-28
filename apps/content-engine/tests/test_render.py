@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -16,7 +17,7 @@ from content_engine.render.subtitles import (
     write_ass,
     write_srt,
 )
-from content_engine.render.video import fit_chars
+from content_engine.render.video import HEIGHT, WIDTH, fit_chars, render_thumb
 from content_engine.scripts import get_draft
 from content_engine.tts import ElevenLabsTTS, SilentTTS, get_tts
 from tests.conftest import make_draft, needs_ffmpeg
@@ -40,12 +41,24 @@ def test_split_sentences_and_timings():
     assert ass_color("#FFD166") == "&H0066D1FF"
 
 
+def test_proportional_segments_sum_and_no_overlap():
+    # beaucoup de phrases très courtes : le plancher de 0,6 s ne doit pas faire déborder la fin
+    sentences = ["Oui.", "Non.", "Une phrase nettement plus longue que les deux autres."] * 3
+    segs = proportional_segments(sentences, 6.0)
+    assert segs[0].start == 0 and segs[-1].end == 6.0
+    assert all(s.end > s.start for s in segs)
+    assert all(b.start >= a.end for a, b in zip(segs, segs[1:], strict=False))
+    assert abs(sum(s.end - s.start for s in segs) - 6.0) < 0.05
+
+
 def test_write_ass_and_srt(tmp_path):
     segs = proportional_segments(["Bonjour {monde}.", "Suite."], 4.0)
     ass = write_ass(segs, tmp_path / "s.ass", "DejaVu Sans", PRODUCTS["avis"].palette)
     text = ass.read_text(encoding="utf-8")
     assert text.count("Dialogue:") == 2 and "PlayResX: 1080" in text and "(monde)" in text
     assert "Style: Hook,DejaVu Sans" in text
+    weird = write_ass(segs, tmp_path / "w.ass", "Ma,Police", PRODUCTS["avis"].palette)
+    assert "Style: Sub,Ma Police," in weird.read_text(encoding="utf-8")  # pas de virgule parasite
     srt = write_srt(segs, tmp_path / "s.srt").read_text(encoding="utf-8")
     assert srt.count("-->") == 2 and srt.startswith("1\n00:00:00,000")
 
@@ -88,10 +101,35 @@ def test_render_short_three_seconds(conn, llm, settings):
     meta = json.loads((out / "render.json").read_text(encoding="utf-8"))
     assert meta["synthetic_voice"] is False and meta["tts_provider"] == "silent"
     assert get_draft(conn, draft_id)["status"] == "rendered"
-    assert (
-        "drawtext" in (out / "ffmpeg-command.txt").read_text()
-        and "subtitles=subs.ass" in (out / "ffmpeg-command.txt").read_text()
-    )
+    command = (out / "ffmpeg-command.txt").read_text()
+    assert "drawtext" in command and "subtitles=subs.ass" in command
+    assert "expansion=none" in command  # « % » et %{…} du LLM ne sont jamais interprétés
+    # barre de progression : presque vide au début, presque pleine à la fin (et pas statique)
+    early, late = _bar_fill(video, 0.1), _bar_fill(video, 2.8)
+    assert early < 0.2 * WIDTH and late > 0.8 * WIDTH
+
+
+def _gray_frame(path: Path, at_s: float | None = None) -> bytes:
+    """Luminance brute d'une image (ou d'une image de la vidéo à `at_s`)."""
+    seek = ["-ss", f"{at_s:.3f}"] if at_s is not None else []
+    cmd = [ffmpeg_bin(), "-hide_banner", "-loglevel", "error", *seek, "-i", str(path)]
+    cmd += ["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"]
+    return subprocess.run(cmd, capture_output=True, check=True).stdout
+
+
+def _bar_fill(video: Path, at_s: float) -> int:
+    row = HEIGHT - 9  # milieu de la barre de 18 px
+    frame = _gray_frame(video, at_s)
+    return sum(1 for b in frame[row * WIDTH : (row + 1) * WIDTH] if b > 150)
+
+
+@needs_ffmpeg
+def test_drawtext_keeps_percent_and_never_expands(settings, tmp_path):
+    payload = {"title": "Pourquoi 80 % des avis disparaissent %{localtime}", "hook": "", "body": []}
+    thumb = render_thumb(payload, PRODUCTS["avis"], tmp_path / "t", settings, find_font(None))
+    frame = _gray_frame(thumb)
+    band = frame[: 1280 * 600]  # zone du titre (la marque est plus bas, la barre tout en bas)
+    assert sum(1 for b in band if b > 200) > 2000  # le titre est bien dessiné malgré le « % »
 
 
 @needs_ffmpeg
@@ -113,15 +151,26 @@ def test_render_other_formats(conn, llm, settings):
     assert res.text_file == "script.txt" and res.cover and res.video is None
 
 
-def test_render_requires_approval_and_rejects_long_narration(conn, llm, settings):
+def test_render_requires_approval(conn, llm, settings):
     draft_id = make_draft(conn, llm, topic_id=1)
     with pytest.raises(ValueError, match="approuver"):
         render_draft(conn, draft_id, settings)
-    if ffmpeg_bin() and probe.__module__:
-        pytest.importorskip("shutil")
+
+
+@needs_ffmpeg
+def test_render_rejects_long_narration_missing_font_and_absent_ffmpeg(
+    conn, llm, settings, monkeypatch
+):
     draft_id = make_draft(conn, llm, topic_id=2, status="approved")
     with pytest.raises(RenderError, match="raccourcir"):
         render_draft(conn, draft_id, settings, tts=SilentTTS(duration_s=70))
+    bad_font = settings.model_copy(update={"font_path": settings.out_dir / "absente.ttf"})
+    with pytest.raises(RenderError, match="FONT_PATH"):
+        render_draft(conn, draft_id, bad_font, tts=SilentTTS(duration_s=2.4))
+    monkeypatch.setattr("content_engine.render.video.have_ffmpeg", lambda: False)
+    with pytest.raises(RenderError, match="ffmpeg"):
+        render_draft(conn, draft_id, settings, tts=SilentTTS(duration_s=2.4))
+    assert get_draft(conn, draft_id)["status"] == "approved"  # rien n'a été marqué rendu
 
 
 @needs_ffmpeg

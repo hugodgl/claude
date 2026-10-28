@@ -220,3 +220,87 @@ def test_live_linkedin_and_tiktok_with_mock_transport(conn, llm, settings):
     assert rep.outcome.url == "https://www.linkedin.com/feed/update/urn:li:share:77/"
     rep = publish_draft(conn, short, "tiktok", settings, live=True, client=client)
     assert rep.outcome.remote_id == "p1" and rep.outcome.response["status"] == "PROCESSING_UPLOAD"
+
+
+def test_settings_guards_privacy_and_disclosure():
+    from pydantic import ValidationError
+
+    from content_engine.settings import DEFAULT_AI_DISCLOSURE, Settings
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, tiktok_privacy_level="PUBLIC")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, youtube_privacy_status="everyone")
+    assert Settings(_env_file=None).youtube_privacy_status == "private"
+    assert Settings(_env_file=None, ai_disclosure="   ").ai_disclosure == DEFAULT_AI_DISCLOSURE
+
+
+def test_tiktok_privacy_forced_to_self_only_until_audit(conn, llm, settings):
+    draft_id = make_draft(conn, llm, topic_id=6, status="rendered")
+    fake_render(settings, draft_id)
+    loud = settings.model_copy(update={"tiktok_privacy_level": "PUBLIC_TO_EVERYONE"})
+    data = _load(publish_draft(conn, draft_id, "tiktok", loud).request_file)
+    init = data["requests"][0]
+    assert init["json"]["post_info"]["privacy_level"] == "SELF_ONLY"
+    assert data["summary"]["privacy_level"] == "SELF_ONLY"
+    assert data["summary"]["audit_required"] is True
+    assert any("forcé à SELF_ONLY" in n for n in init["notes"])
+    audited = loud.model_copy(update={"tiktok_app_audited": True})
+    data = _load(publish_draft(conn, draft_id, "tiktok", audited).request_file)
+    assert data["requests"][0]["json"]["post_info"]["privacy_level"] == "PUBLIC_TO_EVERYONE"
+    assert data["summary"]["audit_required"] is False
+
+
+def test_disclosure_link_and_hashtags_survive_long_llm_texts(settings):
+    from content_engine.products import PRODUCTS
+    from content_engine.texts import (
+        compose_description,
+        compose_linkedin_post,
+        compose_pin,
+        compose_tiktok_caption,
+        youtube_title,
+    )
+
+    payload = {
+        "hook": "Accroche très longue. " * 150,
+        "body": ["Phrase longue. " * 200] * 4,
+        "cta": "Le kit est en lien dans la bio.",
+        "title": "Titre <b>avec chevrons</b>",
+        "description": "Mot " * 1500,
+        "hashtags": ["avis"],
+    }
+    prod = PRODUCTS["avis"]
+    desc = compose_description(payload, prod, settings)
+    assert len(desc) <= 5000 and desc.endswith("#fichegoogle")
+    assert settings.ai_disclosure in desc and "example.com/avis" in desc and "<" not in desc
+    assert youtube_title(payload) == "Titre ‹b›avec chevrons‹/b›"
+    pin = compose_pin(payload, prod, settings)["description"]
+    assert len(pin) <= 800 and settings.ai_disclosure in pin and pin.endswith("#commercant")
+    caption = compose_tiktok_caption(payload, prod, settings)
+    assert len(caption) <= 2200 and settings.ai_disclosure in caption and "bio" in caption
+    post = compose_linkedin_post(payload, prod, settings)
+    assert len(post) <= 3000 and settings.ai_disclosure in post and "example.com/avis" in post
+
+
+def test_live_network_error_is_a_publish_error_and_leaves_no_trace(conn, llm, settings):
+    settings = settings.model_copy(
+        update={"pinterest_access_token": "tok", "pinterest_board_id": "b1"}
+    )
+    draft_id = make_draft(conn, llm, topic_id=32, fmt="pin", status="rendered")
+    fake_render(settings, draft_id, fmt="pin")
+
+    def handler(request: httpx.Request):
+        raise httpx.ConnectError("réseau coupé", request=request)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(PublishError, match="injoignable"):
+        publish_draft(conn, draft_id, "pinterest", settings, live=True, client=client)
+    assert get_draft(conn, draft_id)["status"] == "rendered"
+    n = conn.execute(
+        "SELECT COUNT(*) FROM publications WHERE draft_id = ? AND dry_run = 0", (draft_id,)
+    ).fetchone()[0]
+    assert n == 0
+    # le JSON écrit avant l'envoi ne contient pas le jeton
+    assert "tok" not in _load(settings.out_dir / str(draft_id) / "publish-pinterest.json")[
+        "requests"
+    ][0]["headers"]["Authorization"].replace("[masqué]", "")

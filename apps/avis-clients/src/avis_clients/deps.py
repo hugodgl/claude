@@ -89,7 +89,9 @@ def render_template(request: Request, name: str, status_code: int = 200, **conte
 def redirect(url: str, *, flash: str | None = None, category: str = "info", status_code: int = 303) -> RedirectResponse:
     response = RedirectResponse(url, status_code=status_code)
     if flash:
-        payload = quote(json.dumps({"message": flash, "category": category}, ensure_ascii=False))
+        # safe="" : tout est percent-encodé (y compris « / »), sinon le module cookie met la valeur entre
+        # guillemets et certains clients la renvoient telle quelle
+        payload = quote(json.dumps({"message": flash, "category": category}, ensure_ascii=False), safe="")
         response.set_cookie(FLASH_COOKIE, payload, max_age=60, path="/", httponly=True, samesite="lax")
     return response
 

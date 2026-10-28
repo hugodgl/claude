@@ -24,6 +24,29 @@ def truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def join_within(head: list[str], tail: list[str], limit: int, sep: str = "\n\n") -> str:
+    """Assemble `head + tail` sous `limit` caractères en sacrifiant la tête, jamais la queue :
+    l'étiquette IA, le lien et les hashtags restent présents même si le texte du LLM est long."""
+    head_text = sep.join(b.strip() for b in head if b and b.strip())
+    tail_text = sep.join(b.strip() for b in tail if b and b.strip())
+    if not tail_text:
+        return truncate(head_text, limit)
+    if len(tail_text) > limit:
+        return truncate(tail_text, limit)
+    budget = limit - len(tail_text) - (len(sep) if head_text else 0)
+    if head_text and len(head_text) > budget:
+        head_text = truncate(head_text, budget) if budget > 1 else ""
+    return sep.join(b for b in (head_text, tail_text) if b)
+
+
+_YOUTUBE_FORBIDDEN = str.maketrans({"<": "‹", ">": "›"})
+
+
+def youtube_safe(text: str) -> str:
+    """YouTube refuse « < » et « > » dans les titres et descriptions (invalidTitle/Description)."""
+    return text.translate(_YOUTUBE_FORBIDDEN)
+
+
 def hashtags_line(payload: dict, product: Product, limit: int = 6) -> str:
     tags: list[str] = []
     for tag in list(payload.get("hashtags", [])) + list(product.hashtags):
@@ -37,59 +60,49 @@ def disclosure_line(settings: Settings) -> str:
 
 
 def youtube_title(payload: dict) -> str:
-    return truncate(payload["title"], LIMITS["youtube_title"])
+    return truncate(youtube_safe(payload["title"]), LIMITS["youtube_title"])
 
 
 def compose_description(payload: dict, product: Product, settings: Settings) -> str:
     """Description YouTube : description du script (sources), CTA + lien, label IA, hashtags."""
-    blocks = [
-        payload.get("description", "").strip(),
-        f"{payload['cta']}\n{ucfirst(product.cta_hint)} : {settings.landing_url(product.slug)}",
+    head = [youtube_safe(payload.get("description", ""))]
+    tail = [
+        youtube_safe(
+            f"{payload['cta']}\n{ucfirst(product.cta_hint)} : {settings.landing_url(product.slug)}"
+        ),
         disclosure_line(settings),
         hashtags_line(payload, product),
     ]
-    return truncate("\n\n".join(b for b in blocks if b), LIMITS["youtube_description"])
+    return join_within(head, tail, LIMITS["youtube_description"])
 
 
 def compose_tiktok_caption(payload: dict, product: Product, settings: Settings) -> str:
     cta = payload["cta"] if "bio" in payload["cta"].lower() else f"{payload['cta']} (lien en bio)"
-    blocks = [
-        payload["hook"],
-        cta,
-        disclosure_line(settings),
-        hashtags_line(payload, product, limit=5),
-    ]
-    return truncate("\n".join(b for b in blocks if b), LIMITS["tiktok_title"])
+    tail = [cta, disclosure_line(settings), hashtags_line(payload, product, limit=5)]
+    return join_within([payload["hook"]], tail, LIMITS["tiktok_title"], sep="\n")
 
 
 def compose_pin(payload: dict, product: Product, settings: Settings) -> dict:
-    description = "\n\n".join(
-        b
-        for b in [
-            payload.get("description", "").strip(),
-            disclosure_line(settings),
-            hashtags_line(payload, product, limit=5),
-        ]
-        if b
+    tail = [disclosure_line(settings), hashtags_line(payload, product, limit=5)]
+    description = join_within(
+        [payload.get("description", "")], tail, LIMITS["pinterest_description"]
     )
     return {
         "title": truncate(payload["title"], LIMITS["pinterest_title"]),
-        "description": truncate(description, LIMITS["pinterest_description"]),
+        "description": description,
         "alt_text": truncate(payload["hook"], 500),
         "link": settings.landing_url(product.slug),
     }
 
 
 def compose_linkedin_post(payload: dict, product: Product, settings: Settings) -> str:
-    blocks = [
-        payload["hook"],
-        *payload["body"],
-        payload["cta"],
+    head = [payload["hook"], *payload["body"], payload["cta"]]
+    tail = [
         f"{ucfirst(product.cta_hint)} : {settings.landing_url(product.slug)}",
         disclosure_line(settings),
         hashtags_line(payload, product, limit=4),
     ]
-    return truncate("\n\n".join(b for b in blocks if b), LIMITS["linkedin_commentary"])
+    return join_within(head, tail, LIMITS["linkedin_commentary"])
 
 
 def teleprompter_text(payload: dict) -> str:

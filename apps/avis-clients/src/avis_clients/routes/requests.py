@@ -8,6 +8,7 @@ from ..deps import get_db, get_services, redirect, render_template, require_acco
 from ..repo import (
     add_optout,
     get_establishment,
+    is_opted_out,
     list_establishments,
     list_optouts,
     list_review_requests,
@@ -15,9 +16,12 @@ from ..repo import (
     update_establishment,
 )
 from ..requests_service import parse_contacts_csv, quota_status, send_review_request
-from ..sms import DEFAULT_REQUEST_TEMPLATE, normalize_phone, render_message
+from ..sms import DEFAULT_REQUEST_TEMPLATE, normalize_phone, render_message, validate_request_template
 
 router = APIRouter(prefix="/app/requests")
+
+MAX_CSV_BYTES = 1024 * 1024  # 1 Mo : des milliers de contacts, et rien d'illimité en mémoire
+MAX_CSV_CONTACTS = 500
 
 
 @router.get("")
@@ -58,7 +62,7 @@ def requests_send(
     if not est:
         return redirect("/app/requests", flash="Établissement introuvable.", category="error")
     outcome = send_review_request(get_db(request), get_services(request), account, est, channel=channel,
-                                  recipient=recipient, first_name=first_name.strip()[:60] or None)
+                                  recipient=recipient, first_name=first_name)
     category = "info" if outcome.ok else "error"
     label = {"sms": "SMS", "whatsapp": "message WhatsApp", "email": "email"}.get(channel, channel)
     return redirect(f"/app/requests?establishment={est.id}",
@@ -75,7 +79,11 @@ async def requests_import(
     account, est = _owned(request, establishment_id)
     if not est:
         return redirect("/app/requests", flash="Établissement introuvable.", category="error")
-    raw = await file.read()
+    raw = await file.read(MAX_CSV_BYTES + 1)
+    if len(raw) > MAX_CSV_BYTES:
+        return redirect(f"/app/requests?establishment={est.id}",
+                        flash=f"Fichier trop volumineux ({MAX_CSV_BYTES // 1024} Ko maximum, soit plusieurs "
+                              f"milliers de contacts) : découpez-le.", category="error")
     try:
         content = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -87,9 +95,9 @@ async def requests_import(
                         category="error")
     conn, services = get_db(request), get_services(request)
     sent = blocked = failed = 0
-    for phone, first_name in contacts[:500]:
+    for phone, first_name in contacts[:MAX_CSV_CONTACTS]:
         outcome = send_review_request(conn, services, account, est, channel=channel, recipient=phone,
-                                      first_name=first_name[:60] or None)
+                                      first_name=first_name)
         if outcome.ok:
             sent += 1
         elif outcome.request and outcome.request.status.startswith("blocked"):
@@ -109,13 +117,10 @@ def requests_template(request: Request, establishment_id: int = Form(...), reque
     if not est:
         return redirect("/app/requests", flash="Établissement introuvable.", category="error")
     tpl = request_template.strip()
-    if "{lien}" not in tpl:
-        return redirect(f"/app/requests?establishment={est.id}",
-                        flash="Le modèle doit contenir {lien}.", category="error")
-    if "stop" not in tpl.lower():
-        return redirect(f"/app/requests?establishment={est.id}",
-                        flash="Le modèle doit indiquer comment se désinscrire (mention STOP).", category="error")
-    update_establishment(get_db(request), est.id, request_template=tpl[:320])
+    error = validate_request_template(tpl)
+    if error:
+        return redirect(f"/app/requests?establishment={est.id}", flash=error, category="error")
+    update_establishment(get_db(request), est.id, request_template=tpl)
     return redirect(f"/app/requests?establishment={est.id}", flash="Modèle de message enregistré.")
 
 
@@ -133,7 +138,15 @@ def optouts_add(request: Request, phone: str = Form("")):
 @router.post("/optouts/remove")
 def optouts_remove(request: Request, phone: str = Form("")):
     account = require_account(request)
+    conn = get_db(request)
     normalized = normalize_phone(phone)
-    if normalized:
-        remove_optout(get_db(request), normalized, account.id)
-    return redirect("/app/requests", flash="Numéro retiré de la liste STOP.")
+    if not normalized:
+        return redirect("/app/requests", flash="Numéro invalide.", category="error")
+    if remove_optout(conn, normalized, account.id):
+        log_event(conn, "optout_removed", account_id=account.id, phone=normalized)
+        return redirect("/app/requests", flash=f"{normalized} retiré de la liste STOP.")
+    if is_opted_out(conn, normalized, None):
+        return redirect("/app/requests", category="warn",
+                        flash=f"{normalized} figure sur la liste STOP globale (opposition reçue sans envoi préalable "
+                              "de votre part) : seul l'administrateur peut la lever.")
+    return redirect("/app/requests", flash=f"{normalized} n'est pas dans votre liste STOP.", category="warn")

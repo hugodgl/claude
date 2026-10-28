@@ -25,9 +25,10 @@ class SayTTS:
             txt = out_dir / f"tts_{i:02d}.txt"
             aiff = out_dir / f"tts_{i:02d}.aiff"
             txt.write_text(sentence, encoding="utf-8")
+            cmd = ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(aiff), "-f", str(txt)]
             try:
                 proc = subprocess.run(
-                    ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(aiff), "-f", str(txt)],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=180,

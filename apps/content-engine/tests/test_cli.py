@@ -67,8 +67,21 @@ def test_metrics_import_and_doctor(env: Path):
     )
     code, out = run("metrics", "--import", str(csv_path))
     assert code == 0 and "1 ligne(s) importée(s)" in out
+    # un seul contenu mesuré par angle : pas de recommandation hâtive
+    run("script", "--topic-id", "1")
+    title = "Comment demander un avis Google à un client sans le gêner"  # variante 1 du simulateur
+    csv_path.write_text(
+        f'Content,Video title,Views,Watch time (hours)\nid2,"{title}",50,2\n', encoding="utf-8"
+    )
+    code, out = run("metrics", "--import", str(csv_path))
+    assert code == 0 and "1 liée(s)" in out
+    code, out = run("angles")
+    assert code == 0 and "Trop peu de données" in out and "À décliner" not in out
+    code, out = run("add-topic", "Question avec un angle inventé ?", "-p", "avis", "--angle", "x")
+    assert code == 1 and "angle inconnu" in out
     code, out = run("doctor")
     assert code == 0 and "TTS : silent" in out and "LLM : mock" in out and "dry-run" in out
+    assert "SELF_ONLY forcé" in out and "YouTube : private" in out
     code, out = run("--version")
     assert code == 0 and "content-engine" in out
     code, out = run("script", "--topic-id", "999")

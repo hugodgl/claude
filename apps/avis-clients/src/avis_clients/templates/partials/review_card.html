@@ -13,6 +13,7 @@
     <div class="reply published"><strong>Votre réponse</strong> <span class="muted small">{{ review.reply_published_at|datetime }}</span><p>{{ review.reply_text }}</p></div>
   {% elif review.reply_status in ('draft', 'approved', 'none') %}
     <form class="stack" hx-post="/app/reviews/{{ review.id }}/publish" hx-target="#review-{{ review.id }}" hx-swap="outerHTML" method="post" action="/app/reviews/{{ review.id }}/publish">
+      {% if review.draft_needs_care %}<div class="flash warn small">Brouillon générique ou nettoyé automatiquement (modèle indisponible ou réponse non conforme) : à personnaliser avant publication.</div>{% endif %}
       <label>Brouillon de réponse <span class="muted small">(60 mots max conseillés)</span>
         <textarea name="text" rows="4">{{ review.reply_draft or '' }}</textarea>
       </label>

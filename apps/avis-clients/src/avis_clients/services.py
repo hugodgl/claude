@@ -1,7 +1,7 @@
 """Conteneur des services partagés (web et CLI) : réglages, base, mail, LLM, SMS, Google, Stripe."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.llm import LLM, get_llm
@@ -25,6 +25,9 @@ class Services:
     gbp: ReviewsClient
     stripe: StripeGateway
     signer: SessionSigner
+    # recommandations LLM du rapport mensuel déjà calculées (par processus) : l'aperçu web ne doit pas
+    # relancer le modèle à chaque affichage de la même page
+    report_cache: dict[tuple, tuple[list[str], str]] = field(default_factory=dict)
 
 
 def build_services(settings: AppSettings | None = None, **overrides: Any) -> Services:

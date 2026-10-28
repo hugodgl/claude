@@ -80,13 +80,14 @@ def test_security_headers_and_no_store_on_private_pages(client, logged_client):
 
 
 def _twilio_services(tmp_path, **overrides):
-    settings = AppSettings(
+    values = dict(
         _env_file=None, llm_provider="mock", mail_provider="console", gbp_mode="mock",
         data_dir=tmp_path / "data", db_path=tmp_path / "tw.db", session_secret="secret-de-test",
         app_base_url="http://testserver", gbp_fixtures_file=FIXTURES / "gbp_reviews.json",
         sms_provider="twilio", twilio_account_sid="AC1", twilio_auth_token="tok", twilio_from="+33700000000",
-        **overrides,
     )
+    values.update(overrides)
+    settings = AppSettings(**values)
     return build_services(settings, mailer=ConsoleMailer(quiet=True), llm=MockLLM(responses=smart_llm),
                           gbp=MockGBPClient(fixtures_path=FIXTURES / "gbp_reviews.json"))
 
@@ -324,7 +325,8 @@ def test_whatsapp_stop_is_honored(client, logged_client, establishment_id, servi
     logged_client.post("/app/requests/send", data={"establishment_id": establishment_id, "channel": "sms",
                                                    "recipient": "0655555555"})
     with services.db.session() as conn:
-        assert conn.execute("SELECT status FROM review_requests ORDER BY id DESC").fetchone()["status"] == "blocked_optout"
+        last = conn.execute("SELECT status FROM review_requests ORDER BY id DESC").fetchone()
+    assert last["status"] == "blocked_optout"
 
 
 def test_render_message_tolerates_braces_and_blocks_attribute_access(logged_client, establishment_id, services):
@@ -383,8 +385,10 @@ def test_report_preview_caches_llm_and_skips_it_in_readonly(logged_client, estab
     with services.db.session() as conn:
         acc = get_account_by_email(conn, "gerant@exemple.fr")
         update_account(conn, acc.id, trial_ends_at="2020-01-01T00:00:00+00:00")
-    r = logged_client.get(f"/app/establishments/{establishment_id}/report?month=2026-09")
+    services.report_cache.clear()
+    r = logged_client.get(f"/app/establishments/{establishment_id}/report?month=2026-10")
     assert r.status_code == 200 and reco_calls() == n + 1  # lecture seule : aucun appel au modèle
+    assert "Recommandations génériques" in r.text
 
 
 def test_poll_updates_modified_reviews(logged_client, establishment_id, services):

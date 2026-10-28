@@ -15,12 +15,14 @@ from .repo import (
     create_establishment,
     get_account_by_email,
     get_establishment,
+    get_establishment_by_location,
     get_or_create_account,
     list_accounts,
     list_establishments,
     list_events,
     list_optouts,
     review_url_for_place,
+    slugify,
     update_account,
     update_establishment,
 )
@@ -99,7 +101,7 @@ def monthly_report_cmd(
         out.mkdir(parents=True, exist_ok=True)
     for r in results:
         if "html" in r and out:
-            path = out / f"rapport-{r['month']}-{r['establishment'].replace(' ', '_')}.html"
+            path = out / f"rapport-{r['month']}-{slugify(r['establishment'])}.html"  # nom de fichier sûr
             path.write_text(r["html"], encoding="utf-8")
             r["file"] = str(path)
         typer.echo(" · ".join(f"{k}={v}" for k, v in r.items() if k != "html"))
@@ -244,6 +246,11 @@ def google_link(establishment_id: int):
         if not match:
             typer.echo("Aucune fiche avec ce Place ID parmi les fiches accessibles (vérifier l'invitation "
                        "en tant que gestionnaire).", err=True)
+            raise typer.Exit(code=1)
+        other = get_establishment_by_location(conn, match["name"])
+        if other and other.id != est.id:
+            typer.echo(f"Cette fiche est déjà reliée à l'établissement #{other.id} {other.name} (compte "
+                       f"{other.account_id}) : délier d'abord l'autre établissement.", err=True)
             raise typer.Exit(code=1)
         update_establishment(conn, est.id, google_location_name=match["name"])
     typer.echo(f"#{est.id} {est.name} relié à {match['name']} ({match.get('title')})")

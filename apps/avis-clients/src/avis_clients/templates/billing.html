@@ -31,14 +31,17 @@
     <h3>{{ p.name }}</h3>
     <p class="price">{{ p.price }} €<span> HT / mois</span></p>
     <ul>{% for f in p.features %}<li>{{ f }}</li>{% endfor %}</ul>
-    <form method="post" action="/billing/checkout">
-      <input type="hidden" name="plan" value="{{ p.code }}">
-      {% if access.state == 'active' and account.plan == p.code %}
-        <button class="btn" disabled>Formule actuelle</button>
-      {% else %}
-        <button class="btn primary">{{ 'Changer pour ' ~ p.name if access.state == 'active' else 'Choisir ' ~ p.name }}</button>
-      {% endif %}
-    </form>
+    {% if access.state == 'active' and account.plan == p.code %}
+      <button class="btn" disabled>Formule actuelle</button>
+    {% elif access.state == 'active' %}
+      {# un second Checkout créerait un second abonnement : le changement passe par le portail (prorata) #}
+      <form method="post" action="/billing/portal"><button class="btn">Changer via le portail</button></form>
+    {% else %}
+      <form method="post" action="/billing/checkout">
+        <input type="hidden" name="plan" value="{{ p.code }}">
+        <button class="btn primary">Choisir {{ p.name }}</button>
+      </form>
+    {% endif %}
   </article>
   {% endfor %}
 </div>

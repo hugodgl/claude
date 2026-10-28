@@ -128,32 +128,56 @@ def _get(d: Any, *path: str) -> Any:
     return cur
 
 
+def _customer_id(obj: dict[str, Any]) -> str | None:
+    customer = obj.get("customer")
+    return customer if isinstance(customer, str) else _get(obj, "customer", "id")
+
+
 def _resolve_account(conn: sqlite3.Connection, obj: dict[str, Any]) -> Account | None:
     for ref in (obj.get("client_reference_id"), _get(obj, "metadata", "account_id")):
         if ref and str(ref).isdigit():
             acc = get_account(conn, int(ref))
             if acc:
                 return acc
-    customer = obj.get("customer") if isinstance(obj.get("customer"), str) else _get(obj, "customer", "id")
     subscription = obj.get("subscription") if isinstance(obj.get("subscription"), str) else None
     if obj.get("object") == "subscription":
         subscription = obj.get("id")
-    acc = find_account_by_stripe(conn, customer_id=customer, subscription_id=subscription)
+    acc = find_account_by_stripe(conn, customer_id=_customer_id(obj), subscription_id=subscription)
     if acc:
         return acc
     email = obj.get("customer_email") or _get(obj, "customer_details", "email")
     return get_account_by_email(conn, email) if email else None
 
 
+ENDED_STATUSES = ("canceled", "unpaid", "incomplete_expired")
+SUBSCRIPTION_EVENTS = ("customer.subscription.created", "customer.subscription.updated",
+                       "customer.subscription.deleted")
+
+
 def handle_stripe_event(conn: sqlite3.Connection, settings: AppSettings, event: dict[str, Any]) -> str:
-    """Applique un événement Stripe (déjà vérifié) aux comptes. Idempotent sur l'identifiant d'événement."""
+    """Applique un événement Stripe (déjà vérifié) aux comptes. Idempotent sur l'identifiant d'événement.
+
+    L'identifiant est réservé en une seule requête (INSERT OR IGNORE : pas de doublon même si Stripe
+    livre deux fois en parallèle) et libéré si le traitement échoue, pour que la relance de Stripe
+    rejoue l'événement au lieu de le voir comme un doublon déjà traité."""
     event_id = event.get("id")
     if event_id:
-        if conn.execute("SELECT 1 FROM stripe_events WHERE id = ?", (event_id,)).fetchone():
-            return "duplicate"
         with conn:
-            conn.execute("INSERT INTO stripe_events (id, type, received_at) VALUES (?, ?, ?)",
-                         (event_id, event.get("type", "?"), now_iso()))
+            cur = conn.execute("INSERT OR IGNORE INTO stripe_events (id, type, received_at) VALUES (?, ?, ?)",
+                               (event_id, event.get("type", "?"), now_iso()))
+        if cur.rowcount == 0:
+            return "duplicate"
+    try:
+        return _apply_stripe_event(conn, settings, event)
+    except Exception:
+        if event_id:
+            with conn:
+                conn.execute("DELETE FROM stripe_events WHERE id = ?", (event_id,))
+        raise
+
+
+def _apply_stripe_event(conn: sqlite3.Connection, settings: AppSettings, event: dict[str, Any]) -> str:
+    event_id = event.get("id")
     etype = event.get("type", "")
     obj = _get(event, "data", "object") or {}
     account = _resolve_account(conn, obj)
@@ -163,34 +187,38 @@ def handle_stripe_event(conn: sqlite3.Connection, settings: AppSettings, event: 
         return "unmatched"
 
     fields: dict[str, Any] = {}
+    customer = _customer_id(obj)
+    if customer:
+        fields["stripe_customer_id"] = customer
     if etype == "checkout.session.completed":
         plan = _get(obj, "metadata", "plan")
-        customer = obj.get("customer") if isinstance(obj.get("customer"), str) else _get(obj, "customer", "id")
-        if customer:
-            fields["stripe_customer_id"] = customer
         if isinstance(obj.get("subscription"), str):
             fields["stripe_subscription_id"] = obj["subscription"]
         if plan in VALID_PLANS:
             fields["plan"] = plan
         if obj.get("mode", "subscription") == "subscription":
             fields["subscription_status"] = "active"
-    elif etype in ("customer.subscription.created", "customer.subscription.updated"):
-        status = obj.get("status") or "active"
+    elif etype in SUBSCRIPTION_EVENTS:
+        sub_id = obj.get("id")
+        status = "canceled" if etype.endswith(".deleted") else (obj.get("status") or "active")
+        ended = status in ENDED_STATUSES
+        current = account.stripe_subscription_id
+        if ended and current and sub_id and sub_id != current:
+            # fin d'un ancien abonnement (résilié à échéance après un nouveau Checkout, par exemple) :
+            # elle ne doit pas couper l'accès ouvert par l'abonnement courant
+            log_event(conn, "stripe_event_ignored", account_id=account.id, type=etype, event_id=event_id,
+                      subscription=sub_id, reason="autre abonnement que l'abonnement courant")
+            return "ignored"
         price_id = _get(obj, "items", "data")
         price_id = _get(price_id[0], "price", "id") if isinstance(price_id, list) and price_id else None
         plan = settings.plan_for_price(price_id) or _get(obj, "metadata", "plan")
         fields["subscription_status"] = status
-        fields["stripe_subscription_id"] = obj.get("id")
-        customer = obj.get("customer") if isinstance(obj.get("customer"), str) else _get(obj, "customer", "id")
-        if customer:
-            fields["stripe_customer_id"] = customer
+        if sub_id:
+            fields["stripe_subscription_id"] = sub_id
         if plan in VALID_PLANS:
             fields["plan"] = plan
-        if status in ("canceled", "unpaid", "incomplete_expired"):
+        if ended:
             fields["plan"] = "none"
-    elif etype == "customer.subscription.deleted":
-        fields["subscription_status"] = "canceled"
-        fields["plan"] = "none"
     else:
         return "ignored"
 

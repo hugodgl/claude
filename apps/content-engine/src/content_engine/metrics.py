@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import csv
+import io
 import re
 import sqlite3
 from pathlib import Path
 
 from .db import utc_now_iso
 from .scripts import draft_payload, list_drafts
+from .texts import youtube_title
 from .topics import normalize_question
+
+PLATFORMS = ("youtube", "tiktok", "pinterest", "linkedin")
+DELIMITERS = (",", ";", "\t")
+MIN_CONTENTS_PER_ANGLE = 3  # en dessous, le classement des angles n'est pas interprétable
 
 ALIASES: dict[str, list[str]] = {
     "remote_id": ["contenu", "content", "video id", "id de la video", "video_id", "id", "post id"],
@@ -120,13 +126,30 @@ def detect_platform(headers: list[str], filename: str = "") -> str:
 
 
 def _draft_titles(conn: sqlite3.Connection) -> dict[str, int]:
+    """Clés normalisées → brouillon : titre, titre YouTube (tronqué à 100) et accroche (TikTok
+    Studio exporte la légende, qui commence par l'accroche)."""
     titles: dict[str, int] = {}
     for row in list_drafts(conn):
         p = draft_payload(row)
-        key = normalize_question(p.get("title", ""))
-        if key and key not in titles:
-            titles[key] = row["id"]
+        for text in (p.get("title", ""), youtube_title(p), p.get("hook", "")):
+            key = normalize_question(text)
+            if len(key) >= 8:
+                titles.setdefault(key, row["id"])
     return titles
+
+
+def match_title(title: str, titles: dict[str, int]) -> int | None:
+    """Correspondance exacte, sinon par préfixe (titre tronqué par la plateforme, légende)."""
+    key = normalize_question(title)
+    if not key:
+        return None
+    if key in titles:
+        return titles[key]
+    if len(key) >= 20:
+        for known, draft_id in titles.items():
+            if len(known) >= 20 and (key.startswith(known) or known.startswith(key)):
+                return draft_id
+    return None
 
 
 def link_draft(
@@ -146,20 +169,43 @@ def link_draft(
         if row:
             return int(row["draft_id"])
     if title:
-        return titles.get(normalize_question(title))
+        return match_title(title, titles)
     return None
 
 
-def read_csv(path: Path) -> tuple[list[str], list[dict]]:
-    text = path.read_text(encoding="utf-8-sig")
-    sample = text[:4096]
+def decode_csv(raw: bytes) -> str:
+    """UTF-16 si BOM, sinon UTF-8 (avec ou sans BOM), sinon cp1252 (export retouché sous Excel)."""
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16")
     try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
-    except csv.Error:
-        dialect = csv.excel
-    reader = csv.DictReader(text.splitlines(), dialect=dialect)
-    rows = [r for r in reader if any((v or "").strip() for v in r.values())]
-    return list(reader.fieldnames or []), rows
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", errors="replace")
+
+
+def sniff_delimiter(text: str) -> str:
+    """Séparateur le plus fréquent dans la ligne d'en-tête (plus sûr que csv.Sniffer sur des
+    titres pleins de virgules)."""
+    header = next((line for line in text.splitlines() if line.strip()), "")
+    counts = {d: header.count(d) for d in DELIMITERS}
+    best = max(counts, key=counts.get)
+    return best if counts[best] else ","
+
+
+def read_csv(path: Path) -> tuple[list[str], list[dict]]:
+    text = decode_csv(path.read_bytes())
+    # StringIO (et non splitlines) : un titre entre guillemets peut contenir un retour à la ligne
+    reader = csv.DictReader(
+        io.StringIO(text, newline=""), delimiter=sniff_delimiter(text), restkey="_extra"
+    )
+    rows: list[dict] = []
+    for r in reader:
+        clean = {
+            k: (v if isinstance(v, str) else "") for k, v in r.items() if k not in (None, "_extra")
+        }
+        if any(v.strip() for v in clean.values()):
+            rows.append(clean)
+    return [h for h in (reader.fieldnames or []) if h], rows
 
 
 def _num(row: dict, mapping: dict[str, str], field: str) -> float | None:
@@ -174,13 +220,21 @@ def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None 
     mapping = map_columns(headers)
     if "views" not in mapping:
         raise ValueError(f"colonne « vues » introuvable dans {path.name} (colonnes : {headers})")
-    platform = platform or detect_platform(headers, path.name)
+    if platform:
+        platform = platform.strip().lower()
+        if platform not in PLATFORMS:
+            raise ValueError(f"plateforme inconnue : {platform!r} (choix : {', '.join(PLATFORMS)})")
+    else:
+        platform = detect_platform(headers, path.name)
     titles = _draft_titles(conn)
     imported = linked = skipped = 0
     for r in rows:
         remote_id = (r.get(mapping.get("remote_id", ""), "") or "").strip() or None
         title = (r.get(mapping.get("title", ""), "") or "").strip() or None
         if (remote_id or "").lower() in ("total", "totaux") or (title or "").lower() == "total":
+            skipped += 1
+            continue
+        if not remote_id and not title:  # sans clé, la ligne serait dupliquée à chaque import
             skipped += 1
             continue
         views = parse_number(r.get(mapping["views"]))

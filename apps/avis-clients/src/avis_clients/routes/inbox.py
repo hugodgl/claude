@@ -49,6 +49,9 @@ def inbox_sync(request: Request):
     account = require_account(request)
     conn = get_db(request)
     ids = [e.id for e in list_establishments(conn, account.id)]
+    if not ids:
+        # sans établissement, ne jamais retomber sur « tous les établissements » (ceux des autres comptes)
+        return redirect("/app/inbox", flash="Ajoutez d'abord un établissement.", category="warn")
     summary = poll_reviews(conn, get_services(request), establishment_ids=ids)
     msg = (f"Synchronisation : {summary.fetched} avis lus, {summary.new} nouveau(x), {summary.drafts} brouillon(s), "
            f"{summary.alerts} alerte(s), {summary.auto_published} auto-publié(s).")
