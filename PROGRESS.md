@@ -108,3 +108,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 01:49 — SMOKE-1 livré : `make smoke`
 - `scripts/smoke.sh` : 44 étapes en mode simulation sans réseau (stub local qui rejoue les fixtures BOAMP/TED/DECP, serveurs web démarrés et arrêtés proprement, rendu vidéo vérifié par ffprobe), 42 ok, 2 ignorées, ~30 s. Rejoué par la session principale.
 - Constats d'intégration (détail dans `scripts/SMOKE-FINDINGS.md`) : la newsletter n'a pas de simulateur en mode `mock` (draft impossible hors ligne) → P3-3 lancée ; la veille compte un résumé vide comme « avec LLM » et ignore `DATA_DIR` → transmis à l'agent P2-4 ; `ce doctor` replie les chemins hors terminal → transmis à l'agent QA-3b.
+
+### 28/10 01:50 — QA-2 socle terminée
+- `packages/core` : 20 défauts corrigés (5 hauts, 9 moyens, 6 bas), 17 → 50 tests, ruff propre, `README.md` et `REVIEW.md` du socle créés. Forme des appels Anthropic vérifiée avec le vrai SDK sur un transport factice (bêta `server-side-fallback-2026-07-01`, `fallbacks="default"`, `output_config.effort`, pas de `temperature`, refus détecté).
+- Hauts : migrations non durables en `autocommit=False`, `Message-ID` et `Date` absents en SMTP, destinataire chaîne accepté comme liste, troncature `max_tokens` indétectable (nouveau `LLMResult.truncated`), fichier SQL finissant par un commentaire qui cassait la migration.

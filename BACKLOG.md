@@ -33,7 +33,7 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 - [x] **P1-4** `apps/avis-clients` : adaptateurs Facebook et Tripadvisor, mode auto-publication pour les avis ≥ 4 étoiles
 
 ## Phase 4 : ajouts décidés pendant la nuit
-- [~] **QA-2** revue croisée de `packages/core` (jamais relu : LLM, mail, migrations, JSON) + README du socle
+- [x] **QA-2** revue croisée de `packages/core` (jamais relu : LLM, mail, migrations, JSON) + README du socle
 - [x] **SMOKE-1** `scripts/smoke.sh` + `make smoke` : test de fumée de bout en bout en mode simulation, à lancer sur le Mac mini après l'installation
 - [x] **DEP-2** `make setup` vérifié depuis zéro (venv recréé, 102 tests), image Docker du VPS non testable ici (pas de démon Docker dans le sandbox)
 
