@@ -97,3 +97,6 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - 95 → 118 tests verts, ruff propre. Abstraction par plateforme, table `review_sources` (jetons chiffrés Fernet avec `TOKENS_KEY`), Facebook en lecture + réponse (vérification que le jeton de Page correspond bien à la Page saisie), Tripadvisor en lecture + flux « réponse à copier » (pas d'API de réponse), poll multi-plateformes avec erreurs isolées, badges et filtres, page publique avec liens secondaires, rapport mensuel ventilé. Vérifié par la session principale.
 - Dépend d'Hugo : app Meta (permissions et App Review pour les Pages d'autres commerçants), clé Tripadvisor Content API, `TOKENS_KEY` en production.
 - Toutes les tâches de construction du backlog sont faites. Restent en cours : QA-2 (socle) et SMOKE-1 (script de fumée).
+
+### 28/10 01:46 — phase 5 lancée
+- Lancé : P2-4 (prospects DECP + emails de prospection), P1-5 (prospects commerces via Google Places), QA-3b (relecture des métriques/angles du moteur de contenu). QA-3a suivra P1-5. QA-2 (socle) et SMOKE-1 (fumée) toujours en cours.
