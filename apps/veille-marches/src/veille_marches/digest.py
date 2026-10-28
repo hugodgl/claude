@@ -1,22 +1,26 @@
 """Digest quotidien par abonné : sélection des avis nouveaux, score par abonné, rendu HTML + texte, envoi."""
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from core.mail import Email, Mailer
 
 from . import db
 from .accounts import account_url
-from .dates import days_until, utcnow
+from .dates import days_until, local, utcnow
 from .filtering import MatchResult, match_notice
 from .models import LLMSummary, Notice, Subscriber
 from .rendering import render
 from .scoring import RuleScore, final_score, rules_score
 from .settings import VMSettings
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -63,6 +67,7 @@ class DigestOutcome:
     sent: bool = False
     message_id: str | None = None
     files: list[Path] = field(default_factory=list)
+    error: str | None = None   # envoi en échec : rien d'enregistré, l'abonné sera resservi au prochain passage
 
 
 def build_digest(conn: sqlite3.Connection, subscriber: Subscriber, settings: VMSettings,
@@ -97,7 +102,7 @@ def build_digest(conn: sqlite3.Connection, subscriber: Subscriber, settings: VMS
 
 def render_digest(digest: Digest, settings: VMSettings) -> tuple[str, str, str]:
     """Retourne (objet, html, texte)."""
-    d = digest.date
+    d = local(digest.date)
     date_label = f"{d.day:02d}/{d.month:02d}/{d.year}"
     if digest.priority:
         subject = (f"{settings.product_name} {date_label} : {digest.total} nouveau(x) marché(s), "
@@ -118,6 +123,28 @@ def settings_account_url(settings: VMSettings, subscriber: Subscriber) -> str | 
 
 def _safe_filename(email: str) -> str:
     return re.sub(r"[^a-z0-9._-]+", "_", email.lower())
+
+
+def write_previews(out_dir: Path, email: str, html: str, text: str) -> list[Path]:
+    """Écrit `<email nettoyé>.html` et `.txt` (sans `with_suffix`, qui remplacerait le `.fr` de l'adresse)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_filename(email)
+    paths = [out_dir / f"{stem}.html", out_dir / f"{stem}.txt"]
+    paths[0].write_text(html, encoding="utf-8")
+    paths[1].write_text(text, encoding="utf-8")
+    return paths
+
+
+def send_or_record_error(mailer: Mailer, email: Email, sender: str, outcome: Any, log_label: str) -> bool:
+    """Envoie ; en cas d'échec, note l'erreur sur `outcome` sans interrompre la tournée des autres abonnés."""
+    try:
+        outcome.message_id = mailer.send(email, sender=sender)
+    except Exception as e:  # noqa: BLE001 - un envoi en échec ne doit pas priver les abonnés suivants
+        log.exception("%s non envoyé à %s", log_label, email.to[0])
+        outcome.error = str(e) or e.__class__.__name__
+        return False
+    outcome.sent = True
+    return True
 
 
 def send_digests(conn: sqlite3.Connection, settings: VMSettings, mailer: Mailer | None = None, *,
@@ -144,15 +171,10 @@ def send_digests(conn: sqlite3.Connection, settings: VMSettings, mailer: Mailer 
             if mailer is None:
                 raise RuntimeError("mailer requis pour l'envoi")
             email = Email(to=[sub.email], subject=subject, html=html, text=text, reply_to=settings.reply_to)
-            outcome.message_id = mailer.send(email, sender=settings.mail_from)
-            outcome.sent = True
-            db.record_deliveries(conn, sub.id, [(it.notice.id, it.score) for it in digest.items], now)
+            if send_or_record_error(mailer, email, settings.mail_from, outcome, "digest"):
+                db.record_deliveries(conn, sub.id, [(it.notice.id, it.score) for it in digest.items], now)
         elif not dry_run:
-            out_dir = Path(settings.out_dir) / "digests" / now.strftime("%Y-%m-%d")
-            out_dir.mkdir(parents=True, exist_ok=True)
-            base = out_dir / _safe_filename(sub.email)
-            (base.with_suffix(".html")).write_text(html, encoding="utf-8")
-            (base.with_suffix(".txt")).write_text(text, encoding="utf-8")
-            outcome.files = [base.with_suffix(".html"), base.with_suffix(".txt")]
+            outcome.files = write_previews(Path(settings.out_dir) / "digests" / now.strftime("%Y-%m-%d"), sub.email,
+                                           html, text)
         outcomes.append(outcome)
     return outcomes

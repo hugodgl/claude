@@ -4,6 +4,7 @@ Jeux possibles (réglage `DECP_DATASET`) : `decp-v3`, `decp-v3-marches-valides`,
 """
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -14,6 +15,8 @@ from ..mapping import DECP_MAPPING, decode_json_strings, first_value, parse_amou
 from ..models import Award, department_from_postal_or_insee, normalize_department
 from ..settings import VMSettings
 from .base import CollectResult, build_client, ods_iter_records, ods_sql_date
+
+log = logging.getLogger(__name__)
 
 
 def _text(value: Any) -> str | None:
@@ -103,7 +106,11 @@ class DecpCollector:
             order_by=self.mapping["order_by"], limit=limit, page_size=self.mapping["page_size"], result=result,
         ):
             result.fetched += 1
-            award = map_decp_record(record, self.mapping)
+            try:
+                award = map_decp_record(record, self.mapping)
+            except Exception as e:  # noqa: BLE001 - un enregistrement inattendu est écarté, la source continue
+                log.warning("DECP : enregistrement inexploitable écarté (%s : %s)", e.__class__.__name__, e)
+                award = None
             if award is None:
                 result.excluded += 1
                 continue

@@ -10,7 +10,12 @@ from .catalog import DEPARTMENTS, PLANS, TRADES, Plan, plan_or_default, trade_or
 from .models import normalize_department
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+_DIGITS = re.compile(r"^[0-9]+$")                 # pas `isdigit()` : il accepte les chiffres Unicode
+_AMOUNT = re.compile(r"^[0-9]+(?:\.[0-9]+)?$")    # pas `float()` seul : il accepte inf, nan, 1e308, 1_000
 MAX_TEXT = 120
+MAX_AMOUNT = 1_000_000_000_000                   # au-delà de mille milliards d'euros, c'est une faute de frappe
+MAX_LIST_VALUES = 200
+MAX_LIST_VALUE_CHARS = 40
 
 
 def _getlist(form: Mapping[str, Any], key: str) -> list[str]:
@@ -19,8 +24,8 @@ def _getlist(form: Mapping[str, Any], key: str) -> list[str]:
     if values is None:
         return []
     if isinstance(values, str):
-        return [values]
-    return [str(v) for v in values]
+        values = [values]
+    return [str(v)[:MAX_LIST_VALUE_CHARS] for v in list(values)[:MAX_LIST_VALUES]]
 
 
 def _text(form: Mapping[str, Any], key: str) -> str:
@@ -34,17 +39,18 @@ def parse_amount(raw: str | None) -> tuple[float | None, str | None]:
     text = text.replace(" ", "").replace("\xa0", "").replace(" ", "").replace(",", ".")
     if not text:
         return None, None
+    if text.startswith("-"):
+        return None, "le montant doit être positif"
     factor = 1.0
     if text.endswith("m"):
         factor, text = 1_000_000.0, text[:-1]
     elif text.endswith("k"):
         factor, text = 1_000.0, text[:-1]
-    try:
-        value = float(text) * factor
-    except ValueError:
+    if not _AMOUNT.match(text):
         return None, "montant illisible (ex. 500000 ou 500k)"
-    if value < 0:
-        return None, "le montant doit être positif"
+    value = float(text) * factor
+    if value > MAX_AMOUNT:
+        return None, "montant trop élevé"
     return round(value, 2), None
 
 
@@ -55,7 +61,7 @@ def parse_cpv_prefixes(raw: str) -> tuple[list[str], str | None]:
         part = part.strip().split("-")[0]
         if not part:
             continue
-        if not part.isdigit() or not 2 <= len(part) <= 8:
+        if not _DIGITS.match(part) or not 2 <= len(part) <= 8:
             return [], f"préfixe CPV invalide : « {part} » (2 à 8 chiffres)"
         if part not in out:
             out.append(part)

@@ -11,8 +11,8 @@ from pathlib import Path
 from core.mail import Email, Mailer
 
 from . import db
-from .dates import utcnow
-from .digest import settings_account_url
+from .dates import local, utcnow
+from .digest import send_or_record_error, settings_account_url, write_previews
 from .models import Award, Subscriber
 from .rendering import render
 from .settings import VMSettings
@@ -54,6 +54,7 @@ class BriefOutcome:
     sent: bool = False
     message_id: str | None = None
     files: list[Path] = field(default_factory=list)
+    error: str | None = None
 
 
 def _aggregate(awards: list[Award], key, recent_ids: set[int]) -> list[Counter]:
@@ -96,7 +97,7 @@ def build_brief(conn: sqlite3.Connection, subscriber: Subscriber, settings: VMSe
 
 
 def render_brief(brief: Brief, settings: VMSettings) -> tuple[str, str, str]:
-    a, b = brief.since, brief.until
+    a, b = local(brief.since), local(brief.until)
     period = f"du {a.day:02d}/{a.month:02d} au {b.day:02d}/{b.month:02d}/{b.year}"
     subject = f"{settings.product_name} — brief de la semaine : {brief.count} attribution(s) {period}"
     ctx = {"brief": brief, "settings": settings, "subject": subject, "period": period,
@@ -123,16 +124,10 @@ def send_briefs(conn: sqlite3.Connection, settings: VMSettings, mailer: Mailer |
         if send:
             if mailer is None:
                 raise RuntimeError("mailer requis pour l'envoi")
-            outcome.message_id = mailer.send(
-                Email(to=[sub.email], subject=subject, html=html, text=text, reply_to=settings.reply_to),
-                sender=settings.mail_from)
-            outcome.sent = True
+            email = Email(to=[sub.email], subject=subject, html=html, text=text, reply_to=settings.reply_to)
+            send_or_record_error(mailer, email, settings.mail_from, outcome, "brief")
         elif not dry_run:
-            out_dir = Path(settings.out_dir) / "briefs" / now.strftime("%Y-%m-%d")
-            out_dir.mkdir(parents=True, exist_ok=True)
-            base = out_dir / sub.email.replace("@", "_at_")
-            base.with_suffix(".html").write_text(html, encoding="utf-8")
-            base.with_suffix(".txt").write_text(text, encoding="utf-8")
-            outcome.files = [base.with_suffix(".html"), base.with_suffix(".txt")]
+            outcome.files = write_previews(Path(settings.out_dir) / "briefs" / now.strftime("%Y-%m-%d"), sub.email,
+                                           html, text)
         outcomes.append(outcome)
     return outcomes

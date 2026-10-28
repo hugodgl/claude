@@ -7,12 +7,8 @@ import json
 import re
 import time
 from datetime import timedelta
-from types import SimpleNamespace
 
-import pytest
-import stripe
 from core.llm import MockLLM
-from core.mail import ConsoleMailer
 from fastapi.testclient import TestClient
 from test_digest import SUMMARY_NO, SUMMARY_YES, seed_notices
 
@@ -22,9 +18,8 @@ from veille_marches.billing import handle_stripe_event
 from veille_marches.digest import send_digests
 from veille_marches.models import Subscriber
 from veille_marches.scoring import score_pending
-from veille_marches.settings import VMSettings
-from veille_marches.web import create_app
 
+# fixtures partagées (live_settings, stripe_calls, mailer, client, mock_client) : voir conftest.py
 SIGNUP = {"email": "Contact@Paysages69.fr", "company": "Paysages 69", "trade": "espaces_verts", "cpv_extra": "",
           "departments": ["69", "01"], "amount_min": "", "amount_max": "500k", "plan": "pro",
           "billing_period": "yearly", "accept_terms": "1"}
@@ -45,52 +40,6 @@ def post_event(client: TestClient, etype: str, obj: dict, event_id: str = "evt_1
     r = client.post("/webhooks/stripe", content=payload, headers={"Stripe-Signature": sign(payload)})
     assert r.status_code == 200, r.text
     return r.json()["result"]
-
-
-@pytest.fixture
-def live_settings(settings: VMSettings) -> VMSettings:
-    """Mode « live » : clés Stripe de test, prix configurés (les appels au SDK sont remplacés par des fakes)."""
-    return settings.model_copy(update={
-        "app_secret_key": "secret-de-test", "app_base_url": "http://testserver", "stripe_secret_key": "sk_test_x",
-        "stripe_webhook_secret": "whsec_test", "stripe_price_essentiel_monthly": "price_ess_m",
-        "stripe_price_essentiel_yearly": "price_ess_y", "stripe_price_pro_monthly": "price_pro_m",
-        "stripe_price_pro_yearly": "price_pro_y"})
-
-
-@pytest.fixture
-def stripe_calls(monkeypatch) -> dict[str, list]:
-    calls: dict[str, list] = {"checkout": [], "portal": []}
-
-    def create_checkout(**params):
-        calls["checkout"].append(params)
-        return SimpleNamespace(id="cs_test_123", url="https://checkout.stripe.com/c/pay/cs_test_123")
-
-    def create_portal(**params):
-        calls["portal"].append(params)
-        return SimpleNamespace(url="https://billing.stripe.com/p/session/test")
-
-    monkeypatch.setattr(stripe.checkout.Session, "create", create_checkout)
-    monkeypatch.setattr(stripe.billing_portal.Session, "create", create_portal)
-    return calls
-
-
-@pytest.fixture
-def mailer() -> ConsoleMailer:
-    return ConsoleMailer(quiet=True)
-
-
-@pytest.fixture
-def client(live_settings, mailer, now):
-    with TestClient(create_app(live_settings, mailer=mailer, now=lambda: now), follow_redirects=False) as c:
-        yield c
-
-
-@pytest.fixture
-def mock_client(settings, mailer, now):
-    """Sans STRIPE_SECRET_KEY : passerelle simulée, pages /demo/*."""
-    s = settings.model_copy(update={"app_secret_key": "secret-de-test", "app_base_url": "http://testserver"})
-    with TestClient(create_app(s, mailer=mailer, now=lambda: now), follow_redirects=False) as c:
-        yield c
 
 
 def signup(client: TestClient, **overrides) -> Subscriber:
@@ -333,19 +282,22 @@ def test_digest_goes_only_to_active_subscribers(conn, settings, now, live_settin
 def test_mock_mode_simulated_checkout_and_portal(mock_client, conn, mailer):
     assert "Mode démonstration" in mock_client.get("/").text
     r = mock_client.post("/inscription", data=SIGNUP)
-    assert r.status_code == 303 and r.headers["location"] == "/demo/checkout/1"
+    assert r.status_code == 303 and r.headers["location"].startswith("/demo/checkout/cs_demo_")
+    checkout_url = r.headers["location"]
+    session_id = checkout_url.rsplit("/", 1)[1]
     assert db.get_subscriber(conn, 1).active is False
-    page = mock_client.get("/demo/checkout/1")
+    page = mock_client.get(checkout_url)
     assert page.status_code == 200 and "Simuler un paiement" in page.text and "490 € HT / an" in page.text
-    r = mock_client.post("/demo/checkout/1")
-    assert r.status_code == 303 and r.headers["location"] == "/merci?session_id=cs_demo_1"
+    r = mock_client.post(checkout_url)
+    assert r.status_code == 303 and r.headers["location"] == f"/merci?session_id={session_id}"
     sub = db.get_subscriber(conn, 1)
     assert sub.active and sub.status == "active" and sub.stripe_subscription_id == "sub_demo_1"
     assert len(mailer.sent) == 1 and "Bienvenue" in mailer.sent[0].subject
-    merci = mock_client.get("/merci?session_id=cs_demo_1").text
+    merci = mock_client.get(f"/merci?session_id={session_id}").text
     token = re.search(r"compte\?token=([^\"&]+)", merci).group(1)
     r = mock_client.post("/compte/portail", data={"token": token})
     assert r.status_code == 303 and r.headers["location"].startswith("/demo/portal/1?token=")
+    assert mock_client.get(r.headers["location"]).status_code == 200
     r = mock_client.post("/demo/portal/1", data={"token": token, "action": "cancel"})
     assert r.status_code == 303
     sub = db.get_subscriber(conn, 1)

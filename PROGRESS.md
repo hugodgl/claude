@@ -73,3 +73,9 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - Critiques : un compte pouvait relier la fiche Google d'un autre commerçant et répondre en son nom → format imposé, unicité, correspondance Place ID obligatoire en live ; un abonné actif changeant de formule déclenchait un second Checkout Stripe → redirection vers le portail client. Hauts : webhook STOP non authentifié, auto-publication de brouillons de repli, synchronisation qui pollait tous les comptes.
 - Nouvelles variables : `SMS_WEBHOOK_TOKEN`, `APP_TIMEZONE` ; `SESSION_SECRET` factice refusé en https.
 - Lancé : P1-4 (avis Facebook et Tripadvisor).
+
+### 28/10 01:21 — QA-1 veille-marches terminée : les quatre revues croisées sont faites
+- 28 défauts corrigés (6 hauts, 14 moyens, 8 bas), 78 → 102 tests verts, ruff propre. Détail dans `apps/veille-marches/REVIEW.md`.
+- Hauts : webhook Stripe hors ordre qui réactivait un résilié, idempotence qui avalait les échecs, email de bienvenue manqué selon l'ordre des événements, secrets facultatifs avec une clé Stripe réelle (désormais refus de démarrage), mode démo qui exposait les données d'un abonné par identifiant devinable.
+- Socle commun : `core.db.migrate` rendu atomique (script + enregistrement dans une seule transaction, test ajouté) suite au point relevé par la revue ; apps re-testées avec le nouveau socle.
+- Bilan QA-1 : 118 défauts corrigés sur les quatre apps (newsletter 26, contenu 23, avis 41, veille 28), chaque correction couverte par un test.

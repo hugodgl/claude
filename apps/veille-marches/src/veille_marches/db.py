@@ -245,6 +245,12 @@ def set_stripe_event_result(conn: sqlite3.Connection, event_id: str, result: str
         conn.execute("UPDATE stripe_events SET result = ? WHERE id = ?", (result, event_id))
 
 
+def forget_stripe_event(conn: sqlite3.Connection, event_id: str) -> None:
+    """Oublie un événement dont l'application a échoué, pour que le rejeu de Stripe soit traité et non `duplicate`."""
+    with conn:
+        conn.execute("DELETE FROM stripe_events WHERE id = ?", (event_id,))
+
+
 def get_subscriber(conn: sqlite3.Connection, subscriber_id: int) -> Subscriber:
     return row_to_subscriber(conn.execute("SELECT * FROM subscribers WHERE id = ?", (subscriber_id,)).fetchone())
 

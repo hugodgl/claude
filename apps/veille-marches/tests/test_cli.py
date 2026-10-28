@@ -1,6 +1,4 @@
 """CLI `vm` de bout en bout avec Typer CliRunner : abonnés, collecte (API simulées), score, digest, brief, stats."""
-import json
-
 import pytest
 from typer.testing import CliRunner
 
@@ -104,4 +102,3 @@ def test_cli_without_subscribers_scores_default_profile(env):
     out = run(["score", "--dry-run"], env)
     assert "3 avis scorés, 3 avec LLM (dry-run, rien d'enregistré)" in out
     assert run(["digest", "--dry-run"], env).strip() == "rien de nouveau : aucun digest à envoyer"
-    json.loads("{}")

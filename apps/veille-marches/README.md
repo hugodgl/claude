@@ -24,7 +24,7 @@ Le résumé LLM d'un avis est calculé **une fois** et partagé entre tous les a
 cd apps/veille-marches
 uv venv .venv && uv pip install -e ../../packages/core -e ".[dev]"
 cp .env.example .env            # puis ajuster
-.venv/bin/pytest -q             # 78 tests, aucun appel réseau (Stripe et le SDK sont remplacés par des faux)
+.venv/bin/pytest -q             # 102 tests, aucun appel réseau (Stripe et le SDK sont remplacés par des faux)
 .venv/bin/ruff check .
 ```
 
@@ -46,7 +46,7 @@ Toutes les variables sont documentées dans `.env.example`. Les plus utiles :
 | `MATCH_UNKNOWN_DEPARTMENT` | `true` = un avis sans département connu est proposé à tous les abonnés CPV (mention « zone non précisée ») | `false` |
 | `COLLECT_SINCE_DAYS`, `COLLECT_LIMIT` | fenêtre de publication et plafond d'enregistrements par source | `2`, `500` |
 | `BOAMP_*`, `TED_*`, `DECP_*` | URL de base, jeu de données, clé optionnelle, pays TED, taille de page | voir `.env.example` |
-| `APP_BASE_URL`, `APP_SECRET_KEY`, `WEB_HOST`, `WEB_PORT`, `ACCOUNT_LINK_DAYS` | URL publique du site, clé de signature des liens « espace abonné », écoute d'uvicorn, validité des liens | `http://localhost:8000`, vide (clé temporaire), `127.0.0.1`, `8000`, `7` |
+| `APP_BASE_URL`, `APP_SECRET_KEY`, `WEB_HOST`, `WEB_PORT`, `ACCOUNT_LINK_DAYS` | URL publique du site, clé de signature des liens « espace abonné », écoute d'uvicorn, validité des liens | `http://localhost:8000`, vide en démonstration (clé temporaire) mais **obligatoire dès qu'une clé Stripe existe**, `127.0.0.1`, `8000`, `7` |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*` | clés Stripe (test puis réelles) et les 4 prix ; vide = **mode démonstration** (paiement simulé) | vide |
 | `LEGAL_*` | identité de l'éditeur pour `/legal/*` (placeholders surlignés tant que vide) | vide |
 
@@ -56,8 +56,8 @@ Toutes les variables sont documentées dans `.env.example`. Les plus utiles :
 vm subscribers add contact@paysages69.fr --label "Paysages 69" --cpv 773 --dept 69 --dept 01 --amount-max 500000 --plan pro
 vm subscribers list                                 # état, formule, abonnement Stripe éventuel
 vm subscribers disable contact@paysages69.fr        # (et enable) : coupe / rétablit les envois à la main
-vm subscribers link contact@paysages69.fr [--days 7]  # lien signé vers /compte, à envoyer à la main si besoin
-vm subscribers sync-stripe [--dry-run]              # relit chaque abonnement chez Stripe et aligne status / active
+vm subscribers link contact@paysages69.fr [--days 7]  # lien signé vers /compte, à envoyer à la main si besoin (exige APP_SECRET_KEY)
+vm subscribers sync-stripe [--dry-run]              # relit chaque abonnement chez Stripe, aligne status / active, envoie l'email de bienvenue manqué
 
 vm web [--host 127.0.0.1] [--port 8000] [--reload]  # site public + espace abonné + webhook Stripe (uvicorn)
 
@@ -68,7 +68,7 @@ vm brief-weekly [--send] [--dry-run] [--since-days 7] [--subscriber EMAIL] [--al
 vm stats
 ```
 
-`--dry-run` affiche sans envoyer ni écrire. Sans abonné actif, `vm score` utilise un profil par défaut (CPV `DEFAULT_CPV_PREFIXES`, toute la France) pour que les premiers essais produisent des résumés. Une source en erreur n'empêche pas les autres (code de sortie 1 seulement si toutes échouent) ; l'erreur est consignée dans `collect_runs` et visible dans `vm stats`.
+`--dry-run` affiche sans envoyer ni écrire. Sans abonné actif, `vm score` utilise un profil par défaut (CPV `DEFAULT_CPV_PREFIXES`, toute la France) pour que les premiers essais produisent des résumés. Une source en erreur n'empêche pas les autres (code de sortie 1 seulement si toutes échouent) ; l'erreur est consignée dans `collect_runs` et visible dans `vm stats`. De même, un email en échec n'arrête pas la tournée de `vm digest --send` ni de `vm brief-weekly --send` : l'abonné concerné est affiché `ERREUR` (code de sortie 1), rien n'est enregistré pour lui et il est resservi au passage suivant.
 
 ## Planification suggérée (Mac mini, heure de Paris)
 
@@ -89,7 +89,7 @@ Les plists sont dans `deploy/macmini/launchd/` (`com.sideproject.veille.*`) et p
 cd apps/veille-marches && .venv/bin/vm web            # http://127.0.0.1:8000 ; équivalent : .venv/bin/uvicorn veille_marches.web:app
 ```
 
-Sans `STRIPE_SECRET_KEY`, le site tourne en **mode démonstration** (bandeau visible sur toutes les pages) : l'inscription crée l'abonné puis redirige vers `/demo/checkout/<id>`, une page locale qui joue le rôle de Stripe Checkout ; le bouton « Simuler un paiement réussi » applique exactement ce que ferait le webhook `checkout.session.completed` (activation, email de bienvenue). Le portail client est lui aussi simulé (`/demo/portal/<id>`, résiliation locale). Ces pages renvoient 404 dès qu'une clé Stripe est configurée. Cela permet de tester tout le parcours sur le Mac mini avant d'avoir un compte Stripe.
+Sans `STRIPE_SECRET_KEY`, le site tourne en **mode démonstration** (bandeau visible sur toutes les pages) : l'inscription crée l'abonné puis redirige vers `/demo/checkout/<session>` (identifiant de session non devinable, comme chez Stripe), une page locale qui joue le rôle de Stripe Checkout ; le bouton « Simuler un paiement réussi » applique exactement ce que ferait le webhook `checkout.session.completed` (activation, email de bienvenue). Le portail client est lui aussi simulé (`/demo/portal/<id>`, accessible seulement avec le lien signé de l'abonné, résiliation locale). Ces pages renvoient 404 dès qu'une clé Stripe est configurée. Cela permet de tester tout le parcours sur le Mac mini avant d'avoir un compte Stripe.
 
 ### Parcours
 
@@ -97,10 +97,10 @@ Sans `STRIPE_SECRET_KEY`, le site tourne en **mode démonstration** (bandeau vis
 |---|---|
 | `/` | promesse, cibles, fonctionnement, **exemple d'alerte** rendu depuis `fixtures/sample_notices.json` avec le vrai pipeline (filtrage, règles, score), les 2 formules HT, FAQ (couverture, données, IA, résiliation, facture, données personnelles) |
 | `/exemple` | l'email complet tel qu'un abonné le reçoit (gabarit du digest) |
-| `/inscription` | email, entreprise, métier (liste courte → préfixes CPV) + préfixes libres, départements (multi), montants min/max, formule, mensuel/annuel, acceptation des CGV, champ piège anti-robot. Crée un `Subscriber` **inactif** (`active=0`, `status=pending_payment`) puis redirige vers Stripe Checkout (`mode=subscription`, `client_reference_id` = id abonné, `customer_email`, `success_url=/merci?session_id={CHECKOUT_SESSION_ID}`, `cancel_url=/inscription`). Une adresse déjà active est refusée ; une fiche en attente ou résiliée est réutilisée (même client Stripe) |
+| `/inscription` | email, entreprise, métier (liste courte → préfixes CPV) + préfixes libres, départements (multi), montants min/max, formule, mensuel/annuel, acceptation des CGV, champ piège anti-robot. Crée un `Subscriber` **inactif** (`active=0`, `status=pending_payment`) puis redirige vers Stripe Checkout (`mode=subscription`, `client_reference_id` = id abonné, `customer_email`, `success_url=/merci?session_id={CHECKOUT_SESSION_ID}`, `cancel_url=/inscription`). Une adresse déjà active est refusée ; une adresse impayée ou en pause est renvoyée vers son lien d'accès (le paiement se régularise dans le portail, un second Checkout créerait un double abonnement) ; une fiche en attente ou résiliée est réutilisée (même client Stripe) |
 | `/merci?session_id=…` | confirmation ; tant que le webhook n'est pas arrivé la page se rafraîchit toute seule, puis affiche le récapitulatif, la date du premier digest et le lien vers l'espace |
 | `/compte?token=…` | espace sans mot de passe : modifier métier/CPV, départements (limite de la formule), montants ; bouton « Gérer mon abonnement » → portail client Stripe (carte, factures, changement de formule, résiliation). Lien signé HMAC-SHA256 (`<id>.<expiration>.<signature>`, 7 jours) envoyé dans l'email de bienvenue, dans le pied de chaque digest/brief (si `APP_SECRET_KEY` est défini) et sur demande via `/compte/lien` (réponse identique que l'adresse existe ou non) |
-| `/webhooks/stripe` | signature vérifiée par `stripe.Webhook.construct_event` (tolérance 5 min) → 400 sinon ; idempotence par la table `stripe_events` (un `evt_…` rejoué répond `duplicate` et n'envoie rien) |
+| `/webhooks/stripe` | signature vérifiée par `stripe.Webhook.construct_event` (tolérance 5 min) → 400 sinon ; idempotence par la table `stripe_events` (un `evt_…` rejoué répond `duplicate` et n'envoie rien ; un événement dont le traitement a échoué est oublié pour que le rejeu de Stripe soit appliqué). Événements hors ordre : un `checkout.session.completed` reçu après la résiliation ou la suspension du même abonnement, ou la fin d'un ancien abonnement d'un client réabonné, répondent `stale` sans rien changer ; un paiement différé (SEPA) répond `pending` jusqu'à `async_payment_succeeded`. Le détail d'un refus de signature n'apparaît que dans le journal |
 | `/legal/mentions`, `/legal/cgv`, `/legal/confidentialite` | textes prêts avec les passages à compléter **surlignés en jaune** (variables `LEGAL_*` et quelques crochets dans les gabarits) |
 | `/health`, `/robots.txt` | supervision ; `/compte`, `/merci`, `/demo/` exclus de l'indexation |
 
@@ -112,13 +112,13 @@ Sans `STRIPE_SECRET_KEY`, le site tourne en **mode démonstration** (bandeau vis
 |---|---|---|
 | inscription web, avant paiement | `pending_payment` | 0 |
 | `checkout.session.completed` (ou `async_payment_succeeded`) | `active` | 1, email de bienvenue (une seule fois) |
-| `customer.subscription.updated` → `active` / `trialing` | `active` | 1 |
+| `customer.subscription.created` / `updated` → `active` / `trialing` | `active` | 1 ; email de bienvenue si l'abonné attendait son paiement (Stripe envoie souvent `created` avant le checkout), jamais deux fois |
 | → `past_due` (impayé, Stripe relance) | `past_due` | 1 : accès maintenu pendant les réessais |
 | → `unpaid` (relances épuisées), `paused`, `incomplete` | `unpaid` / `paused` / `pending_payment` | 0 |
 | `customer.subscription.deleted` (ou `canceled`, `incomplete_expired`) | `canceled` | 0 |
 | `vm subscribers disable` / `enable` | `disabled` / `active` | 0 / 1 |
 
-Un changement de formule ou de périodicité fait depuis le portail Stripe est répercuté grâce à l'identifiant de prix (`STRIPE_PRICE_*` → formule, période). `vm subscribers sync-stripe` relit tous les abonnements connus : filet de sécurité si un webhook a été manqué (à planifier une fois par jour en production).
+Un changement de formule ou de périodicité fait depuis le portail Stripe est répercuté grâce à l'identifiant de prix (`STRIPE_PRICE_*` → formule, période). Un statut Stripe inconnu laisse l'état local tel quel (jamais d'activation par défaut). `vm subscribers sync-stripe` relit tous les abonnements connus : filet de sécurité si un webhook a été manqué (à planifier une fois par jour en production) ; un abonné en attente de paiement qui s'avère actif reçoit alors l'email de bienvenue.
 
 ### Créer les produits et prix Stripe (mode test)
 
@@ -149,7 +149,7 @@ La base SQLite est partagée entre le site (écrit les inscriptions) et les jobs
 - **Cloudflare Tunnel depuis le Mac mini (recommandé, gratuit, aucun port ouvert)** : `brew install cloudflared`, `cloudflared tunnel login`, `cloudflared tunnel create veille`, route DNS `veille.<domaine>` → `http://localhost:8000`, `cloudflared service install` pour le lancer au démarrage. `vm web` reste sur `127.0.0.1:8000`. `APP_BASE_URL=https://veille.<domaine>`. Ajouter un service launchd `com.sideproject.veille.web` sur le modèle des plists de `deploy/macmini/launchd/` qui lance `run.sh veille-marches vm web` en permanence (`KeepAlive`).
 - **VPS derrière Caddy** (si un jour toute l'app migre sur le VPS, par exemple avec `LLM_PROVIDER=anthropic` ou Ollama via Tailscale) : même schéma que `deploy/vps` pour `avis-clients` — service `veille-web` qui exécute `uvicorn veille_marches.web:app --host 0.0.0.0 --port 8000 --proxy-headers`, volume pour `data/`, et dans le `Caddyfile` : `veille.mondomaine.fr { reverse_proxy veille-web:8000 }` ; les jobs (`vm collect/score/digest/brief-weekly`, `vm subscribers sync-stripe`) dans une boucle cron du même compose, sur le même volume.
 
-Dans les deux cas : `APP_SECRET_KEY` stable (sinon les liens des emails meurent à chaque redémarrage), `WEB_HOST=0.0.0.0` seulement dans Docker, `MAIL_PROVIDER=smtp|resend` avec un domaine d'envoi vérifié, sauvegarde quotidienne de `data/veille-marches.db`.
+Dans les deux cas : `APP_SECRET_KEY` stable et obligatoire (`vm web` refuse de démarrer sans lui, ni sans `STRIPE_WEBHOOK_SECRET`, dès que `STRIPE_SECRET_KEY` est renseignée ; sans clé, les liens des emails mourraient à chaque redémarrage), `WEB_HOST=0.0.0.0` seulement dans Docker, `MAIL_PROVIDER=smtp|resend` avec un domaine d'envoi vérifié, sauvegarde quotidienne de `data/veille-marches.db`.
 
 ### À compléter par Hugo avant la mise en ligne
 
@@ -189,7 +189,7 @@ Procédure : `vm collect --source boamp --limit 20 --dry-run` (puis `ted`, `decp
 - **Un résumé par avis, un score par abonné** : la table `summaries` garde le résumé LLM et un score de référence (meilleur abonné) ; le digest recalcule le score de règles pour chaque abonné et y ajoute le verdict stocké.
 - **Montant inconnu = gardé** et marqué « montant non précisé » (10 points au lieu de 20). **Département inconnu = écarté** par défaut pour les abonnés qui ont une zone (réglable avec `MATCH_UNKNOWN_DEPARTMENT`), toujours proposé aux abonnés « toute la France ».
 - Les avis **sans CPV détecté sont conservés** en base (ils ne correspondront à aucun abonné) : c'est le signal, dans `vm stats`, qu'un chemin de mapping manque.
-- **Garde-fou injection** : le texte de l'avis est placé entre balises `<avis>` (toute balise `<avis>` présente dans le texte est neutralisée) ; le prompt système interdit d'en suivre les instructions ; la sortie est validée et bornée par `LLMSummary` (verdict normalisé, longueurs limitées, 10 pièces maximum) ; les gabarits HTML échappent tout.
+- **Garde-fou injection** : le texte de l'avis est placé entre balises `<avis>` (toute balise `<avis>` présente dans le texte est neutralisée) ; le prompt système interdit d'en suivre les instructions ; le titre, l'acheteur, la procédure et la description sont tronqués avant d'entrer dans le prompt ; la sortie est validée et bornée par `LLMSummary` (verdict normalisé, types inattendus tolérés, longueurs limitées, 10 pièces maximum, URL retirées : le seul lien d'un digest est celui de l'avis, et il doit être en http(s)) ; une sortie inexploitable ou une erreur du fournisseur donnent le résumé de repli, repris au passage suivant ; les gabarits HTML échappent tout.
 - Les avis **expirés** ne consomment pas de LLM et n'entrent pas dans les digests. Un avis résumé sans LLM (aucun abonné concerné à l'époque) est repris au passage suivant si un nouvel abonné y correspond.
 - Le brief hebdo part aux abonnés **Pro** (option `--all-plans`), sur une fenêtre de 7 jours (`--since-days`), avec acheteurs actifs et titulaires récurrents calculés sur 12 mois d'historique.
 - `vm digest` sans `--send` écrit des aperçus dans `OUT_DIR` et n'enregistre rien ; seul `--send` crée des `deliveries`.
@@ -202,6 +202,7 @@ Procédure : `vm collect --source boamp --limit 20 --dry-run` (puis `ted`, `decp
 - Le TED n'indique pas toujours un NUTS 3 : certains avis européens arrivent sans département.
 - Le score de règles « acheteur déjà vu » dépend de l'historique accumulé : il est muet les premières semaines.
 - Pas de dédoublonnage entre un avis BOAMP et le même avis sur TED (identifiants différents) : un gros marché peut apparaître deux fois le même jour, avec deux liens sources.
+- Le lien « espace abonné » voyage dans l'URL : `Referrer-Policy: no-referrer`, `Cache-Control: no-store` sur les pages privées et un filtre qui masque `token=` dans les journaux d'uvicorn limitent les fuites ; un reverse proxy (Caddy, Cloudflare) garde ses propres journaux d'accès, à purger régulièrement.
 - Le site n'a pas de limitation de débit : derrière Cloudflare Tunnel ou Caddy, activer un garde-fou (règle Cloudflare ou `rate_limit` Caddy) sur `/inscription` et `/compte/lien`. Le choix multiple de départements est un `<select multiple>` standard (pas de JavaScript) : correct sur mobile, moins confortable sur ordinateur sans Ctrl/Cmd.
 - Le changement d'adresse email d'un abonné se fait à la main (`sqlite3` ou prochaine commande CLI) ; l'espace abonné ne le propose pas pour éviter de détourner un abonnement avec un lien intercepté.
 - Le LLM local peut se tromper sur un montant ou une date : les champs clés du digest (montant, date limite, lien) viennent des données structurées, le texte libre du LLM est présenté comme une aide.
@@ -227,5 +228,5 @@ src/veille_marches/
   templates/site/  gabarits du site (base, landing, signup, thanks, account, legal_*, demo_*)
   cli.py           commande `vm` (Typer) : collect, score, digest, brief-weekly, subscribers, stats, web
   migrations/      001_init.sql, 002_billing.sql (colonnes Stripe/statut, table stripe_events)
-tests/             78 tests ; fixtures/ : boamp_records.json, ted_search.json, decp_records.json
+tests/             102 tests (test_review.py : revue croisée, voir REVIEW.md) ; fixtures/ : boamp_records.json, ted_search.json, decp_records.json
 ```

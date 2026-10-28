@@ -110,6 +110,23 @@ class VMSettings(Settings):
                     return plan, period
         return None
 
+    def web_startup_problems(self) -> list[str]:
+        """Réglages manquants qui rendent le site inutilisable ou dangereux dès qu'une clé Stripe est configurée.
+
+        `vm web` refuse de démarrer tant que la liste n'est pas vide. En mode démonstration (sans clé Stripe),
+        une clé de signature temporaire est tolérée.
+        """
+        if self.stripe_mode != "live":
+            return []
+        problems: list[str] = []
+        if not self.app_secret_key:
+            problems.append("APP_SECRET_KEY manquant : obligatoire dès que STRIPE_SECRET_KEY est renseignée (il signe "
+                            "les liens « espace abonné » des emails, qui mourraient à chaque redémarrage)")
+        if not self.stripe_webhook_secret:
+            problems.append("STRIPE_WEBHOOK_SECRET manquant : sans lui le webhook est refusé et aucun paiement "
+                            "n'active d'abonné")
+        return problems
+
 
 def get_settings(**overrides) -> VMSettings:
     return VMSettings(**overrides)

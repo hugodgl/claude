@@ -16,7 +16,14 @@ Verdict = Literal["oui", "peut-etre", "non"]
 # États d'un abonné : `active` (colonne) décide des envois ; `status` explique pourquoi.
 SUBSCRIBER_STATUSES = ("pending_payment", "active", "past_due", "unpaid", "canceled", "paused", "disabled")
 
-_CPV = re.compile(r"^\d{8}(?:-\d)?$")
+# chiffres ASCII seulement : `\d` et `str.isdigit()` acceptent aussi les chiffres Unicode (« ٣ », « ² »)
+_CPV = re.compile(r"^[0-9]{8}(?:-[0-9])?$")
+_PREFIX = re.compile(r"^[0-9]{2,8}$")
+_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+MAX_SUMMARY_TEXT_CHARS = 600
+MAX_PIECE_CHARS = 160
+MAX_PIECES = 10
+MAX_URL_CHARS = 2000
 
 
 def normalize_cpv(code: Any) -> str | None:
@@ -27,6 +34,21 @@ def normalize_cpv(code: Any) -> str | None:
     if not _CPV.match(text):
         return None
     return text[:8]
+
+
+def safe_http_url(value: Any) -> str | None:
+    """Garde une URL http(s) absolue (lien vers l'avis source) ; tout autre schéma (`javascript:`…) est écarté."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text.lower().startswith(("http://", "https://")) or any(c.isspace() for c in text):
+        return None
+    return text[:MAX_URL_CHARS]
+
+
+def strip_urls(text: str) -> str:
+    """Retire les URL d'un texte produit par le LLM : le seul lien d'un digest est celui de l'avis source."""
+    return _URL_RE.sub("[lien retiré]", text)
 
 
 class Notice(BaseModel):
@@ -65,6 +87,11 @@ class Notice(BaseModel):
             if d and d not in out:
                 out.append(d)
         return out
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def _clean_url(cls, value):
+        return safe_http_url(value)
 
     @property
     def all_departments(self) -> list[str]:
@@ -134,7 +161,7 @@ class Subscriber(BaseModel):
         out: list[str] = []
         for v in value or []:
             text = str(v).strip().split("-")[0]
-            if text.isdigit() and 2 <= len(text) <= 8 and text not in out:
+            if _PREFIX.match(text) and text not in out:
                 out.append(text)
         return out
 
@@ -189,11 +216,7 @@ class LLMSummary(BaseModel):
     @field_validator("resume", "lieu", "montant_estime", "date_limite", "criteres", "raison", mode="before")
     @classmethod
     def _norm_text(cls, value):
-        if value is None:
-            return ""
-        if isinstance(value, (list, dict)):
-            value = json.dumps(value, ensure_ascii=False)
-        return " ".join(str(value).split())[:600]
+        return _clean_llm_text(value, MAX_SUMMARY_TEXT_CHARS)
 
     @field_validator("pieces_a_fournir", mode="before")
     @classmethod
@@ -202,9 +225,25 @@ class LLMSummary(BaseModel):
             return []
         if isinstance(value, str):
             value = [p for p in re.split(r"[;\n•]+", value) if p.strip()]
-        if isinstance(value, dict):
+        elif isinstance(value, dict):
             value = list(value.values())
-        return [" ".join(str(p).split())[:160] for p in list(value)[:10] if str(p).strip()]
+        elif not isinstance(value, (list, tuple, set)):   # entier, booléen… : le LLM n'a pas respecté le format
+            value = [value]
+        out: list[str] = []
+        for p in list(value)[:MAX_PIECES]:
+            text = _clean_llm_text(p, MAX_PIECE_CHARS)
+            if text:
+                out.append(text)
+        return out
+
+
+def _clean_llm_text(value: Any, limit: int) -> str:
+    """Texte du LLM : type quelconque → chaîne compacte, sans URL, bornée."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, dict)):
+        value = json.dumps(value, ensure_ascii=False)
+    return strip_urls(" ".join(str(value).split()))[:limit]
 
 
 def normalize_department(value: Any) -> str | None:

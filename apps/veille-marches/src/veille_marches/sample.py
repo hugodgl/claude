@@ -24,7 +24,7 @@ def _fixture() -> dict:
 def sample_digest(settings: VMSettings, now: datetime | None = None) -> Digest:
     now = now or utcnow()
     data = _fixture()
-    sub = Subscriber(id=0, **data["subscriber"])
+    sub = Subscriber(**data["subscriber"])   # sans id : aucun lien signé n'est rendu sur ces pages publiques
     digest = Digest(subscriber=sub, date=now)
     for raw in data["notices"]:
         fields = {k: v for k, v in raw.items() if k not in ("summary", "published_days_ago", "deadline_in_days",

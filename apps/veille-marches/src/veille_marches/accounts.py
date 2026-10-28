@@ -5,6 +5,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,6 +20,7 @@ from .settings import VMSettings
 
 log = logging.getLogger(__name__)
 _TOKEN_SALT = b"veille-marches:compte"
+_TOKEN_DIGITS = re.compile(r"^[0-9]{1,12}$")   # chiffres ASCII seulement (`isdigit()` accepte « ² » et « ١ »)
 
 
 class TokenError(ValueError):
@@ -61,7 +63,7 @@ def read_account_token(settings: VMSettings, token: str | None, *, now: datetime
     if not token:
         raise TokenError("lien manquant")
     parts = token.strip().split(".")
-    if len(parts) != 3 or not parts[0].isdigit() or not parts[1].isdigit():
+    if len(parts) != 3 or not _TOKEN_DIGITS.match(parts[0]) or not _TOKEN_DIGITS.match(parts[1]) or not parts[2]:
         raise TokenError("lien invalide")
     payload = f"{parts[0]}.{parts[1]}".encode("ascii")
     if not hmac.compare_digest(_sign(secret_key(settings), payload), parts[2]):

@@ -5,6 +5,7 @@ Paramètres utilisés : `where` (ODSQL), `order_by`, `limit`, `offset`, `refine`
 """
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -19,9 +20,11 @@ from ..mapping import (
     parse_amount,
     scan_cpv_codes,
 )
-from ..models import Notice
+from ..models import Notice, safe_http_url
 from ..settings import VMSettings
 from .base import CollectResult, build_client, cpv_matches_any, ods_iter_records, ods_sql_date
+
+log = logging.getLogger(__name__)
 
 
 def _text(value: Any) -> str | None:
@@ -56,7 +59,7 @@ def map_boamp_record(record: dict[str, Any], mapping: dict[str, Any] = BOAMP_MAP
     departments = all_values(rec, mapping["departments"])
     title = _text(first_value(rec, mapping["title"])) or "(objet non renseigné)"
     deadline = min((d for d in (parse_dt(v) for v in all_values(rec, mapping["deadline_at"])) if d), default=None)
-    url = _text(first_value(rec, mapping["url"])) or mapping["url_template"].format(source_id=source_id)
+    url = safe_http_url(_text(first_value(rec, mapping["url"]))) or mapping["url_template"].format(source_id=source_id)
     notice = Notice(
         source="boamp",
         source_id=source_id,
@@ -102,7 +105,11 @@ class BoampCollector:
             api_key=self.settings.boamp_api_key, result=result,
         ):
             result.fetched += 1
-            notice = map_boamp_record(record, self.mapping)
+            try:
+                notice = map_boamp_record(record, self.mapping)
+            except Exception as e:  # noqa: BLE001 - un enregistrement inattendu est écarté, la source continue
+                log.warning("BOAMP : enregistrement inexploitable écarté (%s : %s)", e.__class__.__name__, e)
+                notice = None
             # on garde les avis sans CPV détecté : `vm stats` les compte, c'est le signal d'un mapping à corriger
             if notice is None or (notice.cpv_codes and not cpv_matches_any(notice.cpv_codes, cpv_prefixes)):
                 result.excluded += 1

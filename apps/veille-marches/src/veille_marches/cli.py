@@ -13,10 +13,12 @@ from . import __version__, db
 from .accounts import account_url
 from .billing import get_gateway, sync_subscriptions
 from .brief import send_briefs
+from .catalog import DEPARTMENTS
 from .collectors import SOURCES, run_collect
 from .dates import fr_amount
 from .digest import send_digests
-from .models import Subscriber
+from .forms import MAX_AMOUNT, parse_cpv_prefixes
+from .models import Subscriber, normalize_department
 from .scoring import score_pending
 from .settings import VMSettings, get_settings
 
@@ -131,6 +133,8 @@ def digest(
         line = (f"{d.subscriber.email} : {d.total} avis ({len(d.priority)} prioritaires) — {o.subject}")
         if o.sent:
             line += f" — envoyé ({o.message_id})"
+        elif o.error:
+            line += f" — ERREUR : {o.error}"
         elif o.files:
             line += f" — aperçu : {o.files[0]}"
         _echo(line)
@@ -138,6 +142,8 @@ def digest(
             _echo("-" * 72)
             _echo(o.text)
             _echo("-" * 72)
+    if any(o.error for o in outcomes):
+        raise typer.Exit(code=1)
 
 
 @subscribers_app.command("add")
@@ -158,9 +164,28 @@ def subscribers_add(
     if db.get_subscriber_by_email(conn, email):
         _echo(f"abonné déjà présent : {email}")
         raise typer.Exit(code=1)
-    cpv_list = _parse_csv_option(cpv) or settings.default_cpv_prefix_list
-    sub = Subscriber(email=email, label=label, cpv_prefixes=cpv_list, departments=_parse_csv_option(dept),
-                     amount_min=amount_min, amount_max=amount_max, plan=plan)
+    # critères validés strictement : un préfixe écarté en silence donnerait un abonné sans filtre CPV
+    cpv_list, error = parse_cpv_prefixes(" ".join(_parse_csv_option(cpv)))
+    if error:
+        _echo(error)
+        raise typer.Exit(code=2)
+    departments: list[str] = []
+    for raw in _parse_csv_option(dept):
+        code = normalize_department(raw)
+        if code is None or code not in DEPARTMENTS:
+            _echo(f"département inconnu : {raw}")
+            raise typer.Exit(code=2)
+        if code not in departments:
+            departments.append(code)
+    for name, value in (("--amount-min", amount_min), ("--amount-max", amount_max)):
+        if value is not None and not 0 <= value <= MAX_AMOUNT:
+            _echo(f"{name} : montant invalide (entre 0 et {MAX_AMOUNT:.0f})")
+            raise typer.Exit(code=2)
+    if amount_min is not None and amount_max is not None and amount_min > amount_max:
+        _echo("--amount-max doit être supérieur à --amount-min")
+        raise typer.Exit(code=2)
+    sub = Subscriber(email=email, label=label, cpv_prefixes=cpv_list or settings.default_cpv_prefix_list,
+                     departments=departments, amount_min=amount_min, amount_max=amount_max, plan=plan)
     limit = 2 if plan == "essentiel" else 6
     if len(sub.departments) > limit:
         _echo(f"attention : la formule {plan} prévoit {limit} départements maximum ({len(sub.departments)} donnés)")
@@ -219,7 +244,8 @@ def subscribers_sync_stripe(
     """Relit l'état de chaque abonnement chez Stripe et aligne `status` / `active` (filet si un webhook a manqué)."""
     settings, conn = _ctx()
     gateway = get_gateway(settings)
-    results = sync_subscriptions(conn, settings, gateway, dry_run=dry_run)
+    mailer = None if dry_run else get_mailer(settings)   # email de bienvenue si un paiement avait été manqué
+    results = sync_subscriptions(conn, settings, gateway, dry_run=dry_run, mailer=mailer)
     if not results:
         _echo(f"mode {gateway.mode} : aucun abonné lié à un abonnement Stripe")
         return
@@ -249,6 +275,10 @@ def subscribers_link(
 ) -> None:
     """Affiche un lien signé vers l'espace abonné (à envoyer à la main en cas de besoin)."""
     settings, conn = _ctx()
+    if not settings.app_secret_key:
+        # sans clé stable, ce processus signerait avec une clé aléatoire que le site (autre processus) refuserait
+        _echo("APP_SECRET_KEY manquant : impossible de produire un lien que le site reconnaîtra (voir .env.example)")
+        raise typer.Exit(code=2)
     sub = db.get_subscriber_by_email(conn, email)
     if sub is None:
         _echo(f"abonné introuvable : {email}")
@@ -268,6 +298,11 @@ def web(
     import uvicorn
 
     settings = get_settings()
+    problems = settings.web_startup_problems()
+    if problems:
+        for problem in problems:
+            _echo(f"ERREUR : {problem}")
+        raise typer.Exit(code=2)
     _echo(f"site : http://{host or settings.web_host}:{port or settings.web_port}  (Stripe : {settings.stripe_mode}, "
           f"URL publique : {settings.base_url})")
     uvicorn.run("veille_marches.web:app", host=host or settings.web_host, port=port or settings.web_port,
@@ -294,6 +329,8 @@ def brief_weekly(
         line = f"{o.brief.subscriber.email} : {o.brief.count} attribution(s) — {o.subject}"
         if o.sent:
             line += f" — envoyé ({o.message_id})"
+        elif o.error:
+            line += f" — ERREUR : {o.error}"
         elif o.files:
             line += f" — aperçu : {o.files[0]}"
         _echo(line)
@@ -301,6 +338,8 @@ def brief_weekly(
             _echo("-" * 72)
             _echo(o.text)
             _echo("-" * 72)
+    if any(o.error for o in outcomes):
+        raise typer.Exit(code=1)
 
 
 @app.command()

@@ -32,3 +32,21 @@ def test_migrate_is_idempotent(tmp_path: Path):
     assert migrate(conn, mig) == []
     conn.execute("INSERT INTO t (v, w) VALUES ('a', 'b')")
     assert conn.execute("SELECT v, w FROM t").fetchone()["w"] == "b"
+
+
+def test_failed_migration_leaves_nothing(tmp_path: Path):
+    import pytest
+    import sqlite3 as _sqlite3
+
+    mig = tmp_path / "migrations"
+    mig.mkdir()
+    (mig / "001_ok.sql").write_text("CREATE TABLE a (id INTEGER PRIMARY KEY);")
+    (mig / "002_bad.sql").write_text("CREATE TABLE b (id INTEGER PRIMARY KEY); CREATE TABLE c (id INTEGER PRIMARY KEY); INSERT INTO nope VALUES (1);")
+    conn = connect(tmp_path / "x.db")
+    with pytest.raises(_sqlite3.OperationalError):
+        migrate(conn, mig)
+    tables = {r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "a" in tables and "b" not in tables and "c" not in tables
+    assert {r["name"] for r in conn.execute("SELECT name FROM schema_migrations")} == {"001_ok.sql"}
+    (mig / "002_bad.sql").write_text("CREATE TABLE b (id INTEGER PRIMARY KEY);")
+    assert migrate(conn, mig) == ["002_bad.sql"]

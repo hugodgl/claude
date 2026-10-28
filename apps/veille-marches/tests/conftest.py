@@ -5,12 +5,17 @@ import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
+import stripe
+from core.mail import ConsoleMailer
+from fastapi.testclient import TestClient
 
 from veille_marches import db
 from veille_marches.settings import VMSettings
+from veille_marches.web import create_app
 
 FIXTURES = Path(__file__).parent / "fixtures"
 NOW = datetime(2026, 10, 27, 8, 0, tzinfo=UTC)
@@ -81,3 +86,52 @@ class FakeApis:
 @pytest.fixture
 def apis() -> FakeApis:
     return FakeApis()
+
+
+# --------------------------------------------------------------------------------------------
+# Site et paiement (test_web.py, test_review.py)
+# --------------------------------------------------------------------------------------------
+@pytest.fixture
+def live_settings(settings: VMSettings) -> VMSettings:
+    """Mode « live » : clés Stripe de test, prix configurés (les appels au SDK sont remplacés par des faux)."""
+    return settings.model_copy(update={
+        "app_secret_key": "secret-de-test", "app_base_url": "http://testserver", "stripe_secret_key": "sk_test_x",
+        "stripe_webhook_secret": "whsec_test", "stripe_price_essentiel_monthly": "price_ess_m",
+        "stripe_price_essentiel_yearly": "price_ess_y", "stripe_price_pro_monthly": "price_pro_m",
+        "stripe_price_pro_yearly": "price_pro_y"})
+
+
+@pytest.fixture
+def stripe_calls(monkeypatch) -> dict[str, list]:
+    calls: dict[str, list] = {"checkout": [], "portal": []}
+
+    def create_checkout(**params):
+        calls["checkout"].append(params)
+        return SimpleNamespace(id="cs_test_123", url="https://checkout.stripe.com/c/pay/cs_test_123")
+
+    def create_portal(**params):
+        calls["portal"].append(params)
+        return SimpleNamespace(url="https://billing.stripe.com/p/session/test")
+
+    monkeypatch.setattr(stripe.checkout.Session, "create", create_checkout)
+    monkeypatch.setattr(stripe.billing_portal.Session, "create", create_portal)
+    return calls
+
+
+@pytest.fixture
+def mailer() -> ConsoleMailer:
+    return ConsoleMailer(quiet=True)
+
+
+@pytest.fixture
+def client(live_settings, mailer, now):
+    with TestClient(create_app(live_settings, mailer=mailer, now=lambda: now), follow_redirects=False) as c:
+        yield c
+
+
+@pytest.fixture
+def mock_client(settings, mailer, now):
+    """Sans STRIPE_SECRET_KEY : passerelle simulée, pages /demo/*."""
+    s = settings.model_copy(update={"app_secret_key": "secret-de-test", "app_base_url": "http://testserver"})
+    with TestClient(create_app(s, mailer=mailer, now=lambda: now), follow_redirects=False) as c:
+        yield c

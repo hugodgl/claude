@@ -118,7 +118,7 @@ DECP_MAPPING: dict[str, Any] = {
 
 MAPPINGS = {"boamp": BOAMP_MAPPING, "ted": TED_MAPPING, "decp": DECP_MAPPING}
 
-_CPV_RE = re.compile(r"\b(\d{8})(?:-\d)?\b")
+_CPV_RE = re.compile(r"\b([0-9]{8})(?:-[0-9])?\b")
 
 
 # --------------------------------------------------------------------------------------------

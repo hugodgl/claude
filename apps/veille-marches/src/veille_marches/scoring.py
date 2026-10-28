@@ -6,12 +6,14 @@ d'en suivre les instructions. La sortie du LLM est validée et bornée par `LLMS
 """
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from core.llm import LLM, LLMError, complete_json, get_llm
+from pydantic import ValidationError
 
 from . import db
 from .dates import days_until, fr_amount, fr_date, utcnow
@@ -31,7 +33,14 @@ RULES_WEIGHT = 0.7
 LLM_WEIGHT = 0.3
 DEADLINE_OK_DAYS = 10
 DEADLINE_SHORT_DAYS = 3
+# bornes du texte externe placé dans le prompt (un champ démesuré viendrait d'une API ou d'une manipulation)
 MAX_DESCRIPTION_CHARS = 4000
+MAX_TITLE_CHARS = 300
+MAX_BUYER_CHARS = 200
+MAX_PROCEDURE_CHARS = 120
+MAX_ID_CHARS = 64
+
+log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "Tu es l'assistant d'un service de veille des marchés publics français destiné à des {trade_label}. "
@@ -126,18 +135,23 @@ def sanitize_external_text(text: str | None) -> str:
     return _TAG_RE.sub("[avis]", str(text))
 
 
+def _external(value: str | None, limit: int) -> str:
+    """Champ venant d'une API : balises neutralisées et longueur bornée."""
+    return sanitize_external_text(value)[:limit]
+
+
 def notice_text(notice: Notice) -> str:
-    description = sanitize_external_text(notice.description)[:MAX_DESCRIPTION_CHARS]
+    description = _external(notice.description, MAX_DESCRIPTION_CHARS)
     lines = [
-        f"Titre : {sanitize_external_text(notice.title)}",
-        f"Acheteur : {sanitize_external_text(notice.buyer_name) or 'non précisé'}",
+        f"Titre : {_external(notice.title, MAX_TITLE_CHARS)}",
+        f"Acheteur : {_external(notice.buyer_name, MAX_BUYER_CHARS) or 'non précisé'}",
         f"Département(s) : {', '.join(notice.all_departments) or 'non précisé'}",
         f"Codes CPV : {', '.join(notice.cpv_codes) or 'non précisés'}",
         f"Montant estimé : {fr_amount(notice.estimated_amount)}",
         f"Date de publication : {fr_date(notice.published_at)}",
         f"Date limite de réponse : {fr_date(notice.deadline_at, with_time=True)}",
-        f"Procédure : {sanitize_external_text(notice.procedure_type) or 'non précisée'}",
-        f"Source : {notice.source.upper()} {notice.source_id}",
+        f"Procédure : {_external(notice.procedure_type, MAX_PROCEDURE_CHARS) or 'non précisée'}",
+        f"Source : {notice.source.upper()} {_external(notice.source_id, MAX_ID_CHARS)}",
         f"Description : {description or 'non précisée'}",
     ]
     return "\n".join(lines)
@@ -167,11 +181,19 @@ def summarize(llm: LLM, notice: Notice, trade_label: str) -> tuple[LLMSummary, b
     system, prompt = build_prompt(notice, trade_label)
     try:
         data = complete_json(llm, prompt, system=system, max_tokens=900)
-    except LLMError:
+    except LLMError as e:
+        log.warning("LLM indisponible pour %s %s : %s", notice.source, notice.source_id, e)
+        return fallback_summary(notice), False
+    except Exception:  # noqa: BLE001 - une erreur inattendue du fournisseur ne doit pas arrêter le passage
+        log.exception("erreur inattendue du LLM pour %s %s", notice.source, notice.source_id)
         return fallback_summary(notice), False
     if not isinstance(data, dict):
         return fallback_summary(notice), False
-    summary = LLMSummary.model_validate(data)
+    try:
+        summary = LLMSummary.model_validate(data)
+    except (ValidationError, TypeError, ValueError) as e:
+        log.warning("sortie LLM inexploitable pour %s %s : %s", notice.source, notice.source_id, e)
+        return fallback_summary(notice), False
     if not summary.resume.strip():
         summary.resume = fallback_summary(notice).resume
     return summary, True

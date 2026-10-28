@@ -1,11 +1,11 @@
 """Référentiels du site : formules et prix, métiers → préfixes CPV, départements, calendrier des envois."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from zoneinfo import ZoneInfo
 
-PARIS = ZoneInfo("Europe/Paris")
+from .dates import PARIS
+
 DIGEST_HOUR = 7          # heure (Paris) du digest quotidien, alignée sur le plist launchd
 DIGEST_CUTOFF_HOUR = 6   # inscrit avant 6 h → premier digest le jour même
 
@@ -136,11 +136,3 @@ def next_weekly_brief_at(now: datetime) -> datetime:
     if candidate <= local:
         candidate += timedelta(days=7)
     return candidate
-
-
-@dataclass
-class SampleAlert:
-    """Exemple d'alerte affiché sur la page d'accueil (construit depuis une fixture, voir `sample.py`)."""
-
-    subject: str
-    items: list = field(default_factory=list)

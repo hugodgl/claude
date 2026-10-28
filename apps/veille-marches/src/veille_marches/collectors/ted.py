@@ -5,6 +5,7 @@ Exemple de requête : `classification-cpv=77310000* AND place-of-performance=FRA
 """
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -12,10 +13,12 @@ import httpx
 
 from ..dates import parse_dt
 from ..mapping import TED_MAPPING, all_values, first_value, parse_amount, pick_text
-from ..models import Notice
+from ..models import Notice, safe_http_url
 from ..nuts import dept_from_nuts
 from ..settings import VMSettings
 from .base import CollectorError, CollectResult, build_client, cpv_matches_any
+
+log = logging.getLogger(__name__)
 
 PROCEDURE_LABELS = {
     "open": "Procédure ouverte",
@@ -70,7 +73,7 @@ def map_ted_notice(notice: dict[str, Any], mapping: dict[str, Any] = TED_MAPPING
     procedure_label = PROCEDURE_LABELS.get(str(procedure).lower(), str(procedure)) if procedure else None
     url = None
     for p in mapping["url_paths"]:
-        url = pick_text(first_value(notice, [p]), langs)
+        url = safe_http_url(pick_text(first_value(notice, [p]), langs))
         if url:
             break
     url = url or mapping["url_template"].format(source_id=source_id)
@@ -139,7 +142,11 @@ class TedCollector:
                 break
             for raw in notices:
                 result.fetched += 1
-                notice = map_ted_notice(raw, self.mapping)
+                try:
+                    notice = map_ted_notice(raw, self.mapping)
+                except Exception as e:  # noqa: BLE001 - un avis inattendu est écarté, la source continue
+                    log.warning("TED : avis inexploitable écarté (%s : %s)", e.__class__.__name__, e)
+                    notice = None
                 if notice is None or (notice.cpv_codes and not cpv_matches_any(notice.cpv_codes, cpv_prefixes)):
                     result.excluded += 1
                     continue

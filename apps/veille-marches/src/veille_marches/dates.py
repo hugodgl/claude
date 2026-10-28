@@ -3,13 +3,21 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
+PARIS = ZoneInfo("Europe/Paris")
 _COMPACT = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
 _TED_DATE_TZ = re.compile(r"^(\d{4}-\d{2}-\d{2})([+-]\d{2}:\d{2}|Z)$")
 
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def local(dt: datetime) -> datetime:
+    """Heure de Paris pour l'affichage et les jours calendaires (les dates sont stockées en UTC : une date limite
+    « 5 novembre à minuit » est 23 h UTC la veille)."""
+    return dt.astimezone(PARIS) if dt.tzinfo else dt
 
 
 def parse_dt(value) -> datetime | None:
@@ -55,16 +63,16 @@ def days_until(deadline: datetime | None, now: datetime | None = None) -> int | 
     if deadline is None:
         return None
     now = now or utcnow()
-    return (deadline.date() - now.date()).days
+    return (local(deadline).date() - local(now).date()).days
 
 
 def fr_date(dt: datetime | None, with_time: bool = False) -> str:
     if dt is None:
         return "non précisée"
-    local = dt
-    text = f"{local.day:02d}/{local.month:02d}/{local.year}"
-    if with_time and (local.hour or local.minute):
-        text += f" {local.hour:02d}h{local.minute:02d}"
+    dt = local(dt)
+    text = f"{dt.day:02d}/{dt.month:02d}/{dt.year}"
+    if with_time and (dt.hour or dt.minute):
+        text += f" {dt.hour:02d}h{dt.minute:02d}"
     return text
 
 
@@ -77,6 +85,7 @@ def fr_long_date(dt: datetime | None, with_time: bool = False) -> str:
     """`mardi 28 octobre 2026`, ou `mardi 28 octobre 2026 vers 7 h` (heure locale du datetime)."""
     if dt is None:
         return "non précisée"
+    dt = local(dt)
     text = f"{FR_WEEKDAYS[dt.weekday()]} {dt.day} {FR_MONTHS[dt.month - 1]} {dt.year}"
     if with_time:
         text += f" vers {dt.hour} h" + (f"{dt.minute:02d}" if dt.minute else "")

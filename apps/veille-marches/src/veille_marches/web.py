@@ -6,6 +6,7 @@ Pages : `/` (offre), `/inscription` → Stripe Checkout, `/merci`, `/compte?toke
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import asynccontextmanager
@@ -19,14 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__, db
-from .accounts import (
-    TokenError,
-    account_url,
-    make_account_token,
-    read_account_token,
-    recap_for,
-    send_account_link_email,
-)
+from .accounts import TokenError, account_url, read_account_token, recap_for, send_account_link_email
 from .billing import BillingError, StripeLike, activate_subscriber, get_gateway, handle_stripe_event
 from .catalog import DEPARTMENTS, PERIODS, PLANS, TRADES, plan_or_default, trade_for_prefixes
 from .dates import utcnow
@@ -39,6 +33,34 @@ from .settings import VMSettings, get_settings
 log = logging.getLogger(__name__)
 LEGAL_PAGES = {"mentions": "Mentions légales", "cgv": "Conditions générales de vente",
                "confidentialite": "Politique de confidentialité"}
+PRIVATE_PATH_PREFIXES = ("/compte", "/merci", "/demo/")   # pages qui portent ou affichent un lien signé
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",   # le jeton « espace abonné » est dans l'URL : il ne doit jamais fuiter
+    "Content-Security-Policy": "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; "
+                               "img-src 'self' data:; base-uri 'self'; frame-ancestors 'none'",
+}
+_TOKEN_IN_URL = re.compile(r"(token=)[^&\s\"'<>]+")
+
+
+class RedactTokensFilter(logging.Filter):
+    """Masque les jetons « espace abonné » (`?token=…`) dans les journaux, notamment le journal d'accès d'uvicorn."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = _TOKEN_IN_URL.sub(r"\1[masqué]", record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(_TOKEN_IN_URL.sub(r"\1[masqué]", a) if isinstance(a, str) else a
+                                for a in record.args)
+        return True
+
+
+def install_log_redaction() -> None:
+    for name in ("uvicorn.access", "uvicorn.error", __name__):
+        logger = logging.getLogger(name)
+        if not any(isinstance(f, RedactTokensFilter) for f in logger.filters):
+            logger.addFilter(RedactTokensFilter())
 
 
 def _db(request: Request) -> Iterator[sqlite3.Connection]:
@@ -57,12 +79,22 @@ def create_app(settings: VMSettings | None = None, *, gateway: StripeLike | None
     settings = settings or get_settings()
     gateway = gateway or get_gateway(settings)
     clock = now or utcnow
+    install_log_redaction()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        problems = settings.web_startup_problems()
+        if problems:
+            raise RuntimeError("démarrage refusé : " + " ; ".join(problems))
         db.open_db(settings.db_path).close()   # applique les migrations une fois
         if settings.stripe_mode == "mock":
             log.warning("Stripe non configuré : paiements simulés (mode démonstration)")
+        else:
+            for plan in PLANS:
+                for period in PERIODS:
+                    if not settings.stripe_price(plan, period):
+                        log.warning("prix Stripe non configuré pour %s / %s : l'inscription correspondante "
+                                    "répondra « paiement indisponible »", plan, period)
         yield
 
     app = FastAPI(title=settings.product_name, version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None,
@@ -70,6 +102,15 @@ def create_app(settings: VMSettings | None = None, *, gateway: StripeLike | None
     app.state.settings = settings
     app.state.gateway = gateway
     app.state.mailer = mailer
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        if request.url.path.startswith(PRIVATE_PATH_PREFIXES):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     def get_mailer_instance() -> Mailer:
         return app.state.mailer or get_mailer(settings)
@@ -164,6 +205,11 @@ def create_app(settings: VMSettings | None = None, *, gateway: StripeLike | None
         if existing and existing.active:
             errors = {"email": "cette adresse est déjà abonnée : demandez votre lien d'accès ci-dessous"}
             return page("signup.html.j2", status_code=400, values=values, errors=errors, already=True)
+        if existing and existing.status in ("unpaid", "paused"):
+            # l'abonnement Stripe existe toujours : un second Checkout créerait un double abonnement
+            errors = {"email": "cette adresse a déjà un abonnement (impayé ou en pause) : demandez votre lien "
+                               "d'accès ci-dessous pour régulariser le paiement via le portail"}
+            return page("signup.html.j2", status_code=400, values=values, errors=errors, already=True)
         fields = dict(company=form.company, cpv_prefixes=form.cpv_prefixes, departments=form.departments,
                       amount_min=form.amount_min, amount_max=form.amount_max, plan=form.plan,
                       billing_period=form.billing_period, active=False, status="pending_payment")
@@ -244,7 +290,7 @@ def create_app(settings: VMSettings | None = None, *, gateway: StripeLike | None
     @app.post("/compte/lien", response_class=HTMLResponse)
     async def account_link_send(request: Request, conn: Conn):
         form_data = await request.form()
-        email = str(form_data.get("email") or "").strip().lower()
+        email = str(form_data.get("email") or "").strip().lower()[:254]
         sub = db.get_subscriber_by_email(conn, email) if email else None
         if sub is not None:
             try:
@@ -260,43 +306,56 @@ def create_app(settings: VMSettings | None = None, *, gateway: StripeLike | None
         try:
             event = gateway.construct_event(payload, request.headers.get("stripe-signature"))
         except BillingError as e:
-            log.warning("webhook Stripe refusé : %s", e)
-            return JSONResponse({"error": str(e)}, status_code=400)
+            log.warning("webhook Stripe refusé : %s", e)   # le détail reste dans le journal, pas dans la réponse
+            return JSONResponse({"error": "signature invalide ou charge utile illisible"}, status_code=400)
         result = handle_stripe_event(conn, settings, event, mailer=get_mailer_instance(), now=clock())
         return JSONResponse({"received": True, "result": result})
 
     # ---------------------------------------------------------------- mode démonstration (sans Stripe)
-    def demo_only(conn: sqlite3.Connection, subscriber_id: int) -> Subscriber:
+    def demo_only() -> None:
         if gateway.mode != "mock":
             raise HTTPException(status_code=404, detail="Page introuvable")
-        sub = db.find_subscriber(conn, subscriber_id)
+
+    def demo_subscriber_from_session(conn: sqlite3.Connection, session_id: str) -> Subscriber:
+        """La page de paiement simulé est protégée comme chez Stripe : par l'identifiant de session, non devinable."""
+        demo_only()
+        sub = db.get_subscriber_by_checkout_session(conn, session_id) if session_id.startswith("cs_demo_") else None
         if sub is None:
             raise HTTPException(status_code=404, detail="Abonné introuvable")
         return sub
 
-    @app.get("/demo/checkout/{subscriber_id}", response_class=HTMLResponse)
-    def demo_checkout(subscriber_id: int, conn: Conn):
-        sub = demo_only(conn, subscriber_id)
-        return page("demo_checkout.html.j2", sub=sub, recap=recap_for(sub, clock()), plan=plan_or_default(sub.plan))
+    def demo_subscriber_from_token(conn: sqlite3.Connection, subscriber_id: int, token: str) -> Subscriber:
+        """Le portail simulé exige le lien signé de l'abonné concerné (comme le vrai, atteint depuis /compte)."""
+        demo_only()
+        sub = subscriber_from_token(conn, token)
+        if sub.id != subscriber_id:
+            raise HTTPException(status_code=403, detail="invalid")
+        return sub
 
-    @app.post("/demo/checkout/{subscriber_id}")
-    def demo_checkout_pay(subscriber_id: int, conn: Conn):
-        sub = demo_only(conn, subscriber_id)
+    @app.get("/demo/checkout/{session_id}", response_class=HTMLResponse)
+    def demo_checkout(session_id: str, conn: Conn):
+        sub = demo_subscriber_from_session(conn, session_id)
+        return page("demo_checkout.html.j2", sub=sub, session_id=session_id, recap=recap_for(sub, clock()),
+                    plan=plan_or_default(sub.plan))
+
+    @app.post("/demo/checkout/{session_id}")
+    def demo_checkout_pay(session_id: str, conn: Conn):
+        sub = demo_subscriber_from_session(conn, session_id)
         activate_subscriber(conn, settings, sub, customer_id=f"cus_demo_{sub.id}", subscription_id=f"sub_demo_{sub.id}",
                             mailer=get_mailer_instance(), now=clock())
-        return redirect(f"/merci?session_id=cs_demo_{sub.id}")
+        return redirect(f"/merci?session_id={session_id}")
 
     @app.get("/demo/portal/{subscriber_id}", response_class=HTMLResponse)
     def demo_portal(subscriber_id: int, request: Request, conn: Conn):
-        sub = demo_only(conn, subscriber_id)
-        return page("demo_portal.html.j2", sub=sub, token=request.query_params.get("token", ""),
-                    recap=recap_for(sub, clock()))
+        token = request.query_params.get("token", "")
+        sub = demo_subscriber_from_token(conn, subscriber_id, token)
+        return page("demo_portal.html.j2", sub=sub, token=token, recap=recap_for(sub, clock()))
 
     @app.post("/demo/portal/{subscriber_id}")
     async def demo_portal_action(subscriber_id: int, request: Request, conn: Conn):
-        sub = demo_only(conn, subscriber_id)
         form_data = await request.form()
-        token = str(form_data.get("token") or make_account_token(settings, sub.id, now=clock()))
+        token = str(form_data.get("token") or "")
+        sub = demo_subscriber_from_token(conn, subscriber_id, token)
         if form_data.get("action") == "cancel":
             db.update_subscriber(conn, sub.id, now=clock(), status="canceled", active=False)
         return redirect(f"/compte?token={token}")

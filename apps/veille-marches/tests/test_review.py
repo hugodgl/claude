@@ -4,23 +4,14 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from core.llm import MockLLM
 from core.mail import ConsoleMailer
 from fastapi.testclient import TestClient
 from test_digest import SUMMARY_YES, seed_notices
-from test_web import (  # noqa: F401 - fixtures réutilisées
-    SIGNUP,
-    client,
-    event,
-    live_settings,
-    mailer,
-    mock_client,
-    post_event,
-    stripe_calls,
-)
+from test_web import SIGNUP, event
 from typer.testing import CliRunner
 
 from veille_marches import billing, cli, db
