@@ -81,7 +81,7 @@ def test_metrics_import_and_doctor(env: Path):
     assert code == 1 and "angle inconnu" in out
     code, out = run("doctor")
     assert code == 0 and "TTS : silent" in out and "LLM : mock" in out and "dry-run" in out
-    assert "SELF_ONLY forcé" in out and "YouTube : private" in out
+    assert "SELF_ONLY forcé" in out and "YouTube : visibilité private" in out
     code, out = run("--version")
     assert code == 0 and "content-engine" in out
     code, out = run("script", "--topic-id", "999")

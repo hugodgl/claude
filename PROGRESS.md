@@ -62,3 +62,8 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - 26 défauts corrigés (2 critiques, 10 hauts, 8 moyens, 6 bas), 60 → 93 tests verts, ruff propre, garde-fou anti-réseau dans les tests. Détail dans `apps/newsletter-pipeline/REVIEW.md`.
 - Critiques : HTML brut des articles qui traversait jusqu'à l'email (scripts, iframes, liens `javascript:`) → filtre « email safe » ; URL glissées par le LLM dans le numéro → seules les URL des items sélectionnés sont conservées, le reste devient `[LIEN À VÉRIFIER]`.
 - Revues encore en cours : avis-clients, content-engine, veille-marches.
+
+### 28/10 01:06 — QA-1 content-engine terminée, P4-4 lancée
+- 23 défauts corrigés (1 critique, 9 élevés, 9 moyens, 4 faibles), 41 → 57 tests verts, ruff propre. Détail dans `apps/content-engine/REVIEW.md`.
+- Critique : `drawtext` interprétait les textes du modèle (un « 80 % » effaçait tout le texte de la vidéo) → `expansion=none`. Élevés : visibilité TikTok verrouillée en `SELF_ONLY` tant que l'app n'est pas auditée, étiquette IA jamais tronquée, bascule dry-run → live réparée (une simulation ne compte plus comme un envoi), contrôle « chiffre sans source » renforcé.
+- Lancé : P4-4 (récupération automatique des métriques, sélection des angles).

@@ -157,7 +157,10 @@ def test_format_deficits_ignore_consumed_drafts_and_formats_follow_products(conn
     assert format_deficits(conn, MONDAY)["short"] == before - 1
     fake_render(settings, short)
     run_publish(conn, settings, now=datetime(2026, 10, 26, 12, 30, tzinfo=PARIS))
-    assert format_deficits(conn, MONDAY)["short"] == before  # la variante envoyée ne compte plus
+    # le créneau de 12:00 est consommé (13 créneaux) et la variante envoyée ne compte plus comme
+    # disponible : 2 // 3 = 0 brouillon couvert, soit before - 1 (et non before - 2 si la variante
+    # envoyée comptait encore : 3 // 3 = 1)
+    assert format_deficits(conn, MONDAY)["short"] == before - 1
     formats = ["short", "short", "linkedin", "pin", "long"]
     pairs = pair_topics_with_formats(pick_topics(conn, 5), formats)
     assert [f for _, f in pairs] == formats and len({t["id"] for t, _ in pairs}) == 5

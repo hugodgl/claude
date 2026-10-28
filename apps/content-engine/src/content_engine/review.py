@@ -105,7 +105,7 @@ def export_review(conn: sqlite3.Connection, out_dir: str | Path, day: date | Non
         "Lire, choisir, corriger si besoin (15 minutes). Puis :",
         "",
         f"- tout approuver : `ce approve {ids}`" if ids else "- rien à approuver",
-        '- rejeter : `ce reject ID --reason "motif"` (le motif nourrit les prochains scripts)',
+        '- rejeter : `ce reject ID --reason "motif"` (motif conservé en base : `ce show ID`)',
         "- ensuite : `ce render --approved` puis `ce run-publish` (dry-run par défaut)",
         "",
         "---",

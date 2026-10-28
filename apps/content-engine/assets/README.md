@@ -8,4 +8,4 @@ Déposer ici une image par produit pour remplacer le dégradé par défaut :
 
 Format conseillé : 1080×1920 (ou plus grand, l'image est recadrée au centre). Un voile sombre est
 appliqué automatiquement pour garder les sous-titres lisibles. Images libres de droits ou générées
-(voir « Juridique » dans le README).
+(voir « Règles des plateformes » dans le README).

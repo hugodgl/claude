@@ -275,7 +275,7 @@ def test_disclosure_link_and_hashtags_survive_long_llm_texts(settings):
     assert settings.ai_disclosure in desc and "example.com/avis" in desc and "<" not in desc
     assert youtube_title(payload) == "Titre ‹b›avec chevrons‹/b›"
     pin = compose_pin(payload, prod, settings)["description"]
-    assert len(pin) <= 800 and settings.ai_disclosure in pin and pin.endswith("#commercant")
+    assert len(pin) <= 800 and settings.ai_disclosure in pin and pin.endswith("#fichegoogle")
     caption = compose_tiktok_caption(payload, prod, settings)
     assert len(caption) <= 2200 and settings.ai_disclosure in caption and "bio" in caption
     post = compose_linkedin_post(payload, prod, settings)

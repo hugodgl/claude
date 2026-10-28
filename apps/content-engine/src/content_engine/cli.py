@@ -223,7 +223,7 @@ def approve(draft_ids: list[int] = typer.Argument(..., help="Un ou plusieurs ide
 def reject(
     draft_id: int = typer.Argument(...),
     reason: str = typer.Option(
-        ..., "--reason", "-r", help="Motif court (nourrit les prochains scripts)."
+        ..., "--reason", "-r", help="Motif court (conservé en base, visible avec `ce show`)."
     ),
 ):
     """Rejette un brouillon avec un motif."""
@@ -547,11 +547,9 @@ def doctor():
     }
     for name, present in keys.items():
         console.print(f"clé {name} : {ok if present else '[yellow]manquante (dry-run)[/yellow]'}")
-    console.print(
-        f"TikTok : visibilité {s.tiktok_effective_privacy} "
-        + ("(app auditée)" if s.tiktok_app_audited else "(app non auditée : SELF_ONLY forcé)")
-        + f" · YouTube : {s.youtube_privacy_status}"
-    )
+    audit = "app auditée" if s.tiktok_app_audited else "app non auditée : SELF_ONLY forcé"
+    console.print(f"TikTok : visibilité {s.tiktok_effective_privacy} ({audit})")
+    console.print(f"YouTube : visibilité {s.youtube_privacy_status}")
     conn = _db(s)
     console.print(
         f"base : {s.db_path} · sujets new : {count_topics(conn)} · "
