@@ -100,3 +100,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 
 ### 28/10 01:46 — phase 5 lancée
 - Lancé : P2-4 (prospects DECP + emails de prospection), P1-5 (prospects commerces via Google Places), QA-3b (relecture des métriques/angles du moteur de contenu). QA-3a suivra P1-5. QA-2 (socle) et SMOKE-1 (fumée) toujours en cours.
+
+### 28/10 01:47 — réveil horaire n°2 (session cloud)
+- `NIGHT-SHIFT-OWNER` = cloud. Cinq agents en cours : QA-2 (socle), SMOKE-1 (script de fumée), P2-4 (prospects DECP), P1-5 (prospects Google Places), QA-3b (relecture métriques/angles). QA-3a attend la fin de P1-5. Rien d'autre à lancer.
+- État des suites au dernier passage complet : 364 tests verts avant les ajouts P4-4 (73) et P1-4 (118), soit 410 tests verts au total à cet instant.
