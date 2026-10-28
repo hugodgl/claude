@@ -10,8 +10,8 @@ from content_engine.angles import (
     age_factor,
     angle_scores,
     content_scores,
-    paused_angles,
     pause_margin,
+    paused_angles,
     set_angle_status,
     shrink,
     strong_angles,
@@ -47,8 +47,14 @@ def measured(conn, product, angle, platform, views, *, age_days=30.0, measured_a
         conn.execute(
             "INSERT INTO metrics (platform, remote_id, draft_id, views, imported_at, "
             "measured_at, source) VALUES (?, ?, ?, ?, ?, ?, 'api')",
-            (platform, f"r{draft_id}", draft_id, views, measured_at.isoformat(),
-             measured_at.isoformat()),
+            (
+                platform,
+                f"r{draft_id}",
+                draft_id,
+                views,
+                measured_at.isoformat(),
+                measured_at.isoformat(),
+            ),
         )
     return draft_id
 
@@ -110,7 +116,7 @@ def test_platform_and_age_normalization(conn):
     contents = {c.draft_id: c for c in content_scores(conn)}
     assert contents[young].projected > contents[old].projected > 500
     assert contents[fresh].too_recent and not contents[old].too_recent
-    assert contents[young].x > 0 > contents[old].x
+    assert contents[young].x > contents[old].x and contents[fresh].x == 0
     s = by_angle(angle_scores(conn), "cabinets")
     assert s["mythe"].n == 2 and s["mythe"].too_recent == 1
 
@@ -118,6 +124,8 @@ def test_platform_and_age_normalization(conn):
 def test_pause_reactivation_and_manual_overrides(conn):
     for _ in range(8):
         measured(conn, "avis", "pas-a-pas", "youtube", 1000)
+    for _ in range(8):
+        measured(conn, "avis", "outil", "youtube", 900)  # l'angle médian
     for _ in range(8):
         measured(conn, "avis", "mythe", "youtube", 150)  # 0,15× : nettement sous la médiane
     scores = angle_scores(conn)
@@ -127,7 +135,8 @@ def test_pause_reactivation_and_manual_overrides(conn):
     ]
     assert "après 8 contenus" in decisions[0]["reason"]
     assert paused_angles(conn) == {("avis", "mythe")}
-    assert strong_angles(scores) == {"avis": {"pas-a-pas"}}
+    # l'angle médian est privilégié aussi (≥ médiane : inclusif quand peu d'angles sont mesurés)
+    assert strong_angles(scores) == {"avis": {"pas-a-pas", "outil"}}
     row = conn.execute("SELECT * FROM angle_status").fetchone()
     assert row["decided_by"] == "auto" and row["n_contents"] == 8 and row["score"] < 0
     # pas assez de contenus pour conclure : rien ne bouge (ni pause ni réactivation)
@@ -142,15 +151,19 @@ def test_pause_reactivation_and_manual_overrides(conn):
     for _ in range(6):
         measured(conn, "avis", "mythe", "youtube", 150)
     decisions = update_angle_status(conn, angle_scores(conn), min_contents=6)
-    assert decisions and decisions[0]["status"] == "paused" and "14 contenus" in decisions[0]["reason"]
+    assert (
+        decisions and decisions[0]["status"] == "paused" and "14 contenus" in decisions[0]["reason"]
+    )
     # réactivation automatique quand le score revient à mi-chemin du seuil (ici : seuil élargi)
     decisions = update_angle_status(conn, angle_scores(conn), min_contents=6, pause_ratio=0.02)
     assert [d["status"] for d in decisions] == ["active"] and "revenu" in decisions[0]["reason"]
-    # pause manuelle : jamais levée automatiquement, même pour l'angle qui marche
+    # pause manuelle : jamais levée automatiquement, même pour l'angle qui marche (« mythe »,
+    # réactivé automatiquement ci-dessus, repasse en pause au seuil par défaut)
     set_angle_status(conn, "avis", "pas-a-pas", "paused", "mis en pause à la main", "manual")
-    assert update_angle_status(conn, angle_scores(conn)) == []
-    assert ("avis", "pas-a-pas") in paused_angles(conn)
-    assert strong_angles(angle_scores(conn)) == {"avis": set()}
+    decisions = update_angle_status(conn, angle_scores(conn))
+    assert [(d["angle"], d["status"]) for d in decisions] == [("mythe", "paused")]
+    assert paused_angles(conn) == {("avis", "pas-a-pas"), ("avis", "mythe")}
+    assert strong_angles(angle_scores(conn)) == {"avis": {"outil"}}
     # ANGLE_PAUSE_RATIO=0 : pause automatique désactivée
     with conn:
         conn.execute("DELETE FROM angle_status")
@@ -214,23 +227,30 @@ def test_run_daily_with_metrics_prefers_strong_angles_and_pauses_bad_ones(conn, 
         measured(conn, "avis", "mythe", "youtube", 120)
     report = run_daily(conn, settings, llm, today=NOW.date(), scripts_per_day=5)
     angles = report["angles"]
-    assert angles["paused"] == ["avis/mythe"] and angles["favored"] == {
-        "avis": ["script-pret-a-dire"]
-    }
+    # l'angle médian (outil) est privilégié avec le meilleur ; le mauvais est mis en pause
+    assert angles["paused"] == ["avis/mythe"]
+    assert angles["favored"] == {"avis": ["outil", "script-pret-a-dire"]}
     assert [(d["angle"], d["status"]) for d in angles["decisions"]] == [("mythe", "paused")]
-    avis = [s for s in report["scripts"] if s["topic_id"] in {1, 3, 8, 4, 14}]
+    assert len(report["scripts"]) == 5 and report["errors"] == []
+    products = {r["id"]: r["product"] for r in conn.execute("SELECT id, product FROM topics")}
+    for item in report["scripts"]:
+        if products[item["topic_id"]] == "avis":  # produit mesuré : exploitation / exploration
+            assert item["mode"] == "exploitation" and item["angle"] in angles["favored"]["avis"]
+        else:  # produits sans métriques : comportement historique
+            assert item["mode"] == "ancienneté"
     modes = {s["topic_id"]: s["mode"] for s in report["scripts"]}
-    assert modes[1] == "exploitation" and avis[0]["angle"] == "script-pret-a-dire"
-    assert all(s["angle"] != "mythe" for s in report["scripts"])
-    other = {s["mode"] for s in report["scripts"] if s["topic_id"] not in modes or True} - {
-        "exploitation",
-        "exploration",
-    }
-    assert other <= {"ancienneté"}
+    assert modes[1] == modes[3] == "exploitation"  # #2 (avis/mythe, en pause) est sauté
+    # la pause vaut pour (avis, mythe) seulement : marches/mythe reste scriptable
+    assert all(
+        s["angle"] != "mythe" for s in report["scripts"] if products[s["topic_id"]] == "avis"
+    )
     # le prompt d'idées pour avis ne propose plus l'angle en pause
     ideas_prompts = [c["prompt"] for c in llm.calls if '"questions"' in c["prompt"]]
     avis_prompt = next(p for p in ideas_prompts if "Produit : avis" in p)
     assert "  - mythe :" not in avis_prompt and "  - pas-a-pas :" in avis_prompt
-    assert conn.execute(
-        "SELECT status FROM angle_status WHERE product = 'avis' AND angle = 'mythe'"
-    ).fetchone()[0] == "paused"
+    assert (
+        conn.execute(
+            "SELECT status FROM angle_status WHERE product = 'avis' AND angle = 'mythe'"
+        ).fetchone()[0]
+        == "paused"
+    )

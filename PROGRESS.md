@@ -88,3 +88,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 01:28 — vérifications d'installation, deux tâches ajoutées
 - `make setup-veille-marches` depuis zéro (venv supprimé puis recréé) : OK, 102 tests. Image Docker du VPS : non testable ici (pas de démon Docker) ; à vérifier sur le VPS, noté dans `ACTIONS-HUGO.md`.
 - Lancé : QA-2 (revue du socle `packages/core`) et SMOKE-1 (script de fumée de bout en bout). Toujours en cours : P4-4 (métriques contenu), P1-4 (avis Facebook/Tripadvisor).
+
+### 28/10 01:35 — content-engine : métriques et angles (P4-4)
+- 57 → 73 tests verts, ruff propre. `ce metrics --pull` (YouTube Data + Analytics optionnel, Pinterest, TikTok après audit, LinkedIn non disponible), historique daté des relevés, score des angles (projection selon l'âge, normalisation par plateforme, lissage bayésien, pause et réactivation), `ce run-daily` qui exploite les angles qui marchent (70 % exploitation / 30 % exploration) et garde le comportement d'origine sans métriques. Vérifié par la session principale.
+- À faire par Hugo : refaire le consentement YouTube pour obtenir les portées lecture et analytics ; premier `ce metrics --pull --dry-run` réel pour valider les formes de réponses.

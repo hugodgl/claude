@@ -77,6 +77,8 @@ class YouTubeMetricsSource:
             except (PullError, httpx.HTTPError) as e:  # les compteurs videos.list restent valables
                 res.notes.append(f"YouTube Analytics ignoré : {e}")
         for vid, video in stats.items():
+            if vid not in by_id:  # vidéo non demandée : ignorée
+                continue
             st = video.get("statistics") or {}
             rep = reports.get(vid) or {}
             minutes = to_float(rep.get("estimatedMinutesWatched"))

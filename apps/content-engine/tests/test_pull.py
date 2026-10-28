@@ -2,7 +2,7 @@
 datée, erreurs isolées par plateforme, dry-run, stubs TikTok (avant audit) et LinkedIn."""
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
@@ -85,7 +85,9 @@ def test_youtube_pull_stores_dated_history(conn, llm, settings):
             return httpx.Response(200, json=YT_ITEMS)
         assert request.url.host == "youtubeanalytics.googleapis.com"
         assert p["ids"] == "channel==MINE" and p["dimensions"] == "video"
-        assert p["startDate"] == "2026-07-30" and p["endDate"] == "2026-10-28"
+        end = date.fromisoformat(p["endDate"])  # fenêtre --days (90 par défaut) jusqu'au relevé
+        assert p["startDate"] == (end - timedelta(days=90)).isoformat()
+        assert end in (NOW.date(), NOW.date() + timedelta(days=1))
         assert "averageViewPercentage" in p["metrics"] and p["filters"].startswith("video==")
         return httpx.Response(200, json=YT_REPORT)
 
@@ -137,7 +139,9 @@ def test_youtube_pull_stores_dated_history(conn, llm, settings):
 
 def test_youtube_analytics_is_optional(conn, llm, settings):
     d1 = make_draft(conn, llm, topic_id=1, status="published")
+    d3 = make_draft(conn, llm, topic_id=3, status="published")
     live_publication(conn, d1, "youtube", "vid1")
+    live_publication(conn, d3, "youtube", "vid3")  # absente de la réponse (supprimée)
     hosts = []
 
     def handler(request: httpx.Request):
@@ -158,7 +162,8 @@ def test_youtube_analytics_is_optional(conn, llm, settings):
     yt = rep.platforms["youtube"]
     assert yt.error is None and yt.stored == 1 and hosts == ["www.googleapis.com"]
     assert any("yt-analytics.readonly" in n for n in yt.notes)
-    assert any("vid2" in n for n in yt.notes)  # vidéo absente de la réponse : signalée
+    assert any("vid3" in n and "absente" in n for n in yt.notes)  # vidéo supprimée : signalée
+    assert count_metrics(conn, "remote_id = 'vid2'") == 0  # vidéo non demandée : ignorée
     # portée présente mais Analytics en erreur : les compteurs videos.list restent enregistrés
     rep = pull_metrics(
         conn,
@@ -290,8 +295,11 @@ def test_tiktok_pull_is_unavailable_before_audit_then_resolves_post_ids(conn, ll
     rep = pull_metrics(conn, audited, platforms=["tiktok"], client=client_for(handler), now=NOW)
     tt = rep.platforms["tiktok"]
     assert tt.error is None and tt.stored == 1
-    assert calls == ["/v2/post/publish/status/fetch/", "/v2/post/publish/status/fetch/",
-                     "/v2/video/query/"]
+    assert calls == [
+        "/v2/post/publish/status/fetch/",
+        "/v2/post/publish/status/fetch/",
+        "/v2/video/query/",
+    ]
     assert any("pas encore publié" in n and "PROCESSING_UPLOAD" in n for n in tt.notes)
     row = conn.execute("SELECT * FROM metrics").fetchone()
     assert row["draft_id"] == d1 and row["remote_id"] == "v_pub_1" and row["views"] == 980
@@ -300,8 +308,9 @@ def test_tiktok_pull_is_unavailable_before_audit_then_resolves_post_ids(conn, ll
     assert post_id == "7311111111111111111"
     # relevé suivant : l'identifiant public est connu, status/fetch n'est plus appelé pour #1
     calls.clear()
-    pull_metrics(conn, audited, platforms=["tiktok"], client=client_for(handler),
-                 now=NOW + timedelta(days=1))
+    pull_metrics(
+        conn, audited, platforms=["tiktok"], client=client_for(handler), now=NOW + timedelta(days=1)
+    )
     assert calls == ["/v2/post/publish/status/fetch/", "/v2/video/query/"]
 
 
@@ -341,20 +350,33 @@ def test_errors_are_isolated_per_platform_and_dry_run_writes_nothing(conn, llm, 
         )
 
     sources = {"youtube": YouTubeMetricsSource(token="t0k", analytics=False)}
-    rep = pull_metrics(conn, settings, platforms=["youtube", "pinterest"],
-                       client=client_for(handler), sources=sources, now=NOW)
+    rep = pull_metrics(
+        conn,
+        settings,
+        platforms=["youtube", "pinterest"],
+        client=client_for(handler),
+        sources=sources,
+        now=NOW,
+    )
     assert "ConnectError" in rep.platforms["youtube"].error
     assert rep.platforms["pinterest"].error is None and rep.platforms["pinterest"].stored == 1
     assert rep.failed == ["youtube"] and rep.succeeded == ["pinterest"]
     mode["youtube"] = "quota"
-    rep = pull_metrics(conn, settings, platforms=["youtube"], client=client_for(handler),
-                       sources=sources, now=NOW)
+    rep = pull_metrics(
+        conn, settings, platforms=["youtube"], client=client_for(handler), sources=sources, now=NOW
+    )
     assert "quota" in rep.platforms["youtube"].error and "403" in rep.platforms["youtube"].error
     assert rep.attempted == ["youtube"] and rep.succeeded == []
     # dry-run : les relevés sont rapportés mais rien n'est écrit
     before = count_metrics(conn)
-    rep = pull_metrics(conn, settings, platforms=["pinterest"], dry_run=True,
-                       client=client_for(handler), now=NOW + timedelta(days=2))
+    rep = pull_metrics(
+        conn,
+        settings,
+        platforms=["pinterest"],
+        dry_run=True,
+        client=client_for(handler),
+        now=NOW + timedelta(days=2),
+    )
     assert rep.dry_run and len(rep.platforms["pinterest"].snapshots) == 1
     assert rep.platforms["pinterest"].stored == 0 and count_metrics(conn) == before
     with pytest.raises(ValueError, match="plateforme inconnue"):

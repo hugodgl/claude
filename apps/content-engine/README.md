@@ -14,7 +14,10 @@ topics.yaml ──► topics ──► ce script ──► drafts (3 variantes) 
                                                                                          │
       ce plan ──► schedule ──► ce run-publish ──► ce publish --platform … ──► out/<id>/publish-<plateforme>.json
                                                                         (--live : appel API réel)
-      ce metrics --import export.csv ──► metrics ──► ce angles (angles qui performent)
+      ce metrics --pull (API, 23:30) ─┐
+      ce metrics --import export.csv ─┴► metrics (relevés datés) ──► ce angles (score par angle)
+                                                                         │
+                                        ce run-daily ◄── angles privilégiés / exploration / en pause
 ```
 
 | Produit (`product`) | Ligne éditoriale | Formats privilégiés |
@@ -33,7 +36,7 @@ La ligne éditoriale (promesse, public, ton, CTA, palette de couleurs) est dans
 ```bash
 cd apps/content-engine
 uv venv .venv && uv pip install -e ../../packages/core -e ".[dev]"
-.venv/bin/pytest -q          # 57 tests, dont un rendu vidéo de 3 s vérifié par ffprobe
+.venv/bin/pytest -q          # 73 tests, dont un rendu vidéo de 3 s vérifié par ffprobe
 .venv/bin/ruff check .
 ```
 
@@ -76,9 +79,11 @@ Toutes les variables sont dans `.env.example`. Les plus importantes :
 | `FONT_PATH` | police (DejaVu Sans Bold détectée seule sur Linux ; Arial/Helvetica sur Mac) ; si la variable pointe vers un fichier absent, le rendu refuse avec un message clair | détection automatique |
 | `ASSETS_DIR`, `ASSETS_SYNTHETIC` | images de fond `assets/<produit>.jpg` ; sont-elles générées par IA ? | `assets`, `true` |
 | `YOUTUBE_CLIENT_SECRETS_FILE`, `YOUTUBE_TOKEN_FILE`, `YOUTUBE_PRIVACY_STATUS` | OAuth « application de bureau », jeton dans `data/`, visibilité | `private` |
+| `YOUTUBE_ANALYTICS` | demander aussi la portée `yt-analytics.readonly` au consentement (rétention et partages dans `ce metrics --pull`) | `true` |
 | `PINTEREST_ACCESS_TOKEN`, `PINTEREST_BOARD_ID` | API v5 | — |
 | `LINKEDIN_ACCESS_TOKEN`, `LINKEDIN_AUTHOR_URN`, `LINKEDIN_VERSION` | Posts API, en-tête de version AAAAMM | `202510` |
 | `TIKTOK_ACCESS_TOKEN`, `TIKTOK_PRIVACY_LEVEL`, `TIKTOK_APP_AUDITED` | Content Posting API ; tant que `TIKTOK_APP_AUDITED` est faux (app non auditée), la visibilité envoyée est forcée à `SELF_ONLY` quelle que soit `TIKTOK_PRIVACY_LEVEL` | `SELF_ONLY`, `false` |
+| `ANGLE_EXPLORATION_RATE`, `ANGLE_PRIOR_WEIGHT`, `ANGLE_PAUSE_MIN_CONTENTS`, `ANGLE_PAUSE_RATIO` | sélection des angles dans `ce run-daily` (voir « Métriques et angles ») | `0.3`, `5`, `6`, `0.5` |
 | `DATA_DIR`, `OUT_DIR`, `TIMEZONE` | base SQLite et jetons / rendus et exports / heure des créneaux | `data`, `out`, `Europe/Paris` |
 
 Aucune clé n'est nécessaire pour dérouler la chaîne complète en dry-run.
@@ -96,9 +101,11 @@ Aucune clé n'est nécessaire pour dérouler la chaîne complète en dry-run.
 | `ce render --draft-id N` / `ce render --approved` / `--force` (aperçu) | short : `video.mp4` 1080×1920 30 fps ≤ 60 s + `cover.jpg` + `thumb.jpg` ; pin et long : images + `script.txt` ; linkedin : `post.txt` |
 | `ce publish --draft-id N --platform youtube\|pinterest\|linkedin\|tiktok [--live]` | dry-run : `out/N/publish-<plateforme>.json` décrit exactement la requête ; `--live` : envoi réel |
 | `ce plan --days 7 [--start AAAA-MM-JJ]` · `ce schedule` | calendrier : 1 short/jour (YouTube 12:00), 1 TikTok/jour (18:00), 5 pins/jour (9h-17h), LinkedIn lun/mer/ven 8:30, long YouTube le jeudi 17:00, rotation des produits |
-| `ce run-daily` | idées si la banque < 20 par produit → scripts pour 5 sujets (formats selon les déficits du calendrier, 2 shorts minimum) → export de relecture |
+| `ce run-daily` | scores des angles (pause automatique des angles qui ne marchent pas) → idées si la banque < 20 par produit → scripts pour 5 sujets choisis à 70 % sur les angles privilégiés et 30 % en exploration (formats selon les déficits du calendrier, 2 shorts minimum) → export de relecture |
 | `ce run-publish [--live] [--no-render]` | rend les brouillons approuvés, puis publie les créneaux échus qui ont un brouillon prêt (dry-run : simulation journalisée ; `--live` : seules les publications réelles comptent, voir « Décisions ») |
-| `ce metrics --import export.csv [--platform youtube\|tiktok]` · `ce angles [--list]` | boucle de sélection des angles |
+| `ce metrics --pull [--platform youtube\|pinterest\|tiktok\|linkedin\|all] [--days 90] [--dry-run]` | relève les métriques des publications réelles via les API et les historise (un relevé daté par contenu et par jour) |
+| `ce metrics --import export.csv [--platform youtube\|tiktok]` | import d'un export CSV (YouTube Studio, TikTok Studio) |
+| `ce angles [-p produit] [--explain]` · `ce angles --pause ANGLE [-p produit]` · `ce angles --reactivate ANGLE [-p produit]` · `ce angles --list` | score par angle (vues normalisées par plateforme et par âge, lissées), statut privilégié / à explorer / en pause, explication du calcul, pause et réactivation manuelles |
 | `ce doctor` | diagnostic (ffmpeg, police, `say`, LLM, clés) |
 
 Codes de sortie : 0 ok, 1 erreur métier lisible (sujet introuvable, brouillon non approuvé, fichier
@@ -118,8 +125,11 @@ absent, clé manquante…).
    une vidéo sur deux, puis `ce run-publish` (dry-run : vérifier les JSON) et, quand les clés sont
    en place, passer le job launchd en `--live` : un brouillon seulement simulé en dry-run est alors
    publié pour de bon à son prochain créneau (la simulation ne compte pas comme un envoi).
-4. Le soir ou la nuit : exporter les CSV de YouTube Studio / TikTok Studio, `ce metrics --import`,
-   `ce angles` pour décliner les angles qui marchent et abandonner les autres.
+4. 23:30 (launchd) : `ce metrics --pull` relève les vues, j'aime, commentaires, partages,
+   impressions, clics et rétention des publications réelles ; le lendemain, `ce run-daily` s'en
+   sert pour choisir les sujets (angles qui marchent, part d'exploration) et mettre en pause les
+   angles qui ne marchent pas. `ce angles --explain` montre le calcul ; TikTok avant audit et
+   LinkedIn ne sont pas relevables : exporter les CSV des Studios et `ce metrics --import`.
 
 ## Planification launchd
 
@@ -131,10 +141,82 @@ Les services sont définis dans `deploy/macmini/launchd/` et installés par
 |---|---|---|
 | `com.sideproject.content.daily` | 05:30 | `ce run-daily` |
 | `com.sideproject.content.publish` | toutes les 30 minutes (`StartInterval` 1800) | `ce run-publish` (ajouter `--live` dans le plist quand les clés sont en place et les premiers dry-run relus) |
+| `com.sideproject.content.metrics` | 23:30 | `ce metrics --pull` (relevé quotidien des métriques des publications réelles ; gabarit `com.sideproject.content.metrics.plist.tmpl`, installé par `install-launchd.sh`) |
 
-`ce plan --days 7` se lance le dimanche (à la main ou en troisième plist). Sous launchd il n'y a pas
+Le job de métriques n'a besoin d'aucun terminal : il réutilise le jeton YouTube déjà consenti
+(`data/youtube-token.json`, qui doit porter `youtube.readonly` : voir « Métriques et angles ») et
+les jetons Pinterest / TikTok du `.env` ; sans publication réelle il se termine en code 0 sans
+rien écrire, et `ce run-daily` du lendemain (05:30) tolère l'absence totale de métriques
+(comportement inchangé dans ce cas). Son code de sortie est 1 seulement si toutes les plateformes
+tentées ont échoué (visible dans `logs/content-engine-ce.log`).
+
+`ce plan --days 7` se lance le dimanche (à la main ou en plist supplémentaire). Sous launchd il n'y a pas
 de terminal : le consentement OAuth YouTube (première publication réelle) doit être fait une fois à
 la main dans un terminal, le job refuse proprement tant que le jeton n'existe pas.
+
+## Métriques et angles
+
+### Relevé (`ce metrics --pull`)
+
+Pour chaque publication réelle (`publications.dry_run = 0`, identifiant distant connu, brouillon
+`published`) des `--days` derniers jours (90 par défaut), l'adaptateur de la plateforme interroge
+son API et le relevé est ajouté à la table `metrics` avec sa date (`measured_at`, `source = 'api'`) :
+un relevé par contenu et par jour, relancer le même jour met à jour le relevé du jour, les jours
+précédents sont conservés (historique). Les classements n'utilisent que le dernier relevé de chaque
+contenu. `--dry-run` affiche le tableau sans rien écrire ; les erreurs (réseau, quota, jeton) sont
+isolées par plateforme : les autres continuent, le message est affiché, et `ce metrics --pull`
+sort en code 1 seulement si toutes les plateformes tentées ont échoué.
+
+| Plateforme | Appel | Stocké | Portée / condition |
+|---|---|---|---|
+| YouTube | `videos.list?part=statistics,contentDetails&id=…` (Data API v3, 50 vidéos par appel, 1 unité de quota) ; en option `reports.query` (YouTube Analytics API v2 : `ids=channel==MINE`, `dimensions=video`, `filters=video==…`, `metrics=views,estimatedMinutesWatched,averageViewPercentage,shares`, fenêtre `--days`) | vues, j'aime, commentaires ; partages, rétention moyenne (`avg_view_pct`) et heures vues si Analytics | jeton OAuth du publisher : `youtube.readonly` obligatoire (vidéos privées), `yt-analytics.readonly` optionnel : sans lui, Analytics est ignoré avec une note |
+| Pinterest | `GET /v5/pins/{pin_id}/analytics?start_date&end_date&metric_types=IMPRESSION,PIN_CLICK,OUTBOUND_CLICK,SAVE` (un appel par épingle, fenêtre bornée à 90 jours) | `views` = `impressions` = IMPRESSION (une épingle n'a pas de vues), `clicks` = OUTBOUND_CLICK, `shares` = SAVE, `ctr` = clics sortants / impressions, PIN_CLICK dans `extra_json` ; métriques « lifetime » si l'API les renvoie, sinon cumul de la fenêtre | `PINTEREST_ACCESS_TOKEN` avec la portée `pins:read` ; une épingle supprimée ou trop récente (HTTP 4xx) est notée, les autres continuent |
+| TikTok | `POST /v2/post/publish/status/fetch/` pour résoudre le `publish_id` en identifiant public (`publicaly_available_post_id`, gardé dans `publications.post_id`), puis `POST /v2/video/query/?fields=id,like_count,comment_count,share_count,view_count` (20 vidéos par appel) | vues, j'aime, commentaires, partages | portée `video.list` ; **tant que `TIKTOK_APP_AUDITED=false`, la source journalise « non disponible » sans erreur** (Display API réservée aux apps auditées) |
+| LinkedIn | aucun : stub documenté | rien | les statistiques de posts (`organizationalEntityShareStatistics`, `memberCreatorPostAnalytics`) sont réservées à la Marketing API (programme partenaire) : la source journalise « non disponible » |
+
+Un jeton YouTube consenti avant P4-4 ne porte que `youtube.upload` : `ce metrics --pull` le refuse
+avec un message clair ; supprimer `data/youtube-token.json` et relancer une publication `--live`
+dans un terminal pour reconsentir (`ce doctor` affiche les portées du jeton). La rétention et les
+partages YouTube sont calculés sur la fenêtre `--days` (Analytics a 2 à 3 jours de retard) ; les
+vues, j'aime et commentaires sont les compteurs à vie de `videos.list`.
+
+### Score des angles (`ce angles`, `ce run-daily`)
+
+Le score d'un angle, par produit, est calculé dans `src/content_engine/angles.py` :
+
+1. **Âge** : les vues s'accumulent vite puis saturent ; chaque contenu est ramené à des vues
+   « projetées » en divisant par `1 − exp(−âge / 7 jours)` (63 % des vues à 7 jours, 95 % à
+   21 jours). Un relevé de moins de 2 jours est trop précoce : signalé, pas compté.
+2. **Plateforme** : `x = log2(projetées + 1) − médiane de la plateforme` (tous produits). 5 000
+   impressions Pinterest et 300 vues YouTube valent toutes deux 0 si c'est la médiane de leur
+   plateforme ; +1 = deux fois la médiane, −1 = la moitié. Une plateforme avec un seul contenu ne
+   donne aucune information (x = 0).
+3. **Petits effectifs** : lissage bayésien `score = (n × moyenne + k × a priori) / (n + k)`, avec
+   `a priori` = moyenne des x du produit et `k = ANGLE_PRIOR_WEIGHT` (5). Un angle vu 2 fois à
+   2,3× la médiane ne dépasse que de peu un angle vu 20 fois à 1,2× ; il ne l'écrase pas.
+4. **Décision** par produit : les angles dont le score est ≥ la médiane des scores du produit
+   sont **privilégiés** (inclusif : avec un ou deux angles mesurés, ils le sont tous), les autres
+   sont **à explorer**. Un angle mesuré sur ≥ `ANGLE_PAUSE_MIN_CONTENTS` (6) contenus et à plus de
+   `log2(1 / ANGLE_PAUSE_RATIO)` (1, soit des vues lissées sous 50 % de l'angle médian) sous la
+   médiane est **mis en pause** (`angle_status`) : ses sujets attendent, le LLM ne le propose plus
+   dans les idées. Il est réactivé automatiquement s'il remonte à mi-chemin du seuil, ou à la main
+   (`ce angles --reactivate ANGLE -p PRODUIT`, auquel cas il n'est remis en pause qu'après 6
+   nouveaux contenus mesurés). `ce angles --pause` met en pause à la main (jamais levée
+   automatiquement). `ANGLE_PAUSE_RATIO=0` désactive la pause automatique. Avec seulement deux
+   angles mesurés, la médiane est à mi-chemin : il faut un écart lissé de 4× pour une pause, ce
+   qui est voulu (on ne met pas la moitié des angles en pause sur si peu de données).
+
+`ce run-daily` : les sujets du jour sont pris, produit par produit et par ancienneté, à
+`1 − ANGLE_EXPLORATION_RATE` (70 %) sur les angles privilégiés (« exploitation ») et
+`ANGLE_EXPLORATION_RATE` (30 %) sur les autres angles, y compris sans angle (« exploration ») ; un
+produit sans métriques garde le comportement historique (« ancienneté »). Sans aucune métrique,
+rien ne change. `ce angles --explain` détaille chaque angle : contenus par plateforme, écart brut,
+a priori, score lissé, médiane du produit, seuil de pause, statut et date.
+
+Limites : les épingles n'ont pas de vues (impressions utilisées) ; LinkedIn n'est pas mesuré ;
+TikTok ne l'est qu'après audit ; un contenu mesuré par CSV (lié par titre) compte avec l'âge du
+CSV s'il donne la date de publication, sinon comme un contenu mûr ; les scores sont relatifs à la
+médiane de chaque plateforme, pas des valeurs absolues de performance.
 
 ## Règles des plateformes (résumé, état octobre 2026, à vérifier sur les pages officielles)
 
@@ -209,8 +291,21 @@ la main dans un terminal, le job refuse proprement tant que le jeton n'existe pa
   séparateurs `,` `;` `\t`, encodages UTF-8 / UTF-16 / cp1252, titres multi-lignes entre guillemets,
   nombres « 1 234 » / « 12,5 »), ligne « Total » et lignes sans identifiant ni titre ignorées,
   liaison aux brouillons par identifiant distant (publications réelles) ou par titre normalisé
-  (titre, titre tronqué à 100 caractères, accroche) ; `ce angles` classe les angles par vues
-  moyennes et ne recommande rien sous 3 contenus mesurés par angle.
+  (titre, titre tronqué à 100 caractères, accroche) ; un réimport CSV remplace les lignes CSV du
+  même contenu sans toucher à l'historique API. `ce angles` ne recommande rien sous 3 contenus
+  mesurés par angle.
+- **Historique des relevés** (P4-4) : `metrics` est un journal daté (`measured_at`, `source`
+  csv/api) ; les classements et scores regardent le dernier relevé de chaque contenu par
+  plateforme. Les adaptateurs de relevé (`src/content_engine/pull/`) suivent le même contrat que
+  les publishers : une source par plateforme, erreurs confinées, stubs explicites quand l'API
+  n'est pas accessible (TikTok avant audit, LinkedIn). Le jeton YouTube demande désormais
+  `youtube.upload` + `youtube.readonly` (+ `yt-analytics.readonly` si `YOUTUBE_ANALYTICS`) au
+  consentement, et chaque opération vérifie les portées enregistrées dans le jeton.
+- **Sélection des angles** (P4-4) : score relatif (log2 par rapport à la médiane de la
+  plateforme, âge corrigé) plutôt que vues brutes, lissage bayésien vers la moyenne du produit
+  plutôt qu'un seuil dur, médiane inclusive pour décider qui est privilégié, pause seulement
+  « nettement » sous la médiane et après assez de contenus, part d'exploration déterministe
+  (3 sujets sur 10 avec 30 %) plutôt que tirée au sort, pour des routines reproductibles.
 
 ## Ce qui est simulé ou non vérifié depuis le sandbox
 
@@ -218,6 +313,11 @@ la main dans un terminal, le job refuse proprement tant que le jeton n'existe pa
   documentation d'octobre 2026 et testés avec `httpx.MockTransport` (payloads, en-têtes, flux
   d'envoi reprenable YouTube, init + upload + statut TikTok). Les premières publications réelles
   sont à relire dans les JSON de dry-run avant `--live`.
+- Les relevés de métriques (`videos.list`, `reports.query`, `pins/{id}/analytics`,
+  `video/query`, `status/fetch`) sont eux aussi écrits d'après la documentation et testés sur des
+  réponses simulées réalistes ; la forme exacte des réponses (clé `all.lifetime_metrics` de
+  Pinterest, `columnHeaders` d'Analytics) est à vérifier au premier relevé réel avec
+  `ce metrics --pull --dry-run`.
 - `say` n'existe pas dans le sandbox : l'adaptateur est écrit d'après la commande macOS
   (`say -v Thomas -r 175 -o x.aiff -f texte.txt`) et testé seulement via le chemin commun de
   concaténation (test ElevenLabs simulé). Kokoro n'est pas testé (dépendance optionnelle).
@@ -226,7 +326,7 @@ la main dans un terminal, le job refuse proprement tant que le jeton n'existe pa
 - Les miniatures sont fonctionnelles mais sobres (texte sur dégradé) : remplacer `thumb.jpg` par
   un visuel Canva avant publication si besoin.
 - Pas de mode « ta voix enregistrée » : déposer un `voice.m4a` dans `out/<id>/` n'est pas encore
-  pris en compte (prochaine étape avec P4-4).
+  pris en compte (à planifier).
 
 ## Tests
 
@@ -240,5 +340,10 @@ formats pin/long/linkedin, adaptateur ElevenLabs simulé, publication dry-run de
 (fichiers JSON, drapeaux `containsSyntheticMedia` / `is_aigc`, `SELF_ONLY` forcé avant audit,
 masquage des secrets, étiquette IA jamais tronquée) et envois réels simulés (y compris coupure
 réseau), calendrier, `run-publish` dry-run puis `--live` idempotent, fuseau et changement d'heure,
-routine quotidienne, import de métriques (cp1252, UTF-16, titres multi-lignes), CLI via `CliRunner`.
+routine quotidienne, import de métriques (cp1252, UTF-16, titres multi-lignes), relevé des
+métriques via les API (réponses simulées YouTube Data + Analytics, Pinterest, TikTok avec
+résolution du `publish_id`, stubs TikTok avant audit et LinkedIn, historique daté, réimport CSV
+sans perte, erreurs réseau et quota isolées par plateforme, dry-run), score des angles (formules,
+petits effectifs, normalisation plateforme et âge, pause / réactivation automatiques et manuelles,
+exploitation / exploration, `run-daily` avec et sans métriques), CLI via `CliRunner`.
 Voir `REVIEW.md` pour la revue croisée (défauts corrigés et reste à faire).
