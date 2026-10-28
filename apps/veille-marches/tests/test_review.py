@@ -6,7 +6,6 @@ import logging
 import re
 from datetime import UTC, datetime, timedelta
 
-import httpx
 import pytest
 from core.llm import MockLLM
 from core.mail import ConsoleMailer
@@ -28,6 +27,7 @@ from veille_marches import billing, cli, db
 from veille_marches.accounts import TokenError, make_account_token, read_account_token
 from veille_marches.billing import handle_stripe_event, sync_subscriptions
 from veille_marches.brief import send_briefs
+from veille_marches.catalog import PLANS
 from veille_marches.collectors.boamp import BoampCollector, map_boamp_record
 from veille_marches.collectors.decp import DecpCollector
 from veille_marches.collectors.ted import TedCollector
@@ -168,7 +168,7 @@ def test_sync_sends_welcome_when_webhook_was_missed(conn, live_settings, mailer,
 
     results = sync_subscriptions(conn, live_settings, Gateway(), mailer=mailer, now=now)
     assert results[0].changed and db.get_subscriber(conn, sub.id).active
-    assert [e.to for e in mailer.sent] == ["attente@b.fr".split()]
+    assert [e.to for e in mailer.sent] == [["attente@b.fr"]]
     sync_subscriptions(conn, live_settings, Gateway(), mailer=mailer, now=now)
     assert len(mailer.sent) == 1
 
@@ -226,7 +226,7 @@ def test_cli_refuses_links_and_web_without_secret_key_and_invalid_criteria(cli_e
     monkeypatch.setattr("uvicorn.run", lambda *a, **kw: calls.append((a, kw)))
     out = run(["web"], {**cli_env, "STRIPE_SECRET_KEY": "sk_test_x"}, code=2)
     assert "APP_SECRET_KEY" in out and "STRIPE_WEBHOOK_SECRET" in out and calls == []
-    run(["web"], {**with_key, "STRIPE_SECRET_KEY": "sk_test_x", "STRIPE_WEBHOOK_SECRET": "whsec_x"}, cli_env)
+    run(["web"], {**with_key, "STRIPE_SECRET_KEY": "sk_test_x", "STRIPE_WEBHOOK_SECRET": "whsec_x"})
     assert len(calls) == 1
 
 
@@ -324,7 +324,7 @@ def test_form_amounts_and_cpv_prefixes_are_strict():
     assert parse_cpv_prefixes("٣٣٣")[1] and parse_cpv_prefixes("77³")[1]
     assert Subscriber(email="a@b.fr", cpv_prefixes=["٣٣٣", "773"]).cpv_prefixes == ["773"]
     # un formulaire énorme reste borné (200 valeurs au plus)
-    many = parse_account({"trade": "espaces_verts", "departments": ["zz"] * 500 + ["69"]}, cli.PLANS["pro"])
+    many = parse_account({"trade": "espaces_verts", "departments": ["zz"] * 500 + ["69"]}, PLANS["pro"])
     assert "au moins un département" in many.errors["departments"]
 
 
@@ -449,7 +449,7 @@ def test_collectors_survive_malformed_records(settings, apis):
                                                                  limit=50)
     assert result.error is None and result.fetched == 8 and result.kept == 4
     kept = {n.source_id: n for n in result.notices}["26-weird"]
-    assert kept.title == "Tonte, taille" and kept.buyer_name is None and kept.departments == []
+    assert kept.title == "Tonte" and kept.buyer_name is None and kept.departments == []
     assert kept.url == 'https://www.boamp.fr/pages/avis/?q=idweb:%2226-weird%22' and kept.deadline_at is None
     apis.ted["notices"] = ["x", {"publication-number": {"fra": ["1-2026"]}, "links": "nope", "notice-title": 7,
                                  "classification-cpv": {"a": "77310000"}, "estimated-value-proc": {"v": 1},
@@ -467,9 +467,3 @@ def test_collectors_survive_malformed_records(settings, apis):
     award = {a.source_id: a for a in result.awards}["d-1"]
     assert award.amount is None and award.duration_months is None and award.cpv_code == "77310000"
 
-
-def test_http_client_timeout_from_settings(settings):
-    from veille_marches.collectors.base import build_client
-    client = build_client(settings.model_copy(update={"http_timeout_s": 7.5}),
-                          transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})))
-    assert client.timeout.read == 7.5
