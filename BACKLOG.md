@@ -30,7 +30,7 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 - [~] **QA-1** revue croisée de chaque app par un agent différent : bugs, secrets, validation des entrées, injection de prompt dans les textes externes (avis, annonces), corrections
 - [x] **DOC-1** README racine : « démarrer en 15 minutes sur le Mac mini », schéma des flux, tableau des variables d'environnement
 - [~] **P4-4** `apps/content-engine` : récupération des métriques (YouTube Analytics, TikTok), sélection automatique des angles qui marchent
-- [ ] **P1-4** `apps/avis-clients` : adaptateurs Facebook et Tripadvisor, mode auto-publication pour les avis ≥ 4 étoiles
+- [~] **P1-4** `apps/avis-clients` : adaptateurs Facebook et Tripadvisor, mode auto-publication pour les avis ≥ 4 étoiles
 
 ## Matin (dernier passage à 06:45)
 - [ ] Tout tester, tout pousser, résumé du matin en tête de `PROGRESS.md`, `ACTIONS-HUGO.md` à jour

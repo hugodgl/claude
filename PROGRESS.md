@@ -67,3 +67,9 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - 23 défauts corrigés (1 critique, 9 élevés, 9 moyens, 4 faibles), 41 → 57 tests verts, ruff propre. Détail dans `apps/content-engine/REVIEW.md`.
 - Critique : `drawtext` interprétait les textes du modèle (un « 80 % » effaçait tout le texte de la vidéo) → `expansion=none`. Élevés : visibilité TikTok verrouillée en `SELF_ONLY` tant que l'app n'est pas auditée, étiquette IA jamais tronquée, bascule dry-run → live réparée (une simulation ne compte plus comme un envoi), contrôle « chiffre sans source » renforcé.
 - Lancé : P4-4 (récupération automatique des métriques, sélection des angles).
+
+### 28/10 01:08 — QA-1 avis-clients terminée, P1-4 lancée
+- 41 défauts corrigés (2 critiques, 7 hauts, 15 moyens, 17 bas), 57 → 95 tests verts, ruff propre. Détail dans `apps/avis-clients/REVIEW.md` (12 points « à faire plus tard », dont la limitation de débit).
+- Critiques : un compte pouvait relier la fiche Google d'un autre commerçant et répondre en son nom → format imposé, unicité, correspondance Place ID obligatoire en live ; un abonné actif changeant de formule déclenchait un second Checkout Stripe → redirection vers le portail client. Hauts : webhook STOP non authentifié, auto-publication de brouillons de repli, synchronisation qui pollait tous les comptes.
+- Nouvelles variables : `SMS_WEBHOOK_TOKEN`, `APP_TIMEZONE` ; `SESSION_SECRET` factice refusé en https.
+- Lancé : P1-4 (avis Facebook et Tripadvisor).
