@@ -57,3 +57,8 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - `apps/veille-marches` : 78 tests verts (19 nouveaux), ruff propre. Site FastAPI (`vm web`) : landing avec exemple d'alerte réel, inscription → abonné en attente → Stripe Checkout, webhook signé et idempotent qui active l'abonné et envoie l'email de bienvenue, espace `/compte` par lien signé, portail Stripe, mode démonstration sans clé, pages légales à compléter. Vérifié par la session principale.
 - Ajouté au déploiement Mac mini : services launchd `veille.web` (permanent) et `veille.syncstripe` (08:10).
 - Lancé : QA-1 sur `veille-marches`.
+
+### 28/10 01:00 — QA-1 newsletter-pipeline terminée
+- 26 défauts corrigés (2 critiques, 10 hauts, 8 moyens, 6 bas), 60 → 93 tests verts, ruff propre, garde-fou anti-réseau dans les tests. Détail dans `apps/newsletter-pipeline/REVIEW.md`.
+- Critiques : HTML brut des articles qui traversait jusqu'à l'email (scripts, iframes, liens `javascript:`) → filtre « email safe » ; URL glissées par le LLM dans le numéro → seules les URL des items sélectionnés sont conservées, le reste devient `[LIEN À VÉRIFIER]`.
+- Revues encore en cours : avis-clients, content-engine, veille-marches.

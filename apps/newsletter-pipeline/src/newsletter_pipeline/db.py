@@ -186,6 +186,12 @@ def get_issue(conn: sqlite3.Connection, number: int) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM issues WHERE number = ?", (number,)).fetchone()
 
 
+def issue_for_date(conn: sqlite3.Connection, issue_date_iso: str) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM issues WHERE issue_date = ? ORDER BY number DESC LIMIT 1", (issue_date_iso,)
+    ).fetchone()
+
+
 def last_issue_number(conn: sqlite3.Connection) -> int:
     row = conn.execute("SELECT MAX(number) AS n FROM issues").fetchone()
     return int(row["n"] or 0)

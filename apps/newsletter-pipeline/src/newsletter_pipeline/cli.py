@@ -50,7 +50,7 @@ def _print_collect_report(report: CollectReport) -> None:
             typer.echo(f"{prefix}{s.name:<40} ERREUR  {s.error[:120]}")
         else:
             typer.echo(f"{prefix}{s.name:<40} {s.inserted:>3} nouveaux / {s.seen:>3} vus "
-                       f"({s.duplicates} doublons)")
+                       f"({s.duplicates} doublons, {s.skipped} ignorés)")
             if report.dry_run:
                 for title in s.titles[:5]:
                     typer.echo(f"{prefix}    + {title[:90]}")
@@ -226,18 +226,25 @@ def run_monday(
         log.error("classement en échec : %s", exc)
         typer.echo(f"Classement en échec : {exc}", err=True)
 
-    number = issue or db.last_issue_number(conn) + 1
     issue_date = _parse_date(date_) or next_tuesday()
+    summary = (f"Compte rendu : {collected} items collectés ({source_errors} source(s) en erreur), "
+               f"{ranked} items classés")
+    if issue is None:
+        existing = db.issue_for_date(conn, issue_date.isoformat())
+        if existing is not None:  # relance le même lundi : on ne crée pas un second numéro pour le même mardi
+            typer.echo(f"{summary}, brouillon : déjà produit pour le {issue_date.isoformat()} "
+                       f"(n° {existing['number']:03d}, {existing['md_path']}) ; "
+                       f"`np draft --issue {existing['number']} --force` pour le regénérer")
+            return
+    number = issue or db.last_issue_number(conn) + 1
     try:
         result = Drafter(conn, settings, llm).run(number, issue_date)
     except Exception as exc:  # noqa: BLE001
-        typer.echo(f"Compte rendu : {collected} items collectés ({source_errors} source(s) en erreur), "
-                   f"{ranked} items classés, brouillon : ÉCHEC ({exc})", err=True)
+        typer.echo(f"{summary}, brouillon : ÉCHEC ({exc})", err=True)
         raise typer.Exit(code=1) from None
     for w in result.warnings:
         typer.echo(f"  attention : {w}")
-    typer.echo(f"Compte rendu : {collected} items collectés ({source_errors} source(s) en erreur), "
-               f"{ranked} items classés, brouillon : {result.paths['md']} "
+    typer.echo(f"{summary}, brouillon : {result.paths['md']} "
                f"(n° {number:03d} du {issue_date.isoformat()}, « {result.title} »)")
 
 

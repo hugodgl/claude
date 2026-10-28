@@ -185,3 +185,14 @@ def test_load_sponsor_tolerates_datetime_and_rejects_bad_dates(workdir):
         load_sponsor(p, date(2026, 11, 15))
     p.write_text("- pas un mapping\n", encoding="utf-8")
     assert load_sponsor(p, date(2026, 11, 15)) is None
+
+
+def test_sponsor_mention_is_used_in_markdown(conn, settings, llm, ranked):
+    settings.sponsor_file.write_text("name: S\nurl: https://s.fr\ntagline: t\nmention: Avec le soutien de\n", encoding="utf-8")
+    result = Drafter(conn, settings, llm).run(1, date(2026, 11, 3))
+    md = result.paths["md"].read_text(encoding="utf-8")
+    assert "> **Avec le soutien de :** [S](https://s.fr) — t *(contenu sponsorisé)*" in md
+    from newsletter_pipeline.render import preheader_from_markdown
+    assert preheader_from_markdown(md) == "Un assistant, un décret, un chiffre."  # l'encadré sponsor n'est pas l'aperçu
+    md_without = md.replace("> Un assistant, un décret, un chiffre.\n", "")
+    assert preheader_from_markdown(md_without) == ""

@@ -53,6 +53,7 @@ def test_field_types_are_checked(tmp_path):
 
 
 def test_inactive_source_is_skipped_unless_named(conn, settings, workdir):
+    import httpx
     from conftest import write_sources_yaml
     settings.sources_file = write_sources_yaml(workdir / "s.yaml", with_broken=False, extra="""
   - name: En pause
@@ -61,8 +62,15 @@ def test_inactive_source_is_skipped_unless_named(conn, settings, workdir):
     category: presse_pro
     active: false
 """)
-    collector = Collector(conn, settings)
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(503, text="indisponible")
+
+    collector = Collector(conn, settings, client=httpx.Client(transport=httpx.MockTransport(handler)))
     collector.sync_from_yaml()
     assert db.get_source(conn, "En pause")["active"] == 0
-    assert "En pause" not in {s.name for s in collector.run().sources}
-    assert collector.run("En pause").sources[0].name == "En pause"  # explicite : on l'essaie quand même
+    assert "En pause" not in {s.name for s in collector.run().sources} and calls == []
+    report = collector.run("En pause").sources[0]  # nommée explicitement : on l'essaie quand même
+    assert report.name == "En pause" and calls == ["https://ex.fr/feed"] and "503" in report.error

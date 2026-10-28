@@ -86,7 +86,7 @@ def preheader_from_markdown(md_text: str) -> str | None:
             break
         if line.startswith(">"):
             quote = line.lstrip(">").strip()
-            return "" if "Partenaire de ce numéro" in quote else quote
+            return "" if "contenu sponsorisé" in quote else quote
     return ""
 
 

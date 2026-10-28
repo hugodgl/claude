@@ -13,14 +13,14 @@ sources.yaml ──► np collect ──► items (SQLite) ──► np rank ─
 
 | Brique | État |
 |---|---|
-| Collecte RSS/Atom (feedparser) et pages (httpx + trafilatura), dédoublonnage URL canonique + titre normalisé, délai entre requêtes, erreurs isolées par source | fonctionne ; testé sur fixtures locales (aucun flux n'a pu être appelé depuis le sandbox) |
-| Classement LLM par lots, score pondéré, garde-fou injection | fonctionne avec `MockLLM` ; à valider avec `qwen3:14b` sur le Mac mini |
+| Collecte RSS/Atom (feedparser) et pages (httpx + trafilatura), réponses lues en flux et plafonnées (`MAX_PAGE_BYTES`), dédoublonnage URL canonique (utm/xtor/at_… retirés, http/https et www confondus) + titre normalisé, délai entre requêtes, erreurs isolées par source et par article | fonctionne ; testé sur fixtures locales et transport httpx simulé (aucun flux n'a pu être appelé depuis le sandbox) |
+| Classement LLM par lots, score pondéré, garde-fou injection, sorties bornées | fonctionne avec `MockLLM` ; à valider avec `qwen3:14b` sur le Mac mini |
 | Sélection diversifiée (8 items, 2 max par thème, 3 max par source) | fonctionne |
-| Brouillon complet (3 appels LLM courts) + rendu markdown, HTML email, texte | fonctionne ; replis `[À COMPLÉTER]` si le modèle répond mal |
+| Brouillon complet (3 appels LLM courts) + rendu markdown, HTML email, texte ; URL du modèle vérifiées contre les items, chiffre vérifié dans l'item cité, HTML brut échappé | fonctionne ; replis `[À COMPLÉTER]` / `[À VÉRIFIER]` si le modèle répond mal |
 | Push beehiiv API v2 | requête construite et testée sur transport simulé ; **jamais envoyée** (dry-run par défaut) ; champ `body_content` à confirmer sur la doc beehiiv au premier essai réel |
 | Push Kessel | pas d'API publique connue : marche à suivre copier-coller |
 | Posts LinkedIn | fonctionne (LLM), contrôle de longueur avec une relance |
-| `np run-monday` | enchaîne collect → rank → draft, compte rendu en fin de log, code de sortie 1 seulement si le brouillon n'est pas produit |
+| `np run-monday` | enchaîne collect → rank → draft, compte rendu en fin de log, code de sortie 1 seulement si le brouillon n'est pas produit ; relancé le même lundi, ne crée pas un second numéro pour le même mardi |
 
 ## Installation
 
@@ -28,7 +28,7 @@ sources.yaml ──► np collect ──► items (SQLite) ──► np rank ─
 cd apps/newsletter-pipeline
 uv venv .venv && uv pip install -e ../../packages/core -e ".[dev]"
 cp .env.example .env            # puis adapter
-.venv/bin/pytest -q             # 60+ tests, sans réseau
+.venv/bin/pytest -q             # 90+ tests, sans réseau (tout transport httpx réel échoue)
 .venv/bin/np --help
 ```
 
@@ -40,8 +40,8 @@ Tout passe par `.env` (voir `.env.example`, commenté). Les réglages héritent 
 
 - identité : `NEWSLETTER_NAME`, `NEWSLETTER_TAGLINE`, `AUTHOR_NAME`, `AUTHOR_SIGNATURE`, `REPLY_TO_EMAIL`, `ARCHIVE_URL` ;
 - fichiers : `SOURCES_FILE` (défaut `sources.yaml`), `STYLE_FILE` (`style.md`), `CASES_DIR` (`cases/`), `SPONSOR_FILE` (`sponsor.yaml`), `ISSUES_DIR`, `OUT_DIR`, base SQLite dans `DATA_DIR/newsletter.db` ;
-- collecte : `REQUEST_DELAY_S` (1,5 s), `HTTP_TIMEOUT_S`, `USER_AGENT`, `MAX_LINKS_PER_PAGE` (8), `RSS_FETCH_PAGES` (false) ;
-- classement : `RANK_BATCH_SIZE` (5 items par appel), `RANK_MAX_CHARS`, `WEIGHT_PERTINENCE` / `WEIGHT_ACTIONNABLE` / `WEIGHT_NOUVEAUTE` (0,5 / 0,3 / 0,2) ;
+- collecte : `REQUEST_DELAY_S` (1,5 s), `HTTP_TIMEOUT_S`, `USER_AGENT`, `MAX_LINKS_PER_PAGE` (8 articles inconnus téléchargés par passage), `RSS_FETCH_PAGES` (false), `MAX_CONTENT_CHARS` (20 000 caractères stockés par item), `MAX_PAGE_BYTES` (5 000 000 octets par réponse HTTP) ;
+- classement : `RANK_BATCH_SIZE` (5 items par appel), `RANK_MAX_CHARS`, `RANK_DEFAULT_LIMIT` (60 items par passage quand `--limit` est absent), `WEIGHT_PERTINENCE` / `WEIGHT_ACTIONNABLE` / `WEIGHT_NOUVEAUTE` (0,5 / 0,3 / 0,2) ;
 - sélection : `ISSUE_ITEMS` (8), `MAX_PER_THEME` (2), `MAX_PER_SOURCE` (3), `MAX_ITEM_AGE_DAYS` (14, 0 = désactivé) ;
 - push : `BEEHIIV_API_KEY`, `BEEHIIV_PUBLICATION_ID`, `BEEHIIV_BASE_URL`, `BEEHIIV_CONTENT_TAGS`, `KESSEL_PUBLICATION_URL`.
 
@@ -55,13 +55,13 @@ Les chemins relatifs sont résolus depuis `apps/newsletter-pipeline` (le lanceur
 | `np collect [--source NAME] [--dry-run]` | collecte RSS/pages, dédoublonne, stocke les items `new` ; `--dry-run` affiche ce qui serait inséré |
 | `np rank [--limit N]` | note les items `new` non classés par lots de `RANK_BATCH_SIZE` |
 | `np draft --issue N [--date AAAA-MM-JJ] [--case SLUG] [--force]` | sélectionne 8 items, génère `issues/NNN-date.md`, `.html`, `.txt` ; date par défaut : mardi suivant |
-| `np render --issue N` | régénère HTML et texte **depuis le markdown relu** |
+| `np render --issue N` | régénère HTML et texte **depuis le markdown relu** (titre H1 et aperçu compris, la base est alignée) |
 | `np push --issue N --target beehiiv\|kessel\|file [--live]` | dry-run par défaut : écrit `out/push-<cible>-NNN.json` avec la requête exacte |
 | `np linkedin --issue N` | 3 posts LinkedIn dans `out/linkedin-NNN.md` |
 | `np stats` | items par source, taux de sélection, thèmes, numéros produits |
-| `np run-monday [--issue N] [--date …]` | routine du lundi : collect → rank → draft (numéro = dernier + 1) |
+| `np run-monday [--issue N] [--date …] [--limit N]` | routine du lundi : collect → rank → draft (numéro = dernier + 1 ; sans `--issue`, un brouillon déjà produit pour la date est signalé, pas doublé) |
 
-Le **markdown est la source de vérité** : Hugo le corrige, puis `np render` ou `np push` reconstruisent le HTML et le texte. Le HTML est un template email simple (620 px, lisible sur mobile, styles inline + `<style>`), suffisant pour beehiiv qui applique ensuite sa propre mise en forme.
+Le **markdown est la source de vérité** : Hugo le corrige, puis `np render` ou `np push` reconstruisent le HTML et le texte. Le titre (H1) et l'aperçu (première citation `>` sous le titre) du markdown relu font foi : ils sont repris dans le HTML, dans la requête beehiiv (`title`, `preview_text`) et dans la base. Le HTML brut éventuellement présent dans le markdown est échappé, pas interprété : seuls le markdown, les blocs de code et les liens `http(s)`/`mailto` passent dans l'email (pas de `<script>`, `<iframe>`, `onclick`, `javascript:`). Le HTML est un template email simple (620 px, lisible sur mobile, styles inline + `<style>`), suffisant pour beehiiv qui applique ensuite sa propre mise en forme.
 
 ## Routine du lundi
 
@@ -77,7 +77,7 @@ Le **markdown est la source de vérité** : Hugo le corrige, puis `np render` ou
 
 Le compte rendu de `run-monday` est la dernière ligne du log (`logs/newsletter-pipeline-np.log` via `deploy/macmini/run.sh`) :
 `Compte rendu : 37 items collectés (2 source(s) en erreur), 37 items classés, brouillon : issues/004-2026-11-24.md (…)`.
-Code de sortie 1 seulement si aucun brouillon n'a pu être produit (par exemple aucun item classé).
+Code de sortie 1 seulement si aucun brouillon n'a pu être produit (par exemple aucun item classé). Relancé le même lundi sans `--issue`, il ne crée pas de second numéro pour le même mardi : il signale le brouillon existant (code 0) et rappelle `np draft --issue N --force` pour le regénérer.
 
 ### Planification launchd
 
@@ -114,7 +114,7 @@ Ajouter un bloc dans `sources.yaml` :
     verify: true                          # à vérifier au premier passage
 ```
 
-Puis `np collect --source "Nom unique" --dry-run` pour voir ce qui serait inséré. Une source retirée du YAML est désactivée (ses items restent). Pour `kind: page`, sans `include_patterns`, le collecteur suit les liens du même site qui ressemblent à des articles (chemin à deux segments ou slug à tirets), au plus `MAX_LINKS_PER_PAGE` par passage, en ignorant tags, catégories, PDF, pages légales.
+Puis `np collect --source "Nom unique" --dry-run` pour voir ce qui serait inséré. Le fichier est validé au chargement : clé inconnue (faute de frappe), `kind` ou `category` hors liste, `weight` non numérique ou hors ]0 ; 3], `active`/`verify` non booléens, regex invalide dans `include_patterns` arrêtent la commande avec un message qui nomme la source (`include_patterns` accepte une chaîne seule ou une liste). Une source retirée du YAML est désactivée (ses items restent) ; `active: false` la met en pause (`--source` explicite l'essaie quand même). Pour `kind: page`, sans `include_patterns`, le collecteur suit les liens du même site qui ressemblent à des articles (chemin à deux segments ou slug à tirets), télécharge au plus `MAX_LINKS_PER_PAGE` articles **inconnus** par passage (les liens déjà en base ne comptent pas), en ignorant tags, catégories, PDF, pages légales et les réponses qui ne sont pas du HTML ; un article illisible est ignoré sans mettre la source en erreur. Les liens relatifs des flux sont résolus, les dates futures ignorées, et un item sans date est daté de sa collecte pour le filtre d'ancienneté.
 
 **Sources à vérifier** : toutes celles marquées `verify: true` (36 sur 39). Les URL de flux ont été écrites de mémoire ou par convention (WordPress `/feed/`, SPIP `backend`, beehiiv `/feed`, Substack `/feed`) et ne sont pas vérifiées depuis le sandbox. Premier passage réel : `np collect --dry-run`, puis corriger les URL en erreur dans `np stats` (colonne « erreur »).
 
@@ -122,17 +122,23 @@ Puis `np collect --source "Nom unique" --dry-run` pour voir ce qui serait insér
 
 Pour chaque item, le modèle renvoie `pertinence_cabinet`, `nouveaute`, `actionnable` (0-10), `theme` (tenue, revision, social, fiscal, relation_client, recrutement, outils, reglementation, ia_generale), `resume_1_phrase`, `pourquoi_ca_compte`.
 `score = min(10, (0,5 × pertinence + 0,3 × actionnable + 0,2 × nouveauté) × poids de la source)`.
-Les articles sont envoyés par lots de 5 entre balises `<item id="…">` avec la consigne explicite de ne suivre aucune instruction qu'ils contiendraient (les balises sont neutralisées dans le contenu, l'extrait est tronqué à `RANK_MAX_CHARS`). Un lot en échec n'empêche pas les suivants ; les items sans réponse restent à classer au prochain passage.
+Les articles sont envoyés par lots de 5 entre balises `<item id="…">` avec la consigne explicite de ne suivre aucune instruction qu'ils contiendraient (les balises sont neutralisées dans le contenu, l'extrait est tronqué à `RANK_MAX_CHARS` ; dans les attributs titre/source/URL, guillemets et chevrons sont remplacés pour qu'un titre ne puisse pas fermer la balise). Les notes sont ramenées dans [0 ; 10], le thème dans la liste, les deux phrases bornées à 400 caractères. Un lot en échec n'empêche pas les suivants ; les items sans réponse restent à classer au prochain passage.
+
+## Brouillon : garde-fous
+
+- Les URL du numéro viennent de la base (items sélectionnés), jamais du modèle. Si le modèle glisse un lien dans un texte (titre, actualité, chiffre, outil, édito), il n'est gardé que s'il pointe vers un item sélectionné ; sinon le lien markdown est réduit à son libellé, une URL nue devient `[LIEN À VÉRIFIER]`, et `np draft` l'annonce (« N lien(s) … retiré(s) »).
+- Le chiffre doit figurer tel quel dans l'item cité (espaces ignorés) ; sinon sa phrase est préfixée `[À VÉRIFIER]`. Chiffre ou outil sans item identifiable : `[SOURCE À VÉRIFIER]` à la place du lien.
+- Tous les champs du modèle sont bornés en longueur, les titres ramenés sur une ligne ; un type inattendu (liste, objet) vaut vide et déclenche le repli.
 
 ## Push
 
-- **beehiiv** : `POST https://api.beehiiv.com/v2/publications/{BEEHIIV_PUBLICATION_ID}/posts`, en-tête `Authorization: Bearer <clé>`, corps `{title, subtitle, status: "draft", content_tags, body_content: <HTML>, email_settings.preview_text, web_settings}`. Dry-run : la requête exacte (clé masquée) est dans `out/push-beehiiv-NNN.json`. `--live` envoie et écrit la réponse dans `out/push-beehiiv-NNN.response.json`, puis passe le numéro en `pushed`. **Repli** si l'API renvoie 401/402/403/404 (la création de post par API est, à la date d'écriture, réservée aux plans supérieurs de beehiiv, et le nom du champ HTML doit être confirmé sur la doc) : `np push --issue N --target file`, ouvrir `out/push-file-NNN.html` dans le navigateur, tout sélectionner, copier, coller dans l'éditeur beehiiv (les titres, liens et blocs de code sont conservés), ou utiliser le bloc HTML de l'éditeur.
+- **beehiiv** : `POST https://api.beehiiv.com/v2/publications/{BEEHIIV_PUBLICATION_ID}/posts`, en-tête `Authorization: Bearer <clé>`, corps `{title, subtitle, status: "draft", content_tags, body_content: <HTML>, email_settings.preview_text, web_settings}` (titre et aperçu pris dans le markdown relu). Dry-run : la requête exacte (clé masquée) est dans `out/push-beehiiv-NNN.json` ; `--live` sans `BEEHIIV_API_KEY`/`BEEHIIV_PUBLICATION_ID` refuse avant d'écrire quoi que ce soit. `--live` envoie et écrit la réponse dans `out/push-beehiiv-NNN.response.json`, puis passe le numéro en `pushed`. **Repli** si l'API renvoie 401/402/403/404 (la création de post par API est, à la date d'écriture, réservée aux plans supérieurs de beehiiv, et le nom du champ HTML doit être confirmé sur la doc) : `np push --issue N --target file`, ouvrir `out/push-file-NNN.html` dans le navigateur, tout sélectionner, copier, coller dans l'éditeur beehiiv (les titres, liens et blocs de code sont conservés), ou utiliser le bloc HTML de l'éditeur.
 - **kessel** : pas d'API publique de création de brouillon connue ; `out/push-kessel-NNN.json` contient la marche à suivre ; `--live` refuse explicitement.
 - **file** : copie le HTML dans `out/push-file-NNN.html`.
 
 ## Tests
 
-`.venv/bin/pytest -q` : collecte RSS et Atom sur fixtures (`feedparser.parse(chemin)`), source `page` sur transport httpx simulé, dédoublonnage (utm, titres proches), classement avec `MockLLM` (lots, échecs, ids manquants), sélection diversifiée, génération du numéro (sections markdown/HTML, sponsor, replis), push dry-run et live simulé, extraction LinkedIn (contraintes et relance), CLI complète et `run-monday` via `CliRunner`. Aucun appel réseau. Lint : `.venv/bin/ruff check .`.
+`.venv/bin/pytest -q` : collecte RSS et Atom sur fixtures (`feedparser.parse(chemin)`), source `page` sur transport httpx simulé, cas limites de collecte (liens relatifs, dates futures, réponses trop grosses, contenus non HTML, erreurs d'extraction isolées, doublons intra-lot), validation de `sources.yaml`, dédoublonnage (utm/xtor, http/https/www, titres proches), classement avec `MockLLM` (lots, échecs, ids manquants, champs bornés, attributs neutralisés), sélection diversifiée, génération du numéro (sections markdown/HTML, sponsor, replis, URL inventées retirées, chiffre vérifié), HTML brut et liens dangereux neutralisés, push dry-run et live simulé (titre relu), extraction LinkedIn (contraintes et relance), CLI complète et `run-monday` via `CliRunner`. Aucun appel réseau : une fixture `autouse` fait échouer tout transport httpx réel. Lint : `.venv/bin/ruff check .`.
 
 ## Limites connues
 
@@ -141,6 +147,8 @@ Les articles sont envoyés par lots de 5 entre balises `<item id="…">` avec la
 - Pas de collecte LinkedIn ni X (pas d'API accessible sans compte développeur) : ces signaux passent par la relecture humaine.
 - La qualité du brouillon dépend du modèle local ; `qwen3:14b` tient le JSON, `LLM_PROVIDER=anthropic` donne un meilleur premier jet pour l'édito.
 - Les items qui dépassent `MAX_ITEM_AGE_DAYS` sans avoir été utilisés restent `new` en base mais ne sont plus sélectionnés.
+- Le dédoublonnage par titre normalisé est global : deux articles différents de deux sources portant exactement le même titre générique seraient confondus.
+- Un item que le modèle ne note jamais (id absent de sa réponse) est représenté à chaque `np rank` tant qu'il figure parmi les `RANK_DEFAULT_LIMIT` plus récents.
 - La relance aux non-ouvreurs du mercredi est un réglage de la plateforme, pas de cette app.
 
 ## Cadre juridique
@@ -160,3 +168,5 @@ Les articles sont envoyés par lots de 5 entre balises `<item id="…">` avec la
 - Items cités dans le numéro → `used` ; sélectionnés mais non cités → remis `new` ; filtre d'ancienneté à la sélection, pas à la collecte.
 - `run-monday` ne s'arrête pas sur une collecte ou un classement en échec : il produit le brouillon avec ce qu'il y a en base, et n'échoue que si aucun brouillon ne sort.
 - Dépôts `issues/` versionnés (les numéros sont un actif), `out/` et `data/` ignorés par git.
+- HTML brut du markdown échappé à la conversion et liens `javascript:`/`data:` retirés : le numéro n'a besoin que du markdown, et une partie du texte vient du modèle ou de contenus externes.
+- Les URL du numéro ne viennent jamais du modèle ; ce qu'il propose est vérifié contre les items sélectionnés (voir « Brouillon : garde-fous »).

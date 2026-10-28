@@ -135,3 +135,25 @@ def test_rank_default_limit_comes_from_settings(env, mock_llm):
     runner.invoke(cli.app, ["collect"], env=env)
     r = runner.invoke(cli.app, ["rank"], env={**env, "RANK_DEFAULT_LIMIT": "4"})
     assert r.exit_code == 0 and "4 items notés en 1 lot(s)" in r.output
+
+
+def test_run_monday_does_not_duplicate_an_issue_for_the_same_tuesday(env, settings, mock_llm):
+    r = runner.invoke(cli.app, ["run-monday", "--date", "2026-11-03"], env=env)
+    assert r.exit_code == 0 and "n° 001 du 2026-11-03" in r.output
+    r = runner.invoke(cli.app, ["run-monday", "--date", "2026-11-03"], env=env)  # relance le même lundi
+    assert r.exit_code == 0, r.output
+    assert "déjà produit" in r.output and "001-2026-11-03.md" in r.output and "--force" in r.output
+    assert not (settings.issues_dir / "002-2026-11-03.md").exists()
+    r = runner.invoke(cli.app, ["run-monday", "--issue", "2", "--date", "2026-11-03"], env=env)  # explicite : on obéit
+    assert r.exit_code == 0 and "n° 002 du 2026-11-03" in r.output
+
+
+def test_collect_report_shows_skipped_entries(env, workdir, settings):
+    feed = workdir / "feed.xml"
+    feed.write_text('<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'
+                    '<item><title>Sans lien</title></item>'
+                    '<item><title>Ok</title><link>https://site.fr/ok</link></item></channel></rss>', encoding="utf-8")
+    settings.sources_file.write_text(f"sources:\n  - name: Mini\n    url: {feed}\n    kind: rss\n    category: autre\n",
+                                     encoding="utf-8")
+    r = runner.invoke(cli.app, ["collect"], env=env)
+    assert r.exit_code == 0 and "1 nouveaux /   1 vus (0 doublons, 1 ignorés)" in r.output

@@ -44,6 +44,17 @@ sources:
     return path
 
 
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """Aucun appel réseau dans les tests : tout transport httpx réel échoue (les MockTransport passent)."""
+    import httpx
+
+    def refuse(self, request):
+        raise RuntimeError(f"appel réseau interdit dans les tests : {request.method} {request.url}")
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
+
+
 @pytest.fixture
 def workdir(tmp_path: Path) -> Path:
     return tmp_path

@@ -76,9 +76,10 @@ def sanitize(text: str | None, max_chars: int | None = None) -> str:
 
 
 def attr_value(value: Any, max_chars: int = 200) -> str:
-    """Valeur d'attribut d'une balise <item> : sans balise, sur une ligne, sans guillemet double
-    (un titre d'article ne doit pas pouvoir fermer l'attribut et en ouvrir un autre)."""
-    return _truncate(_WS_RE.sub(" ", sanitize(str(value))).replace('"', "'").strip(), max_chars)
+    """Valeur d'attribut d'une balise <item> : sans balise, sur une ligne, sans guillemet double ni
+    chevron (un titre d'article ne doit pas pouvoir fermer l'attribut, ni la balise, et en ouvrir d'autres)."""
+    text = _WS_RE.sub(" ", sanitize(str(value))).replace('"', "'").replace("<", "‹").replace(">", "›")
+    return _truncate(text.strip(), max_chars)
 
 
 def item_block(item_id: int | str, fields: dict[str, Any], body: str | None, max_chars: int) -> str:

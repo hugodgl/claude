@@ -46,6 +46,6 @@ def test_render_email_html_title_and_preheader_follow_markdown():
                                   "newsletter_tagline": "t", "preheader": "ancien", "title": "Ancien titre"})
     assert "<title>Titre relu</title>" in html and "Ancien titre" not in html
     assert preheader_from_markdown(md) == "Aperçu relu"
-    assert preheader_from_markdown("# T\n\n> **Partenaire de ce numéro :** [S](https://s.fr)\n\n## Édito") == ""
+    assert preheader_from_markdown("# T\n\n> **Partenaire :** [S](https://s.fr) — t *(contenu sponsorisé)*\n\n## Édito") == ""
     assert preheader_from_markdown("# T\n\n## Édito\n\n> citation") == ""
     assert preheader_from_markdown("pas de titre") is None
