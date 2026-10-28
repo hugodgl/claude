@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 _BEGIN_RE = re.compile(r"^\s*BEGIN(\s+(DEFERRED|IMMEDIATE|EXCLUSIVE))?(\s+TRANSACTION)?\s*;", re.IGNORECASE)
-_END_RE = re.compile(r";?\s*(COMMIT|END)(\s+TRANSACTION)?\s*;?\s*$", re.IGNORECASE)
+# COMMIT/END final, éventuellement suivi de commentaires de fin de fichier.
+_END_RE = re.compile(r";?\s*(COMMIT|END)(\s+TRANSACTION)?\s*;?(\s*--[^\n]*)*\s*$", re.IGNORECASE)
 
 
 def _strip_transaction_wrapper(sql: str) -> str:
@@ -25,14 +26,23 @@ def _strip_transaction_wrapper(sql: str) -> str:
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
+    """Ouvre (et crée au besoin) la base : dossier parent créé, lignes `sqlite3.Row`, clés étrangères, WAL.
+
+    `:memory:` est accepté. Si la base est en lecture seule, le passage en WAL est impossible : il
+    est ignoré et le mode de journal existant est conservé (la lecture fonctionne).
+    """
     p = Path(path)
-    if str(p) != ":memory:":
+    memory = str(p) == ":memory:"
+    if not memory:
         p.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(p), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    if str(p) != ":memory:":
-        conn.execute("PRAGMA journal_mode = WAL")
+    if not memory:
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+        except sqlite3.OperationalError:
+            pass  # base ou dossier en lecture seule : on garde le journal par défaut
     return conn
 
 
@@ -40,25 +50,32 @@ def migrate(conn: sqlite3.Connection, migrations_dir: str | Path) -> list[str]:
     """Applique les fichiers `*.sql` du dossier, dans l'ordre alphabétique, une seule fois chacun.
 
     Chaque migration est atomique : le script et l'enregistrement dans `schema_migrations` sont
-    exécutés dans une seule transaction, donc un script qui échoue ne laisse aucune table à moitié
-    créée et sera rejoué au prochain appel.
+    exécutés dans une seule transaction (SAVEPOINT), donc un script qui échoue ne laisse aucune table
+    à moitié créée et sera rejoué au prochain appel. Fonctionne avec une connexion du module
+    (`connect`), une connexion brute sans `row_factory`, une transaction déjà ouverte (elle est
+    validée d'abord) ou une connexion `autocommit=False` (Python 3.12+ : chaque migration est validée).
+    Un BEGIN/COMMIT écrit dans le fichier est retiré ; fichiers vides ou réduits à des commentaires
+    sont acceptés. Lève FileNotFoundError si le dossier n'existe pas.
     """
+    directory = Path(migrations_dir)
+    if not directory.is_dir():
+        raise FileNotFoundError(f"dossier de migrations introuvable : {directory}")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
     )
     conn.commit()
-    done = {row["name"] for row in conn.execute("SELECT name FROM schema_migrations")}
+    done = {row[0] for row in conn.execute("SELECT name FROM schema_migrations")}
     applied: list[str] = []
-    for f in sorted(Path(migrations_dir).glob("*.sql")):
+    for f in sorted(directory.glob("*.sql")):
         if f.name in done:
             continue
         sql = _strip_transaction_wrapper(f.read_text(encoding="utf-8"))
         stamp = datetime.now(UTC).isoformat()
         name = f.name.replace("'", "''")
-        # SAVEPOINT plutôt que BEGIN : fonctionne qu'une transaction soit déjà ouverte ou non
-        # (connexions en autocommit=False ou avec une écriture en attente).
+        # SAVEPOINT plutôt que BEGIN : fonctionne qu'une transaction soit déjà ouverte ou non.
+        # Le point-virgule de fin est sur sa propre ligne : un commentaire `--` terminal ne l'avale pas.
         script = (
-            "SAVEPOINT core_migration;\n" + sql + ";\n"
+            "SAVEPOINT core_migration;\n" + sql + "\n;\n"
             f"INSERT INTO schema_migrations (name, applied_at) VALUES ('{name}', '{stamp}');\n"
             "RELEASE SAVEPOINT core_migration;"
         )
@@ -71,5 +88,7 @@ def migrate(conn: sqlite3.Connection, migrations_dir: str | Path) -> list[str]:
             except sqlite3.Error:
                 pass
             raise
+        if conn.in_transaction:  # autocommit=False : RELEASE ne valide rien, il faut un COMMIT explicite
+            conn.commit()
         applied.append(f.name)
     return applied

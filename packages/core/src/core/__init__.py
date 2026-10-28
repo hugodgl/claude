@@ -1,6 +1,6 @@
 """Socle commun : LLM, mail, réglages, SQLite, JSON."""
 from .db import connect, migrate
-from .jsonutil import extract_json
+from .jsonutil import extract_json, strip_think
 from .llm import (
     LLM,
     AnthropicLLM,
@@ -12,7 +12,7 @@ from .llm import (
     complete_json,
     get_llm,
 )
-from .mail import ConsoleMailer, Email, Mailer, ResendMailer, SMTPMailer, get_mailer
+from .mail import ConsoleMailer, Email, Mailer, MailError, ResendMailer, SMTPMailer, get_mailer
 from .settings import Settings, get_settings
 
 __all__ = [
@@ -23,6 +23,7 @@ __all__ = [
     "LLMError",
     "LLMRefusal",
     "LLMResult",
+    "MailError",
     "Mailer",
     "MockLLM",
     "OllamaLLM",
@@ -36,4 +37,5 @@ __all__ = [
     "get_mailer",
     "get_settings",
     "migrate",
+    "strip_think",
 ]

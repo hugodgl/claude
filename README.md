@@ -39,6 +39,7 @@ git clone https://github.com/hugodgl/claude ~/sideproject && cd ~/sideproject
 git checkout claude/upbeat-davinci-lk5k7m
 deploy/macmini/install.sh        # Homebrew requis ; installe uv, ffmpeg, Ollama + qwen3:14b, les venvs, les .env, les services launchd
 make test                        # tout doit être vert
+make smoke                       # test de fumée hors ligne : les 4 apps en mode simulation, ~2 min (scripts/smoke.sh)
 ```
 Puis, app par app, un premier essai à blanc :
 ```bash

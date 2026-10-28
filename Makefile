@@ -3,7 +3,7 @@ UV ?= uv
 SETUP_TARGETS := $(addprefix setup-,$(APPS))
 TEST_TARGETS := $(addprefix test-,$(APPS))
 
-.PHONY: setup test lint test-core run-veille $(SETUP_TARGETS) $(TEST_TARGETS)
+.PHONY: setup test lint test-core run-veille smoke $(SETUP_TARGETS) $(TEST_TARGETS)
 
 setup: $(SETUP_TARGETS)
 
@@ -29,3 +29,6 @@ lint:
 
 run-veille:
 	cd apps/veille-marches && .venv/bin/vm collect --dry-run && .venv/bin/vm digest --dry-run
+
+smoke:
+	@scripts/smoke.sh

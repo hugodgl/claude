@@ -1,9 +1,14 @@
-"""Réglages communs, lus depuis l'environnement et un fichier .env (jamais commité)."""
+"""Réglages communs, lus depuis l'environnement et un fichier .env (jamais commité).
+
+Priorité : surcharges explicites (`get_settings(llm_provider="mock")`) > variables d'environnement >
+fichier `.env` du dossier courant (ignoré s'il n'existe pas) > valeurs par défaut.
+"""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
 
+from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +39,17 @@ class Settings(BaseSettings):
 
     # Données
     data_dir: Path = Path("data")
+
+    @field_validator("llm_provider", "mail_provider", "anthropic_effort", mode="before")
+    @classmethod
+    def _normalize_choice(cls, value: object, info: ValidationInfo) -> object:
+        """Accepte `Ollama` ou ` mock ` et explique une valeur inconnue en nommant la variable et les choix."""
+        if isinstance(value, str):
+            value = value.strip().lower()
+        allowed = get_args(cls.model_fields[info.field_name].annotation)
+        if value not in allowed:
+            raise ValueError(f"{info.field_name.upper()}={value!r} inconnu : valeurs possibles {', '.join(allowed)}")
+        return value
 
 
 def get_settings(**overrides) -> Settings:

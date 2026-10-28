@@ -5,46 +5,44 @@ import json
 import re
 from typing import Any
 
-_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
-_THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
+_FENCE = re.compile(r"```[A-Za-z0-9_+-]*[ \t]*\n?(.*?)```", re.DOTALL)
+# Bloc <think> fermé, ou ouvert jusqu'à la fin (réponse coupée pendant la réflexion).
+_THINK = re.compile(r"<think>.*?(?:</think>|$)", re.DOTALL)
+_START = re.compile(r"[{\[]")
+_TRAILING_COMMA = re.compile(r",\s*([}\]])")
+# NaN / Infinity ne sont pas du JSON : convertis en null plutôt que de propager un float nan.
+_DECODER = json.JSONDecoder(parse_constant=lambda _name: None)
 
 
 def strip_think(text: str) -> str:
-    """Retire les blocs <think>…</think> que certains modèles locaux (Qwen3) insèrent."""
+    """Retire les blocs <think>…</think> que certains modèles locaux (Qwen3) insèrent.
+
+    Un bloc ouvert et jamais refermé (réponse tronquée pendant la réflexion) est retiré jusqu'à la fin :
+    ce qu'il contient n'est pas une réponse.
+    """
     return _THINK.sub("", text).strip()
 
 
 def extract_json(text: str) -> Any:
-    """Retourne le premier objet ou tableau JSON trouvé dans `text`.
+    """Retourne le premier objet (dict) ou tableau (list) JSON trouvé dans `text`.
 
-    Tolère : texte autour, blocs ```json, blocs <think>, virgules finales simples.
-    Lève ValueError si rien d'exploitable.
+    Tolère : texte autour, blocs ``` (avec ou sans langage, essayés en premier), blocs <think>,
+    virgules finales, accolades dans les chaînes, `NaN`/`Infinity` (convertis en None). Les scalaires
+    isolés (`42`, `null`, `"abc"`) ne sont pas des réponses exploitables. Lève ValueError sinon.
     """
-    if text is None:
+    if not text:
         raise ValueError("texte vide")
     cleaned = strip_think(text)
-    candidates = [cleaned]
-    candidates += [m.group(1) for m in _FENCE.finditer(cleaned)]
-    decoder = json.JSONDecoder()
+    candidates = [m.group(1) for m in _FENCE.finditer(cleaned)] + [cleaned]
     for cand in candidates:
         cand = cand.strip()
         if not cand:
             continue
-        try:
-            return json.loads(cand)
-        except json.JSONDecodeError:
-            pass
-        for i, ch in enumerate(cand):
-            if ch in "{[":
+        for variant in (cand, _TRAILING_COMMA.sub(r"\1", cand)):
+            for m in _START.finditer(variant):
                 try:
-                    obj, _ = decoder.raw_decode(cand[i:])
-                    return obj
+                    obj, _ = _DECODER.raw_decode(variant, m.start())
                 except json.JSONDecodeError:
-                    # tentative : retirer les virgules finales
-                    fixed = re.sub(r",\s*([}\]])", r"\1", cand[i:])
-                    try:
-                        obj, _ = decoder.raw_decode(fixed)
-                        return obj
-                    except json.JSONDecodeError:
-                        continue
+                    continue
+                return obj
     raise ValueError("aucun JSON exploitable dans la réponse")
