@@ -79,3 +79,8 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 - Hauts : webhook Stripe hors ordre qui réactivait un résilié, idempotence qui avalait les échecs, email de bienvenue manqué selon l'ordre des événements, secrets facultatifs avec une clé Stripe réelle (désormais refus de démarrage), mode démo qui exposait les données d'un abonné par identifiant devinable.
 - Socle commun : `core.db.migrate` rendu atomique (script + enregistrement dans une seule transaction, test ajouté) suite au point relevé par la revue ; apps re-testées avec le nouveau socle.
 - Bilan QA-1 : 118 défauts corrigés sur les quatre apps (newsletter 26, contenu 23, avis 41, veille 28), chaque correction couverte par un test.
+
+### 28/10 01:27 — socle : migrations atomiques, toutes les suites vertes
+- Le passage aux migrations atomiques a cassé deux fois le SaaS avis (import `UTC` perdu par un correctif de lint, puis une migration de l'app qui s'enveloppe elle-même dans BEGIN/COMMIT). Corrigé : SAVEPOINT au lieu de BEGIN, enveloppe BEGIN/COMMIT du fichier retirée, 2 tests ajoutés au socle. Les commits intermédiaires cassés ont été poussés puis réparés dans la foulée ; leçon notée : plus de commit derrière une commande de test dont le code de sortie est masqué par un tube.
+- `make test` complet : core 17, veille 102, contenu 57, avis 95, newsletter 93 = **364 tests verts**.
+- Service launchd `content.metrics` (23:30) ajouté pour P4-4, en cours.

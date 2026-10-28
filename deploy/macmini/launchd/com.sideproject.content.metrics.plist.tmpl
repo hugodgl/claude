@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.sideproject.content.metrics</string>
+  <key>ProgramArguments</key>
+  <array>
+      <string>/bin/bash</string>
+      <string>__REPO__/deploy/macmini/run.sh</string>
+      <string>content-engine</string>
+      <string>ce</string>
+      <string>metrics</string>
+      <string>--pull</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>23</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StandardOutPath</key><string>__REPO__/logs/launchd-com.sideproject.content.metrics.out</string>
+  <key>StandardErrorPath</key><string>__REPO__/logs/launchd-com.sideproject.content.metrics.err</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:__HOME__/.local/bin</string></dict>
+</dict>
+</plist>

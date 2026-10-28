@@ -18,6 +18,7 @@ Variables : `OLLAMA_MODEL=qwen3:8b deploy/macmini/install.sh` sur un Mac mini 16
 | veille.syncstripe | 08:10 | `vm subscribers sync-stripe` |
 | content.daily | 05:30 | `ce run-daily` (idées, scripts, export de relecture) |
 | content.publish | toutes les 30 min | `ce run-publish` (dry-run tant que pas de clés) |
+| content.metrics | 23:30 | `ce metrics --pull` (vues, clics, rétention des contenus publiés) |
 | avis.poll | toutes les 15 min | `avis poll-reviews` |
 | avis.monthly | le 1er à 08:00 | `avis monthly-report` |
 | newsletter.monday | lundi 05:00 | `np run-monday` (collecte, classement, brouillon) |
