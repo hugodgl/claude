@@ -160,10 +160,10 @@ def demo(email: str = "demo@exemple.fr", name: str = "Boulangerie Dupont",
             for platform, client in (("facebook", services.facebook), ("tripadvisor", services.tripadvisor)):
                 if client.name != "mock":
                     continue  # en live, la liaison demande un jeton ou une clé réels : `avis sources link`
-                candidates = (client.data.get("pages") if platform == "facebook" else client.data.get("locations")) or []
                 key = "id" if platform == "facebook" else "location_id"
-                external_id = str(candidates[0][key]) if candidates else ("103456789012345" if platform == "facebook"
-                                                                           else "1234567")
+                candidates = client.data.get("pages" if platform == "facebook" else "locations") or []
+                fallback = "103456789012345" if platform == "facebook" else "1234567"
+                external_id = str(candidates[0][key]) if candidates else fallback
                 try:
                     link_source(conn, services, est, platform, external_id)
                 except SourceLinkError as e:
@@ -295,7 +295,7 @@ def google_link(establishment_id: int):
 
 @sources_app.command("list")
 def sources_list(establishment: Optional[int] = typer.Option(None, "--establishment", "-e")):
-    """Liste les sources reliées (plateforme, identifiant, statut, dernière synchro). Les jetons ne sont jamais affichés."""
+    """Liste les sources reliées (plateforme, identifiant, statut, dernière synchro) ; jamais les jetons."""
     services = _services()
     with services.db.session() as conn:
         rows = list_sources(conn, establishment)
