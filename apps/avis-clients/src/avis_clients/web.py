@@ -18,6 +18,7 @@ from .routes import billing as billing_routes
 from .routes import inbox as inbox_routes
 from .routes import public as public_routes
 from .routes import requests as requests_routes
+from .routes import sources as sources_routes
 from .routes import webhooks as webhooks_routes
 from .services import Services, build_services
 from .settings import AppSettings
@@ -108,6 +109,7 @@ def create_app(settings: AppSettings | None = None, services: Services | None = 
     app.include_router(app_routes.router)
     app.include_router(requests_routes.router)
     app.include_router(inbox_routes.router)
+    app.include_router(sources_routes.router)
     app.include_router(billing_routes.router)
     app.include_router(webhooks_routes.router)
     return app

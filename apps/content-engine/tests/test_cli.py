@@ -92,3 +92,30 @@ def test_metrics_import_and_doctor(env: Path):
     assert code == 0 and "ajouté" in out
     code, out = run("add-topic", "Une question toute neuve ?", "--product", "avis")
     assert code == 0 and "déjà présent" in out
+
+
+def test_metrics_pull_and_angle_status_via_cli(env: Path):
+    run("init")
+    code, out = run("metrics")
+    assert code == 1 and "préciser --import" in out
+    code, out = run("metrics", "--pull", "--dry-run")
+    assert code == 0 and "Dry-run" in out and "aucune publication réelle" in out
+    assert out.count("publication(s)") == 4
+    code, out = run("metrics", "--pull", "--platform", "mastodon")
+    assert code == 1 and "plateforme inconnue" in out
+    code, out = run("metrics", "--pull", "--platform", "youtube", "--days", "7")
+    assert code == 0 and "youtube : 0 publication(s)" in out and "pinterest" not in out
+    code, out = run("angles", "--pause", "mythe", "-p", "avis")
+    assert code == 0 and "avis/mythe : mis en pause" in out
+    code, out = run("angles", "--explain")
+    assert code == 0 and "en pause (manuel)" in out and "--reactivate mythe -p avis" in out
+    code, out = run("angles", "--reactivate", "mythe", "-p", "avis")
+    assert code == 0 and "réactivé" in out
+    code, out = run("angles", "--pause", "inconnu")
+    assert code == 1 and "angle inconnu" in out
+    code, out = run("angles", "-p", "mastodon")
+    assert code == 1 and "produit inconnu" in out
+    code, out = run("run-daily", "--scripts", "1")
+    assert code == 0 and "ancienneté" in out
+    code, out = run("doctor")
+    assert code == 0 and "dernier relevé API" in out and "exploration 30%" in out

@@ -14,7 +14,8 @@ from core.mail import Email
 from .billing import account_access
 from .db import local_month, log_event, parse_iso
 from .drafts import check_reply, sanitize_reply
-from .models import Establishment, Review
+from .models import PUBLISHED_STATUSES, Establishment, Review
+from .platforms import PLATFORMS
 from .repo import get_account, list_establishments, list_reviews_in_month
 from .templating import render
 
@@ -66,6 +67,8 @@ class MonthlyStats:
     recommendations: list[str] = field(default_factory=list)
     recommendations_source: str = "fallback"
     reviews: list[Review] = field(default_factory=list)
+    # ventilation par plateforme : {"google": {"count": 5, "avg_rating": 3.6, "replied": 2}, "facebook": …}
+    by_platform: dict[str, dict] = field(default_factory=dict)
 
     @property
     def delta_avg(self) -> float | None:
@@ -114,12 +117,20 @@ def compute_monthly_stats(conn: sqlite3.Connection, establishment: Establishment
     stats.top_words = top_words([r.text or "" for r in reviews])
     delays = []
     for r in reviews:
-        if r.reply_status == "published":
+        if r.reply_status in PUBLISHED_STATUSES:
             stats.replied += 1
             created, published = parse_iso(r.created_at), parse_iso(r.reply_published_at)
             if created and published and published >= created:
                 delays.append((published - created).total_seconds() / 3600)
     stats.avg_reply_delay_h = round(sum(delays) / len(delays), 1) if delays else None
+    for platform in PLATFORMS:
+        subset = [r for r in reviews if r.platform == platform]
+        if subset:
+            stats.by_platform[platform] = {
+                "count": len(subset),
+                "avg_rating": _avg([float(r.rating) for r in subset]),
+                "replied": sum(1 for r in subset if r.reply_status in PUBLISHED_STATUSES),
+            }
     return stats
 
 

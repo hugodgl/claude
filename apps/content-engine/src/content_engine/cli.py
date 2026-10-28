@@ -15,12 +15,16 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
+from .angles import angle_scores, explain, set_angle_status, status_label
 from .db import open_db
 from .llm import get_engine_llm
 from .metrics import MIN_CONTENTS_PER_ANGLE, angle_ranking, import_csv, unlinked_count
 from .planning import build_plan, list_schedule, local_now, run_daily, run_publish, save_plan
 from .products import ANGLES, PRODUCTS
 from .publish import PLATFORMS, PublishError, publish_draft
+from .publish.youtube import ANALYTICS_SCOPE, READONLY_SCOPE, token_scopes
+from .pull import PLATFORMS as PULL_PLATFORMS
+from .pull import PullError, last_measurement, pull_metrics
 from .render import RenderError, find_font, render_draft
 from .render.ffmpeg import ffmpeg_version
 from .review import approve as approve_draft
@@ -46,6 +50,7 @@ ERRORS = (
     LLMError,
     RenderError,
     PublishError,
+    PullError,
     TTSError,
     OSError,
     sqlite3.Error,
@@ -376,11 +381,24 @@ def run_daily_cmd(
     s = _settings()
     conn = _db(s)
     rep = run_daily(conn, s, get_engine_llm(s), min_bank=min_bank, scripts_per_day=scripts)
+    angles_info = rep.get("angles", {})
+    for d in angles_info.get("decisions", []):
+        verb = "mis en pause" if d["status"] == "paused" else "réactivé"
+        console.print(f"Angle {d['product']}/{d['angle']} {verb} : {d['reason']}")
+    if angles_info.get("paused"):
+        console.print(
+            "Angles en pause : "
+            + ", ".join(angles_info["paused"])
+            + " (`ce angles --explain`, `ce angles --reactivate`)"
+        )
+    for product, favored in angles_info.get("favored", {}).items():
+        console.print(f"Angles privilégiés pour {product} : {', '.join(favored) or 'aucun'}")
     for product, n in rep["ideas"].items():
         console.print(f"Idées : {n} nouveau(x) sujet(s) pour {product}")
     for item in rep["scripts"]:
         console.print(
-            f"Scripts : sujet #{item['topic_id']} ({item['format']}) → "
+            f"Scripts : sujet #{item['topic_id']} ({item['format']}, angle "
+            f"{item.get('angle', 'libre')}, {item.get('mode', 'ancienneté')}) → "
             + ", ".join("#" + str(i) for i in item["draft_ids"])
         )
     for e in rep["errors"]:
@@ -427,20 +445,88 @@ def run_publish_cmd(
 @app.command()
 @guard
 def metrics(
-    import_file: Path = typer.Option(
-        ..., "--import", exists=True, dir_okay=False, help="Export CSV YouTube Studio ou TikTok."
+    import_file: Path | None = typer.Option(
+        None, "--import", exists=True, dir_okay=False, help="Export CSV YouTube Studio ou TikTok."
+    ),
+    pull: bool = typer.Option(
+        False, "--pull", help="Relève les métriques des publications réelles via les API."
     ),
     platform: str | None = typer.Option(
-        None, "--platform", help="youtube | tiktok (détection auto sinon)"
+        None,
+        "--platform",
+        help="--pull : youtube | pinterest | tiktok | linkedin | all ; --import : youtube | tiktok "
+        "(détection auto sinon)",
     ),
+    days: int = typer.Option(
+        90, "--days", min=1, max=3650, help="--pull : publications des N derniers jours."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="--pull : affiche sans rien écrire."),
 ):
-    """Importe un export CSV de métriques."""
-    conn = _db(_settings())
-    rep = import_csv(conn, import_file, platform)
-    console.print(
-        f"{rep['platform']} : {rep['imported']} ligne(s) importée(s), {rep['linked']} liée(s) "
-        f"à un brouillon, {rep['skipped']} ignorée(s). Colonnes : {rep['columns']}"
+    """Importe un export CSV (--import) ou relève les métriques via les API (--pull)."""
+    if import_file is None and not pull:
+        raise ValueError("préciser --import export.csv ou --pull")
+    s = _settings()
+    conn = _db(s)
+    if import_file is not None:
+        rep = import_csv(conn, import_file, platform)
+        console.print(
+            f"{rep['platform']} : {rep['imported']} ligne(s) importée(s), {rep['linked']} liée(s) "
+            f"à un brouillon, {rep['skipped']} ignorée(s). Colonnes : {rep['columns']}"
+        )
+    if not pull:
+        return
+    wanted = (
+        None
+        if platform in (None, "all")
+        else [p.strip().lower() for p in platform.split(",") if p.strip()]
     )
+    if wanted and any(p not in PULL_PLATFORMS for p in wanted):
+        raise ValueError(
+            f"plateforme inconnue : {platform} (choix : {', '.join(PULL_PLATFORMS)}, all)"
+        )
+    report = pull_metrics(conn, s, platforms=wanted, days=days, dry_run=dry_run)
+    if dry_run:
+        console.print("[yellow]Dry-run[/yellow] : rien n'est écrit en base.")
+    table = Table(title=f"Relevé du {report.measured_at[:16].replace('T', ' ')} UTC")
+    cols = ("Plateforme", "Brouillon", "Identifiant", "Vues", "J'aime", "Comm.", "Partages")
+    cols += ("Impr.", "Clics", "Rétention %")
+    for col in cols:
+        table.add_column(col, justify="left" if col in cols[:3] else "right")
+    for pr in report.platforms.values():
+        for snap in pr.snapshots:
+            table.add_row(
+                pr.platform,
+                f"#{snap.item.draft_id}",
+                snap.item.remote_id[:24],
+                str(snap.views),
+                str(snap.likes),
+                str(snap.comments),
+                str(snap.shares),
+                str(snap.impressions) if snap.impressions is not None else "-",
+                str(snap.clicks) if snap.clicks is not None else "-",
+                f"{snap.avg_view_pct:.0f}" if snap.avg_view_pct is not None else "-",
+            )
+    if table.row_count:
+        console.print(table)
+    for pr in report.platforms.values():
+        head = f"{pr.platform} : {pr.publications} publication(s)"
+        if pr.error:
+            console.print(f"[red]{head} — erreur : {pr.error}[/red]")
+        elif pr.publications and pr.available:
+            done = "affiché(s)" if dry_run else "enregistré(s)"
+            console.print(f"{head}, {len(pr.snapshots)} relevé(s) {done}")
+        else:
+            console.print(f"[dim]{head}[/dim]")
+        for note in pr.notes:
+            console.print(f"  [dim]{note}[/dim]")
+    if report.attempted and not report.succeeded:
+        raise typer.Exit(code=1)  # toutes les plateformes tentées ont échoué : code 1 pour launchd
+
+
+def _target_angle(angle: str) -> str:
+    if angle not in ANGLES and angle != "libre":
+        raise ValueError(f"angle inconnu : {angle} (voir `ce angles --list`)")
+    return angle
 
 
 @app.command()
@@ -448,53 +534,97 @@ def metrics(
 def angles(
     product: str | None = typer.Option(None, "--product", "-p"),
     list_angles: bool = typer.Option(False, "--list", help="Liste les angles disponibles."),
+    explain_scores: bool = typer.Option(
+        False, "--explain", help="Détaille le calcul et la décision pour chaque angle."
+    ),
+    reactivate: str | None = typer.Option(
+        None, "--reactivate", help="Réactive un angle en pause (tous les produits sans -p)."
+    ),
+    pause: str | None = typer.Option(
+        None, "--pause", help="Met un angle en pause à la main (tous les produits sans -p)."
+    ),
 ):
-    """Classe les angles par performance (vues moyennes)."""
+    """Classe les angles par score (vues normalisées par plateforme et par âge, lissées) et
+    montre lesquels sont privilégiés, à explorer ou en pause."""
     if list_angles:
         for slug, desc in ANGLES.items():
             console.print(f"  {slug:<20} {desc}")
         return
-    conn = _db(_settings())
+    s = _settings()
+    if product and product not in PRODUCTS:
+        raise ValueError(f"produit inconnu : {product} (choix : {', '.join(PRODUCTS)})")
+    if reactivate or pause:
+        conn = _db(s)
+        angle = _target_angle(reactivate or pause)
+        status = "active" if reactivate else "paused"
+        reason = "réactivé à la main" if reactivate else "mis en pause à la main"
+        counts = {(a.product, a.angle): a.n for a in angle_scores(conn, product)}
+        for prod in [product] if product else list(PRODUCTS):
+            set_angle_status(
+                conn, prod, angle, status, reason, "manual", n=counts.get((prod, angle), 0)
+            )
+            console.print(f"{prod}/{angle} : {reason}.")
+        return
+    conn = _db(s)
     rows = angle_ranking(conn, product)
+    scores = angle_scores(conn, product, prior_weight=s.angle_prior_weight)
+    raw = {(r["product"], r["angle"]): r for r in rows}
     table = Table(title="Angles par performance")
-    for col in (
-        "Produit",
-        "Angle",
-        "Contenus",
-        "Vues moy.",
-        "Vues total",
-        "CTR moy.",
-        "Vision. moy. %",
-    ):
-        table.add_column(col, justify="right" if col not in ("Produit", "Angle") else "left")
-    for r in rows:
+    for col in ("Produit", "Angle", "Contenus", "Vues moy.", "CTR moy.", "Score", "Statut"):
+        table.add_column(
+            col,
+            justify="right" if col in ("Contenus", "Vues moy.", "CTR moy.", "Score") else "left",
+        )
+    for a in scores:
+        r = raw.get((a.product, a.angle))
         table.add_row(
-            r["product"],
-            r["angle"],
-            str(r["n"]),
-            f"{r['views_avg']:.0f}",
-            str(r["views_total"]),
-            f"{r['ctr_avg']:.1f}" if r["ctr_avg"] is not None else "-",
-            f"{r['view_pct_avg']:.0f}" if r["view_pct_avg"] is not None else "-",
+            a.product,
+            a.angle,
+            str(a.n),
+            f"{a.views_avg:.0f}" if a.n else "-",
+            f"{r['ctr_avg']:.1f}" if r and r["ctr_avg"] is not None else "-",
+            f"×{a.ratio:.2f} ({a.score:+.2f})" if a.n else "-",
+            status_label(a),
         )
     console.print(table)
+    if explain_scores:
+        for a in scores:
+            console.print(f"[bold]{a.product}/{a.angle}[/bold] — {status_label(a)}")
+            for line in explain(
+                a,
+                prior_weight=s.angle_prior_weight,
+                min_contents=s.angle_pause_min_contents,
+                pause_ratio=s.angle_pause_ratio,
+            ):
+                console.print(f"  · {line}")
     if rows:
         # un angle mesuré sur un ou deux contenus ne dit rien : on ne conclut qu'au-delà du seuil
-        reliable = [r for r in rows if r["n"] >= MIN_CONTENTS_PER_ANGLE]
+        reliable = [a for a in scores if a.n >= MIN_CONTENTS_PER_ANGLE]
         if reliable:
             best, worst = reliable[0], reliable[-1]
-            msg = f"À décliner : {best['product']}/{best['angle']}"
+            msg = f"À décliner : {best.product}/{best.angle}"
             if len(reliable) > 1:
-                msg += f" · à revoir : {worst['product']}/{worst['angle']}"
+                msg += f" · à revoir : {worst.product}/{worst.angle}"
             console.print(msg)
         else:
             console.print(
                 f"Trop peu de données : au moins {MIN_CONTENTS_PER_ANGLE} contenus mesurés par "
                 "angle avant de conclure."
             )
+        paused = [f"{a.product}/{a.angle}" for a in scores if a.status == "paused"]
+        if paused:
+            console.print(
+                "En pause : " + ", ".join(paused) + " · `ce angles --reactivate ANGLE -p PRODUIT`"
+            )
+        console.print(
+            f"Sélection dans `ce run-daily` : {1 - s.angle_exploration_rate:.0%} des sujets sur "
+            f"les angles privilégiés, {s.angle_exploration_rate:.0%} en exploration "
+            "(ANGLE_EXPLORATION_RATE)."
+        )
     else:
         console.print(
-            "Pas encore de métriques liées : `ce metrics --import export.csv` après publication."
+            "Pas encore de métriques liées : `ce metrics --pull` (publications réelles) ou "
+            "`ce metrics --import export.csv` après publication."
         )
     n = unlinked_count(conn)
     if n:
@@ -547,6 +677,19 @@ def doctor():
     }
     for name, present in keys.items():
         console.print(f"clé {name} : {ok if present else '[yellow]manquante (dry-run)[/yellow]'}")
+    scopes = token_scopes(s)
+    if scopes:
+        console.print(
+            "YouTube (portées du jeton) : "
+            + (
+                "lecture " + ok
+                if READONLY_SCOPE in scopes
+                else "[yellow]sans youtube.readonly "
+                "(métriques impossibles : refaire le consentement)[/yellow]"
+            )
+            + " · analytics "
+            + (ok if ANALYTICS_SCOPE in scopes else "[yellow]absente (rétention ignorée)[/yellow]")
+        )
     audit = "app auditée" if s.tiktok_app_audited else "app non auditée : SELF_ONLY forcé"
     console.print(f"TikTok : visibilité {s.tiktok_effective_privacy} ({audit})")
     console.print(f"YouTube : visibilité {s.youtube_privacy_status}")
@@ -555,6 +698,13 @@ def doctor():
         f"base : {s.db_path} · sujets new : {count_topics(conn)} · "
         f"brouillons : {len(list_drafts(conn))} · sortie : {s.out_dir} · "
         f"heure locale : {local_now(s).strftime('%H:%M')} ({s.timezone})"
+    )
+    last = last_measurement(conn)
+    console.print(
+        "métriques : dernier relevé API "
+        + (last[:16].replace("T", " ") + " UTC" if last else "[yellow]aucun[/yellow]")
+        + f" · angles : exploration {s.angle_exploration_rate:.0%}, pause après "
+        f"{s.angle_pause_min_contents} contenus sous {s.angle_pause_ratio:.0%} de la médiane"
     )
 
 

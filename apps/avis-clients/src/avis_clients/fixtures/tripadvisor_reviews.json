@@ -1,0 +1,54 @@
+{
+  "locations": [
+    {
+      "location_id": "1234567",
+      "name": "Boulangerie Dupont",
+      "web_url": "https://www.tripadvisor.fr/Restaurant_Review-g187147-d1234567-Reviews-Boulangerie_Dupont-Paris_Ile_de_France.html",
+      "write_review": "https://www.tripadvisor.fr/UserReviewEdit-g187147-d1234567-Boulangerie_Dupont-Paris_Ile_de_France.html"
+    }
+  ],
+  "reviews": [
+    {
+      "id": 990001, "lang": "fr", "location_id": 1234567, "published_date": "2026-10-06T14:20:11Z", "rating": 5,
+      "helpful_votes": 2, "url": "https://www.tripadvisor.fr/ShowUserReviews-g187147-d1234567-r990001-Boulangerie_Dupont-Paris_Ile_de_France.html",
+      "title": "Une adresse à garder", "text": "Croissants feuilletés comme il faut, pain au levain superbe. L'équipe prend le temps de conseiller.",
+      "trip_type": "Couples", "travel_date": "2026-10",
+      "user": {"username": "Camille_L", "user_location": {"id": "187265", "name": "Lyon, France"}},
+      "subratings": {}
+    },
+    {
+      "id": 990002, "lang": "fr", "location_id": 1234567, "published_date": "2026-10-10T09:05:40Z", "rating": 4,
+      "helpful_votes": 0, "url": "https://www.tripadvisor.fr/ShowUserReviews-g187147-d1234567-r990002-Boulangerie_Dupont-Paris_Ile_de_France.html",
+      "title": "Très bon, un peu cher", "text": "Les pâtisseries sont excellentes, les prix grimpent vite. Le millefeuille vaut le détour.",
+      "trip_type": "Family", "travel_date": "2026-10",
+      "user": {"username": "Voyageur75", "user_location": {"id": "187147", "name": "Paris, France"}},
+      "subratings": {},
+      "owner_response": {"id": 55001, "lang": "fr", "text": "Merci pour votre visite ! Nos matières premières sont locales, ce qui explique nos prix. À bientôt.", "title": "Réponse du propriétaire", "author": "Boulangerie Dupont", "published_date": "2026-10-11T10:00:00Z"}
+    },
+    {
+      "id": 990003, "lang": "fr", "location_id": 1234567, "published_date": "2026-10-14T19:48:02Z", "rating": 2,
+      "helpful_votes": 1, "url": "https://www.tripadvisor.fr/ShowUserReviews-g187147-d1234567-r990003-Boulangerie_Dupont-Paris_Ile_de_France.html",
+      "title": "Déçu", "text": "Sandwich du midi fade et pain rassis à 17 h. Dommage, la boutique est jolie.",
+      "trip_type": "Business", "travel_date": "2026-10",
+      "user": {"username": "MarcD_Business", "user_location": {"id": "187175", "name": "Bordeaux, France"}},
+      "subratings": {}
+    },
+    {
+      "id": 990004, "lang": "en", "location_id": 1234567, "published_date": "2026-10-19T11:11:11Z", "rating": 5,
+      "helpful_votes": 3, "url": "https://www.tripadvisor.fr/ShowUserReviews-g187147-d1234567-r990004-Boulangerie_Dupont-Paris_Ile_de_France.html",
+      "title": "Best bakery near our hotel", "text": "Fresh baguettes every morning and a lovely owner who speaks a little English. Loved the apple tart.",
+      "trip_type": "Couples", "travel_date": "2026-10",
+      "user": {"username": "Emma_from_Leeds", "user_location": {"id": "186411", "name": "Leeds, United Kingdom"}},
+      "subratings": {}
+    },
+    {
+      "id": 990005, "lang": "fr", "location_id": 1234567, "published_date": "2026-10-23T08:30:00Z", "rating": 3,
+      "helpful_votes": 0, "url": "https://www.tripadvisor.fr/ShowUserReviews-g187147-d1234567-r990005-Boulangerie_Dupont-Paris_Ile_de_France.html",
+      "title": "Correct", "text": "Rien à redire sur le pain, mais l'attente est longue aux heures de pointe.",
+      "trip_type": "Solo", "travel_date": "2026-10",
+      "user": {"username": "Anne-Sophie_R", "user_location": {"id": "187147", "name": "Paris, France"}},
+      "subratings": {}
+    }
+  ],
+  "locations_reviews": {}
+}

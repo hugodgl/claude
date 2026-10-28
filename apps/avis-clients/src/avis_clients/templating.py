@@ -7,6 +7,8 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .db import local_tz, parse_iso
+from .platforms import PLATFORM_LABELS, platform_label
+from .tripadvisor import management_url
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
@@ -47,6 +49,9 @@ def build_env() -> Environment:
     env.filters["stars"] = stars
     env.filters["date"] = fmt_date
     env.filters["datetime"] = fmt_datetime
+    env.filters["platform"] = platform_label
+    env.filters["tripadvisor_url"] = management_url
+    env.globals["platform_labels"] = PLATFORM_LABELS
     return env
 
 

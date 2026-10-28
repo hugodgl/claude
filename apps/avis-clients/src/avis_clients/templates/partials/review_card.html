@@ -4,26 +4,45 @@
     <div>
       <span class="stars">{{ review.rating|stars }}</span>
       <strong>{{ review.author or 'Anonyme' }}</strong>
-      <span class="muted small">· {{ establishment.name }} · {{ review.created_at|date }} · Google</span>
+      <span class="tag platform {{ review.platform }}">{{ review.platform|platform }}</span>
+      <span class="muted small">· {{ establishment.name }} · {{ review.created_at|date }}</span>
     </div>
-    <span class="tag {{ review.reply_status }}">{{ {'none': 'sans brouillon', 'draft': 'à valider', 'approved': 'approuvée, publication en attente', 'published': 'publiée', 'skipped': 'ignoré'}[review.reply_status] }}</span>
+    <span class="tag {{ review.reply_status }}">{{ {'none': 'sans brouillon', 'draft': 'à valider', 'approved': 'approuvée, publication en attente', 'published': 'publiée', 'published_manually': 'publiée par vous', 'skipped': 'ignoré'}[review.reply_status] }}</span>
   </header>
+  {% if review.rating_note %}<p class="muted small rating-note">{{ review.rating_note }}</p>{% endif %}
   <blockquote class="review-text">{{ review.text or '(avis sans texte)' }}</blockquote>
-  {% if review.reply_status == 'published' %}
-    <div class="reply published"><strong>Votre réponse</strong> <span class="muted small">{{ review.reply_published_at|datetime }}</span><p>{{ review.reply_text }}</p></div>
+  {% if review.is_published %}
+    <div class="reply published"><strong>Votre réponse</strong> <span class="muted small">{{ review.reply_published_at|datetime }}{% if review.reply_status == 'published_manually' %} · publiée par vous sur {{ review.platform|platform }}{% endif %}</span><p>{{ review.reply_text }}</p></div>
   {% elif review.reply_status in ('draft', 'approved', 'none') %}
+    {% if review.platform == 'tripadvisor' %}
+    <form class="stack" hx-post="/app/reviews/{{ review.id }}/published-manually" hx-target="#review-{{ review.id }}" hx-swap="outerHTML" method="post" action="/app/reviews/{{ review.id }}/published-manually">
+      {% if review.draft_needs_care %}<div class="flash warn small">Brouillon générique ou nettoyé automatiquement (modèle indisponible ou réponse non conforme) : à personnaliser avant publication.</div>{% endif %}
+      <label>Brouillon de réponse <span class="muted small">(60 mots max conseillés)</span>
+        <textarea name="text" rows="4" id="draft-{{ review.id }}">{{ review.reply_draft or '' }}</textarea>
+      </label>
+      <p class="muted small">Tripadvisor ne permet pas de publier une réponse par API : copiez le texte, collez-le dans votre espace propriétaire Tripadvisor (page de l'avis → Répondre), puis confirmez ici.</p>
+      <div class="actions">
+        <button type="button" class="btn primary small" data-copy="draft-{{ review.id }}" data-open="{{ review.external_name|tripadvisor_url }}">Copier la réponse et ouvrir Tripadvisor</button>
+        <button class="btn small" hx-post="/app/reviews/{{ review.id }}/published-manually" hx-include="closest form" formaction="/app/reviews/{{ review.id }}/published-manually">J'ai publié la réponse sur Tripadvisor</button>
+        <button class="btn small" hx-post="/app/reviews/{{ review.id }}/draft" hx-include="closest form" formaction="/app/reviews/{{ review.id }}/draft">Enregistrer la modification</button>
+        <button class="btn small" hx-post="/app/reviews/{{ review.id }}/regenerate" formaction="/app/reviews/{{ review.id }}/regenerate">Régénérer</button>
+        <button class="btn small danger" hx-post="/app/reviews/{{ review.id }}/skip" formaction="/app/reviews/{{ review.id }}/skip">Ignorer</button>
+      </div>
+    </form>
+    {% else %}
     <form class="stack" hx-post="/app/reviews/{{ review.id }}/publish" hx-target="#review-{{ review.id }}" hx-swap="outerHTML" method="post" action="/app/reviews/{{ review.id }}/publish">
       {% if review.draft_needs_care %}<div class="flash warn small">Brouillon générique ou nettoyé automatiquement (modèle indisponible ou réponse non conforme) : à personnaliser avant publication.</div>{% endif %}
       <label>Brouillon de réponse <span class="muted small">(60 mots max conseillés)</span>
         <textarea name="text" rows="4">{{ review.reply_draft or '' }}</textarea>
       </label>
       <div class="actions">
-        <button class="btn primary small">Publier</button>
+        <button class="btn primary small">Publier{% if review.platform == 'facebook' %} en commentaire{% endif %}</button>
         <button class="btn small" hx-post="/app/reviews/{{ review.id }}/draft" hx-include="closest form" formaction="/app/reviews/{{ review.id }}/draft">Enregistrer la modification</button>
         <button class="btn small" hx-post="/app/reviews/{{ review.id }}/regenerate" formaction="/app/reviews/{{ review.id }}/regenerate">Régénérer</button>
         <button class="btn small danger" hx-post="/app/reviews/{{ review.id }}/skip" formaction="/app/reviews/{{ review.id }}/skip">Ignorer</button>
       </div>
     </form>
+    {% endif %}
   {% elif review.reply_status == 'skipped' %}
     <form method="post" action="/app/reviews/{{ review.id }}/reopen" hx-post="/app/reviews/{{ review.id }}/reopen" hx-target="#review-{{ review.id }}" hx-swap="outerHTML">
       <button class="btn small">Remettre dans la file</button>

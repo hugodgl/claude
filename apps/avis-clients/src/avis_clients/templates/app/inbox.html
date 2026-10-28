@@ -1,19 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Boîte de réception · {{ app_name }}{% endblock %}
 {% block content %}
+{% set qs_platform = ('&platform=' ~ platform) if platform != 'all' else '' %}
 <div class="row">
   <h1>Boîte de réception</h1>
   <form method="post" action="/app/inbox/sync" class="inline"><button class="btn small">Synchroniser maintenant</button></form>
 </div>
 <nav class="tabs">
   {% for code, label in filters.items() %}
-    <a href="/app/inbox?status={{ code }}{% if selected_establishment %}&establishment={{ selected_establishment }}{% endif %}" {% if status == code %}class="active"{% endif %}>{{ label }}</a>
+    <a href="/app/inbox?status={{ code }}{{ qs_platform }}{% if selected_establishment %}&establishment={{ selected_establishment }}{% endif %}" {% if status == code %}class="active"{% endif %}>{{ label }}</a>
   {% endfor %}
   {% if establishments|length > 1 %}
     <span class="spacer"></span>
-    {% for e in establishments %}<a href="/app/inbox?status={{ status }}&establishment={{ e.id }}" {% if selected_establishment == e.id %}class="active"{% endif %}>{{ e.name }}</a>{% endfor %}
+    {% for e in establishments %}<a href="/app/inbox?status={{ status }}{{ qs_platform }}&establishment={{ e.id }}" {% if selected_establishment == e.id %}class="active"{% endif %}>{{ e.name }}</a>{% endfor %}
   {% endif %}
 </nav>
+{% if linked_platforms|length > 1 %}
+<nav class="tabs platforms" aria-label="Plateforme">
+  {% for code, label in platform_filters.items() if code == 'all' or code in linked_platforms %}
+    <a href="/app/inbox?status={{ status }}{% if code != 'all' %}&platform={{ code }}{% endif %}{% if selected_establishment %}&establishment={{ selected_establishment }}{% endif %}" {% if platform == code %}class="active"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
 {% if not establishments %}
   <div class="card"><p>Ajoutez d'abord un établissement.</p><a class="btn primary" href="/app/establishments/new">Ajouter</a></div>
 {% elif not reviews %}

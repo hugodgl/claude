@@ -6,6 +6,21 @@
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous" defer></script>
+  <script>
+    // Flux « réponse à copier » (Tripadvisor) : copie le brouillon puis ouvre la page de l'avis dans un nouvel onglet.
+    document.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('[data-copy]');
+      if (!btn) return;
+      ev.preventDefault();
+      var area = document.getElementById(btn.getAttribute('data-copy'));
+      var text = area ? area.value : '';
+      var done = function () { btn.textContent = 'Réponse copiée : collez-la sur Tripadvisor'; };
+      if (navigator.clipboard && text) { navigator.clipboard.writeText(text).then(done, done); }
+      else if (area) { area.select(); try { document.execCommand('copy'); } catch (e) {} done(); }
+      var url = btn.getAttribute('data-open');
+      if (url) { window.open(url, '_blank', 'noopener'); }
+    });
+  </script>
 </head>
 <body>
 <header class="topbar">

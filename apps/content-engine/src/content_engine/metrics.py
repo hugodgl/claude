@@ -1,4 +1,10 @@
-"""Métriques : import des exports CSV (YouTube Studio, TikTok Studio), classement des angles."""
+"""Métriques : import des exports CSV (YouTube Studio, TikTok Studio), classement des angles.
+
+La table `metrics` est un historique : chaque ligne est un relevé daté (`measured_at`) d'un contenu
+sur une plateforme, venant d'un CSV (`source = 'csv'`) ou des API (`source = 'api'`, voir
+`pull/`). Les classements ne regardent que le dernier relevé de chaque contenu
+(`LATEST_METRIC_SQL`).
+"""
 
 from __future__ import annotations
 
@@ -6,6 +12,7 @@ import csv
 import io
 import re
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .db import utc_now_iso
@@ -16,6 +23,14 @@ from .topics import normalize_question
 PLATFORMS = ("youtube", "tiktok", "pinterest", "linkedin")
 DELIMITERS = (",", ";", "\t")
 MIN_CONTENTS_PER_ANGLE = 3  # en dessous, le classement des angles n'est pas interprétable
+
+# Dernier relevé d'un contenu (plateforme + brouillon), toutes sources confondues ; à utiliser
+# avec l'alias `m` sur la table metrics.
+LATEST_METRIC_SQL = (
+    "m.id = (SELECT m2.id FROM metrics m2 WHERE m2.platform = m.platform "
+    "AND m2.draft_id = m.draft_id "
+    "ORDER BY COALESCE(m2.measured_at, m2.imported_at) DESC, m2.id DESC LIMIT 1)"
+)
 
 ALIASES: dict[str, list[str]] = {
     "remote_id": ["contenu", "content", "video id", "id de la video", "video_id", "id", "post id"],
@@ -213,8 +228,27 @@ def _num(row: dict, mapping: dict[str, str], field: str) -> float | None:
     return parse_number(row.get(col)) if col else None
 
 
+def parse_datetime(value: str | None) -> datetime | None:
+    """Date ISO (avec ou sans heure, « Z » accepté) ou préfixe AAAA-MM-JJ ; naïve = UTC."""
+    if not value:
+        return None
+    text = str(value).strip()
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        m = re.match(r"(\d{4})-(\d{2})-(\d{2})", text)
+        if not m:
+            return None
+        try:
+            dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
+
+
 def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None = None) -> dict:
-    """Importe un export CSV ; remplace les lignes déjà importées pour le même contenu."""
+    """Importe un export CSV ; remplace les lignes déjà importées (CSV) pour le même contenu, sans
+    toucher aux relevés API (`ce metrics --pull`), qui forment un historique daté."""
     path = Path(path)
     headers, rows = read_csv(path)
     mapping = map_columns(headers)
@@ -244,22 +278,25 @@ def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None 
 
         draft_id = link_draft(conn, platform, remote_id, title, titles)
         linked += draft_id is not None
+        now = utc_now_iso()
         with conn:
             if remote_id:
                 conn.execute(
-                    "DELETE FROM metrics WHERE platform = ? AND remote_id = ?",
+                    "DELETE FROM metrics WHERE platform = ? AND remote_id = ? AND source = 'csv'",
                     (platform, remote_id),
                 )
             elif title:
                 conn.execute(
-                    "DELETE FROM metrics WHERE platform = ? AND remote_id IS NULL AND title = ?",
+                    "DELETE FROM metrics WHERE platform = ? AND remote_id IS NULL AND title = ? "
+                    "AND source = 'csv'",
                     (platform, title),
                 )
             conn.execute(
                 "INSERT INTO metrics (platform, remote_id, title, draft_id, views, likes, "
                 "comments, "
                 "shares, impressions, ctr, avg_view_pct, watch_time_h, published_at, imported_at, "
-                "source_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "source_file, measured_at, source) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'csv')",
                 (
                     platform,
                     remote_id,
@@ -276,8 +313,9 @@ def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None 
                     _num(r, mapping, "avg_view_pct"),
                     _num(r, mapping, "watch_time_h"),
                     (r.get(mapping.get("published_at", ""), "") or "").strip() or None,
-                    utc_now_iso(),
+                    now,
                     path.name,
+                    now,
                 ),
             )
         imported += 1
@@ -291,16 +329,18 @@ def import_csv(conn: sqlite3.Connection, path: str | Path, platform: str | None 
 
 
 def angle_ranking(conn: sqlite3.Connection, product: str | None = None) -> list[dict]:
-    """Angles classés par vues moyennes (contenus liés à un brouillon uniquement)."""
+    """Angles classés par vues moyennes brutes (dernier relevé de chaque contenu lié à un
+    brouillon). Le score normalisé et lissé est dans `angles.angle_scores`."""
     sql = (
         "SELECT t.product, COALESCE(t.angle, 'libre') AS angle, COUNT(*) AS n, "
         "SUM(m.views) AS views_total, AVG(m.views) AS views_avg, AVG(m.ctr) AS ctr_avg, "
         "AVG(m.avg_view_pct) AS view_pct_avg, AVG(m.likes) AS likes_avg "
         "FROM metrics m JOIN drafts d ON d.id = m.draft_id JOIN topics t ON t.id = d.topic_id "
+        f"WHERE {LATEST_METRIC_SQL} "
     )
     params: list = []
     if product:
-        sql += "WHERE t.product = ? "
+        sql += "AND t.product = ? "
         params.append(product)
     sql += "GROUP BY t.product, angle ORDER BY views_avg DESC"
     return [dict(r) for r in conn.execute(sql, params)]

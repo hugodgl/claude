@@ -15,6 +15,17 @@
     {% endfor %}
     </tbody>
   </table>
+  {% if stats.by_platform %}
+  <h3>Par plateforme</h3>
+  <table class="table compact">
+    <thead><tr><th>Plateforme</th><th>Avis</th><th>Note moyenne</th><th>Avec réponse</th></tr></thead>
+    <tbody>
+    {% for platform, ps in stats.by_platform.items() %}
+      <tr><td><span class="tag platform {{ platform }}">{{ platform|platform }}</span></td><td>{{ ps.count }}</td><td>{{ ps.avg_rating if ps.avg_rating is not none else '–' }}</td><td>{{ ps.replied }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
   <h3>Mots qui reviennent</h3>
   <p>{% for word, n in stats.top_words %}<span class="tag">{{ word }} ({{ n }})</span> {% else %}<span class="muted">Pas assez de texte ce mois-ci.</span>{% endfor %}</p>
   <h3>Trois recommandations</h3>

@@ -74,8 +74,13 @@ def clean_question(question: str, limit: int = 300) -> str:
     return q if len(q) <= limit else q[: limit - 1].rstrip() + "…"
 
 
-def ideas_prompt(product: Product, count: int, existing: list[str]) -> str:
-    angles = "\n".join(f"  - {slug} : {desc}" for slug, desc in ANGLES.items())
+def ideas_prompt(
+    product: Product, count: int, existing: list[str], angles: list[str] | None = None
+) -> str:
+    """`angles` : sous-ensemble d'angles à proposer (défaut : tous ; les angles en pause sont
+    écartés par `run-daily`)."""
+    allowed = [a for a in (angles if angles is not None else ANGLES) if a in ANGLES] or list(ANGLES)
+    angles_text = "\n".join(f"  - {slug} : {ANGLES[slug]}" for slug in allowed)
     listed = "\n".join(f"- {clean_question(q, 160)}" for q in existing[:80]) or "- (aucune)"
     return (
         f"Produit : {product.slug} — {product.label}.\n"
@@ -84,7 +89,7 @@ def ideas_prompt(product: Product, count: int, existing: list[str]) -> str:
         "recherche, pose dans un groupe professionnel ou à un confrère. Questions concrètes, "
         "formulées avec leurs mots, une seule idée par question, 60 à 120 caractères. "
         "Aucune question déjà présente ou quasi identique à la liste ci-dessous.\n\n"
-        f"Angles possibles (un par question, varie-les) :\n{angles}\n\n"
+        f"Angles possibles (un par question, varie-les) :\n{angles_text}\n\n"
         f"Questions déjà en banque :\n{listed}\n\n"
         'Réponds avec exactement : {"questions": [{"question": str, "angle": str}, ...]}'
     )

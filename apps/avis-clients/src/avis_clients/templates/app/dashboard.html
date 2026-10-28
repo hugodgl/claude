@@ -13,7 +13,7 @@
   <div class="stats">
     <div class="stat"><span class="num">{{ pending }}</span><span>réponse(s) à valider</span>
       {% if pending %}<a href="/app/inbox">Ouvrir la boîte de réception</a>{% endif %}</div>
-    <div class="stat"><span class="num">{{ counts.get('published', 0) }}</span><span>réponse(s) publiée(s)</span></div>
+    <div class="stat"><span class="num">{{ published }}</span><span>réponse(s) publiée(s)</span></div>
     <div class="stat"><span class="num">{{ quota.used }} / {{ quota.quota }}</span><span>demandes SMS ce mois-ci</span>
       <a href="/app/requests">Envoyer une demande</a></div>
   </div>
@@ -25,7 +25,8 @@
       <div>
         <h3><a href="/app/establishments/{{ e.id }}">{{ e.name }}</a></h3>
         <p class="muted small">Page publique : <a href="{{ public_links[e.id] }}" target="_blank" rel="noopener">{{ public_links[e.id] }}</a>
-          · ton {{ e.tone.style }}{% if e.auto_publish %} · auto-publication 4-5 ★ activée{% endif %}</p>
+          · ton {{ e.tone.style }}{% if e.auto_publish %} · auto-publication 4-5 ★ activée{% endif %}
+          · plateformes : {% for p in platforms_by_est.get(e.id, []) %}<span class="tag platform {{ p }}">{{ p|platform }}</span> {% else %}<span class="tag">aucune source reliée</span>{% endfor %}</p>
       </div>
       <div class="actions">
         <a class="btn small" href="/app/establishments/{{ e.id }}/print" target="_blank">Affiche à imprimer</a>

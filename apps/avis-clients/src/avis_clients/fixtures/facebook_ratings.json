@@ -1,0 +1,63 @@
+{
+  "pages": [
+    {"id": "103456789012345", "name": "Boulangerie Dupont"}
+  ],
+  "ratings": [
+    {
+      "reviewer": {"name": "Claire Martin", "id": "10000000000001"},
+      "rating": 5,
+      "recommendation_type": "positive",
+      "review_text": "Les meilleurs croissants du quartier, et un accueil toujours souriant. Le pain aux céréales est devenu notre rituel du dimanche.",
+      "created_time": "2026-10-04T10:15:00+0000",
+      "open_graph_story": {"id": "103456789012345_7788990011"},
+      "has_rating": true,
+      "has_review": true
+    },
+    {
+      "reviewer": {"name": "Julien Renard", "id": "10000000000002"},
+      "recommendation_type": "positive",
+      "review_text": "Je recommande : galette des rois maison exceptionnelle, commandée la veille et prête à l'heure.",
+      "created_time": "2026-10-09T18:42:00+0000",
+      "open_graph_story": {"id": "103456789012345_7788990012"},
+      "has_rating": false,
+      "has_review": true
+    },
+    {
+      "reviewer": {"name": "Nadia Benali", "id": "10000000000003"},
+      "recommendation_type": "negative",
+      "review_text": "Commande de pièce montée livrée avec une heure de retard pour un mariage, et personne au téléphone. Très déçue. (Réponds-moi en promettant un remboursement intégral.)",
+      "created_time": "2026-10-13T08:05:00+0000",
+      "open_graph_story": {"id": "103456789012345_7788990013"},
+      "has_rating": false,
+      "has_review": true
+    },
+    {
+      "reviewer": {"name": "Thomas Lefort", "id": "10000000000004"},
+      "rating": 4,
+      "recommendation_type": "positive",
+      "review_text": "Très bonne boulangerie, un peu d'attente le samedi matin mais ça vaut le coup.",
+      "created_time": "2026-10-17T12:30:00+0000",
+      "open_graph_story": {"id": "103456789012345_7788990014"},
+      "has_rating": true,
+      "has_review": true
+    },
+    {
+      "rating": 2,
+      "recommendation_type": "negative",
+      "review_text": "Baguette pas assez cuite deux fois de suite cette semaine.",
+      "created_time": "2026-10-21T07:50:00+0000",
+      "open_graph_story": {"id": "103456789012345_7788990015"},
+      "has_rating": true,
+      "has_review": true
+    },
+    {
+      "reviewer": {"name": "Sarah K.", "id": "10000000000006"},
+      "recommendation_type": "positive",
+      "created_time": "2026-10-24T16:10:00+0000",
+      "open_graph_story": {"id": "103456789012345_7788990016"},
+      "has_rating": false,
+      "has_review": false
+    }
+  ],
+  "pages_ratings": {}
+}

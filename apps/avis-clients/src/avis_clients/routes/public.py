@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 
 from ..db import log_event
 from ..deps import get_db, get_services, not_found, render_template
-from ..repo import get_account, get_establishment_by_slug, insert_private_message
+from ..repo import get_account, get_establishment_by_slug, insert_private_message, list_sources
+from ..sources import secondary_review_links
 from ..templating import render
 
 router = APIRouter()
@@ -62,7 +63,9 @@ def public_review_page(request: Request, slug: str):
     if not est:
         raise not_found("Cette page d'avis n'existe pas.")
     log_event(conn, "public_page_view", account_id=est.account_id, establishment_id=est.id)
-    return render_template(request, "public/review_page.html", establishment=est)
+    # Google d'abord, toujours ; les autres plateformes reliées viennent ensuite, sans filtrage par note
+    return render_template(request, "public/review_page.html", establishment=est,
+                           secondary_links=secondary_review_links(list_sources(conn, est.id)))
 
 
 @router.post("/r/{slug}/message")

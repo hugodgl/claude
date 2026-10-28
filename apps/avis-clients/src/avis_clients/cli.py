@@ -10,6 +10,7 @@ from .billing import ACTIVE_STATUSES, VALID_PLANS
 from .db import log_event
 from .gbp import LiveGBPClient
 from .models import Account
+from .platforms import PLATFORMS, platform_label
 from .repo import (
     add_optout,
     create_establishment,
@@ -21,6 +22,7 @@ from .repo import (
     list_establishments,
     list_events,
     list_optouts,
+    list_sources,
     review_url_for_place,
     slugify,
     update_account,
@@ -31,15 +33,19 @@ from .reviews import poll_reviews
 from .services import build_services
 from .settings import get_settings
 from .sms import DEFAULT_REQUEST_TEMPLATE, normalize_phone
+from .sources import LINKABLE_PLATFORMS, SourceLinkError, link_source, unlink_source
 from .tone import default_profile, generate_examples
 
 app = typer.Typer(help="Avis Clients : jobs et administration.", no_args_is_help=True)
 accounts_app = typer.Typer(help="Comptes commerçants.", no_args_is_help=True)
 google_app = typer.Typer(help="Accès Google Business Profile (mode live).", no_args_is_help=True)
 optouts_app = typer.Typer(help="Liste STOP (opposition aux SMS).", no_args_is_help=True)
+sources_app = typer.Typer(help="Sources d'avis par plateforme (Facebook, Tripadvisor ; Google via `google link`).",
+                          no_args_is_help=True)
 app.add_typer(accounts_app, name="accounts")
 app.add_typer(google_app, name="google")
 app.add_typer(optouts_app, name="optouts")
+app.add_typer(sources_app, name="sources")
 
 
 def _services():
@@ -55,6 +61,14 @@ def _require_account(conn, email: str) -> Account:
         typer.echo(f"Compte introuvable : {email}", err=True)
         raise typer.Exit(code=1)
     return account
+
+
+def _require_establishment(conn, establishment_id: int):
+    est = get_establishment(conn, establishment_id)
+    if not est:
+        typer.echo("Établissement introuvable", err=True)
+        raise typer.Exit(code=1)
+    return est
 
 
 @app.command("init-db")
@@ -76,11 +90,18 @@ def serve(host: str = "127.0.0.1", port: int = 8000, reload: bool = False):
 def poll_reviews_cmd(
     establishment: Optional[list[int]] = typer.Option(None, "--establishment", "-e",
                                                       help="Limiter à ces identifiants d'établissement."),
+    platform: str = typer.Option("all", "--platform", "-p",
+                                 help="google | facebook | tripadvisor | all (défaut : toutes les sources reliées)."),
+    force: bool = typer.Option(False, "--force", help="Ignorer l'intervalle minimal entre deux lectures Tripadvisor."),
 ):
-    """Récupère les nouveaux avis, crée les brouillons, alerte sur les avis négatifs (toutes les 15 min)."""
+    """Récupère les nouveaux avis de toutes les sources reliées, crée les brouillons, alerte sur les avis négatifs."""
+    if platform != "all" and platform not in PLATFORMS:
+        typer.echo(f"Plateforme inconnue : {platform} (attendu : {', '.join(PLATFORMS)} ou all)", err=True)
+        raise typer.Exit(code=2)
     services = _services()
     with services.db.session() as conn:
-        summary = poll_reviews(conn, services, establishment_ids=establishment or None)
+        summary = poll_reviews(conn, services, establishment_ids=establishment or None,
+                               platforms=None if platform == "all" else [platform], force=force)
     typer.echo(json.dumps(summary.as_dict(), ensure_ascii=False, indent=2))
 
 
@@ -110,8 +131,11 @@ def monthly_report_cmd(
 
 
 @app.command("demo")
-def demo(email: str = "demo@exemple.fr", name: str = "Boulangerie Dupont"):
-    """Crée un compte et un établissement de démonstration, puis lance un poll (mode mock)."""
+def demo(email: str = "demo@exemple.fr", name: str = "Boulangerie Dupont",
+         google_only: bool = typer.Option(False, "--google-only",
+                                          help="Ne pas relier les Pages Facebook et Tripadvisor de démonstration.")):
+    """Crée un compte et un établissement de démonstration (Google + Facebook + Tripadvisor en mode mock),
+    puis lance un poll."""
     services = _services()
     settings = services.settings
     with services.db.session() as conn:
@@ -126,10 +150,25 @@ def demo(email: str = "demo@exemple.fr", name: str = "Boulangerie Dupont"):
                                        google_place_id="ChIJmockboulangeriedupont001",
                                        review_url=review_url_for_place("ChIJmockboulangeriedupont001"),
                                        tone_profile=profile, request_template=DEFAULT_REQUEST_TEMPLATE)
-            location = services.gbp.list_locations()
-            update_establishment(conn, est.id, google_location_name=location[0]["name"] if location
-                                 else f"accounts/mock/locations/{est.slug}")
-        summary = poll_reviews(conn, services, establishment_ids=[est.id])
+            locations = services.gbp.list_locations()
+            fixture = locations[0]["name"] if locations else None
+            # une fiche ne peut être reliée qu'à un seul établissement : au-delà du premier, fiche fictive par slug
+            if not fixture or get_establishment_by_location(conn, fixture):
+                fixture = f"accounts/mock/locations/{est.slug}"
+            update_establishment(conn, est.id, google_location_name=fixture)
+        if not google_only:
+            for platform, client in (("facebook", services.facebook), ("tripadvisor", services.tripadvisor)):
+                if client.name != "mock":
+                    continue  # en live, la liaison demande un jeton ou une clé réels : `avis sources link`
+                candidates = (client.data.get("pages") if platform == "facebook" else client.data.get("locations")) or []
+                key = "id" if platform == "facebook" else "location_id"
+                external_id = str(candidates[0][key]) if candidates else ("103456789012345" if platform == "facebook"
+                                                                           else "1234567")
+                try:
+                    link_source(conn, services, est, platform, external_id)
+                except SourceLinkError as e:
+                    typer.echo(f"{platform_label(platform)} non relié : {e}")
+        summary = poll_reviews(conn, services, establishment_ids=[est.id], force=True)
     typer.echo(f"Compte {email} · établissement #{est.id} « {name} » · page /r/{est.slug}")
     typer.echo(f"Poll : {json.dumps(summary.as_dict(), ensure_ascii=False)}")
     typer.echo("Connectez-vous avec cet email : le lien magique s'affiche dans la console (MAIL_PROVIDER=console).")
@@ -137,12 +176,13 @@ def demo(email: str = "demo@exemple.fr", name: str = "Boulangerie Dupont"):
 
 @app.command("establishments")
 def establishments_cmd():
-    """Liste les établissements."""
+    """Liste les établissements et leurs sources reliées."""
     services = _services()
     with services.db.session() as conn:
         for e in list_establishments(conn):
+            platforms = ", ".join(platform_label(s.platform) for s in list_sources(conn, e.id)) or "-"
             typer.echo(f"#{e.id} {e.name} · compte {e.account_id} · /r/{e.slug} · fiche {e.google_location_name or '-'}"
-                       f" · auto-publication {'oui' if e.auto_publish else 'non'}")
+                       f" · sources {platforms} · auto-publication {'oui' if e.auto_publish else 'non'}")
 
 
 @app.command("events")
@@ -237,10 +277,7 @@ def google_link(establishment_id: int):
     """Relie un établissement à sa fiche Google en faisant correspondre le Place ID."""
     services = _services()
     with services.db.session() as conn:
-        est = get_establishment(conn, establishment_id)
-        if not est:
-            typer.echo("Établissement introuvable", err=True)
-            raise typer.Exit(code=1)
+        est = _require_establishment(conn, establishment_id)
         match = next((loc for loc in services.gbp.list_locations()
                       if loc.get("placeId") and loc.get("placeId") == est.google_place_id), None)
         if not match:
@@ -254,6 +291,64 @@ def google_link(establishment_id: int):
             raise typer.Exit(code=1)
         update_establishment(conn, est.id, google_location_name=match["name"])
     typer.echo(f"#{est.id} {est.name} relié à {match['name']} ({match.get('title')})")
+
+
+@sources_app.command("list")
+def sources_list(establishment: Optional[int] = typer.Option(None, "--establishment", "-e")):
+    """Liste les sources reliées (plateforme, identifiant, statut, dernière synchro). Les jetons ne sont jamais affichés."""
+    services = _services()
+    with services.db.session() as conn:
+        rows = list_sources(conn, establishment)
+        for s in rows:
+            typer.echo(f"#{s.id} établissement {s.establishment_id} · {platform_label(s.platform)} · {s.external_id}"
+                       f" · {s.display_name or '-'} · statut {s.status} · synchro {s.last_synced_at or 'jamais'}"
+                       f" · jeton {'chiffré' if s.has_credentials else '-'}"
+                       + (f" · erreur : {s.last_error}" if s.last_error else ""))
+        if not rows:
+            typer.echo("Aucune source.")
+
+
+@sources_app.command("link")
+def sources_link(
+    establishment_id: int,
+    platform: str = typer.Argument(..., help="facebook | tripadvisor"),
+    external_id: str = typer.Argument(..., help="Identifiant de Page Facebook ou de fiche Tripadvisor (numérique)."),
+    token: Optional[str] = typer.Option(None, "--token", help="Jeton de Page Facebook longue durée (reste dans "
+                                                              "l'historique du shell : préférer --token-file)."),
+    token_file: Optional[Path] = typer.Option(None, "--token-file", help="Fichier contenant le jeton de Page."),
+):
+    """Relie (ou remplace) la source d'une plateforme ; vérifie l'identifiant auprès de la plateforme,
+    refuse un identifiant déjà relié à un autre établissement, chiffre le jeton (TOKENS_KEY)."""
+    if platform not in LINKABLE_PLATFORMS:
+        typer.echo(f"Plateforme inconnue : {platform} (attendu : {', '.join(LINKABLE_PLATFORMS)})", err=True)
+        raise typer.Exit(code=2)
+    credentials = token
+    if token_file:
+        credentials = token_file.read_text(encoding="utf-8").strip()
+    services = _services()
+    with services.db.session() as conn:
+        est = _require_establishment(conn, establishment_id)
+        try:
+            source = link_source(conn, services, est, platform, external_id, credentials)
+        except SourceLinkError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(code=1) from None
+    typer.echo(f"#{est.id} {est.name} relié à {platform_label(platform)} {source.external_id}"
+               f" ({source.display_name or 'sans nom'}) · mode {services.platforms[platform].name}")
+
+
+@sources_app.command("unlink")
+def sources_unlink(establishment_id: int, platform: str = typer.Argument(..., help="facebook | tripadvisor")):
+    """Retire la source d'une plateforme (les avis déjà importés sont conservés)."""
+    services = _services()
+    with services.db.session() as conn:
+        est = _require_establishment(conn, establishment_id)
+        try:
+            removed = unlink_source(conn, est, platform)
+        except SourceLinkError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(code=2) from None
+    typer.echo(f"#{est.id} {est.name} : {platform_label(platform)} {'délié' if removed else 'non relié'}")
 
 
 @optouts_app.command("add")

@@ -1,0 +1,22 @@
+{
+  "locations": [
+    {"location_id": "7654321", "name": "Boulangerie Test (Tripadvisor)",
+     "web_url": "https://www.tripadvisor.fr/Restaurant_Review-g187147-d7654321-Reviews-Boulangerie_Test-Paris.html",
+     "write_review": "https://www.tripadvisor.fr/UserReviewEdit-g187147-d7654321-Boulangerie_Test-Paris.html"}
+  ],
+  "reviews": [
+    {"id": 1, "lang": "fr", "location_id": 7654321, "published_date": "2026-10-06T14:00:00Z", "rating": 5,
+     "url": "https://www.tripadvisor.fr/ShowUserReviews-g187147-d7654321-r1-Boulangerie_Test-Paris.html",
+     "title": "Une adresse à garder", "text": "Pain au levain superbe.",
+     "user": {"username": "Camille_L"},
+     "owner_response": {"id": 11, "lang": "fr", "text": "Merci Camille !", "author": "Boulangerie Test",
+                        "published_date": "2026-10-07T09:00:00Z"}},
+    {"id": 2, "lang": "fr", "location_id": 7654321, "published_date": "2026-10-14T19:00:00Z", "rating": 2,
+     "url": "https://www.tripadvisor.fr/ShowUserReviews-g187147-d7654321-r2-Boulangerie_Test-Paris.html",
+     "title": "Déçu", "text": "Sandwich fade et pain rassis.", "user": {"username": "MarcD"}},
+    {"id": 3, "lang": "en", "location_id": 7654321, "published_date": "2026-10-19T11:00:00Z", "rating": 4,
+     "url": "https://evil.example/phishing", "title": "Nice", "text": "Lovely bakery.",
+     "user": {"username": "Emma"}}
+  ],
+  "locations_reviews": {}
+}

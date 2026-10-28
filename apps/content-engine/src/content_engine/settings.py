@@ -53,6 +53,9 @@ class Settings(CoreSettings):
     youtube_token_file: Path = Path("data/youtube-token.json")
     youtube_privacy_status: Literal["private", "unlisted", "public"] = "private"
     youtube_category_id: str = "27"
+    # Demander aussi la portée yt-analytics.readonly au consentement OAuth (rétention, partages
+    # via YouTube Analytics) ; sans elle, `ce metrics --pull` se limite à videos.list.
+    youtube_analytics: bool = True
 
     # Pinterest
     pinterest_access_token: str | None = None
@@ -74,6 +77,27 @@ class Settings(CoreSettings):
     # SELF_ONLY quoi que dise TIKTOK_PRIVACY_LEVEL (voir `tiktok_effective_privacy`).
     tiktok_app_audited: bool = False
     tiktok_api_base: str = "https://open.tiktokapis.com"
+
+    # Sélection des angles (P4-4) : part d'exploration dans `ce run-daily`, lissage bayésien
+    # (pseudo-observations), pause automatique d'un angle nettement sous la médiane.
+    angle_exploration_rate: float = 0.3
+    angle_prior_weight: float = 5.0
+    angle_pause_min_contents: int = 6
+    angle_pause_ratio: float = 0.5  # en pause si ses vues lissées < 50 % de l'angle médian
+
+    @field_validator("angle_exploration_rate", "angle_pause_ratio")
+    @classmethod
+    def _unit_interval(cls, v: float) -> float:
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("valeur attendue entre 0 et 1")
+        return v
+
+    @field_validator("angle_prior_weight")
+    @classmethod
+    def _non_negative(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("valeur positive attendue")
+        return v
 
     @field_validator("ai_disclosure", mode="before")
     @classmethod

@@ -15,6 +15,15 @@
   <tr><td style="color:#f5a623;">{{ star|stars }}</td><td>{{ stats.distribution.get(star, 0) }}</td></tr>
   {% endfor %}
 </table>
+{% if stats.by_platform %}
+<h2 style="font-size:16px;margin:20px 0 8px;">Par plateforme</h2>
+<table role="presentation" cellpadding="4" style="font-size:14px;border-collapse:collapse;">
+  <tr style="color:#777;"><td>Plateforme</td><td>Avis</td><td>Note moyenne</td><td>Avec réponse</td></tr>
+  {% for platform, ps in stats.by_platform.items() %}
+  <tr><td><strong>{{ platform|platform }}</strong></td><td>{{ ps.count }}</td><td>{{ ps.avg_rating if ps.avg_rating is not none else '–' }}</td><td>{{ ps.replied }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
 <h2 style="font-size:16px;margin:20px 0 8px;">Mots qui reviennent</h2>
 <p>{% for word, n in stats.top_words %}<span style="display:inline-block;background:#eee;border-radius:12px;padding:2px 10px;margin:2px;font-size:13px;">{{ word }} ({{ n }})</span>{% else %}<span style="color:#777;">Pas assez de texte ce mois-ci.</span>{% endfor %}</p>
 <h2 style="font-size:16px;margin:20px 0 8px;">Trois recommandations pour le mois prochain</h2>

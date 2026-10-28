@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from ..billing import account_access, max_establishments
 from ..db import log_event
 from ..deps import get_db, get_services, not_found, redirect, render_template, require_account
-from ..gbp import GBPError
+from ..platforms import PlatformError
 from ..qr import qr_png, qr_svg
 from ..repo import (
     count_reviews_by_status,
@@ -23,6 +23,8 @@ from ..repo import (
     list_private_messages,
     list_review_requests,
     list_reviews,
+    list_sources,
+    list_sources_for_establishments,
     review_url_for_place,
     update_establishment,
 )
@@ -66,7 +68,7 @@ def _location_error(conn, services, est, location_name: str, place_id: str | Non
     if services.settings.gbp_mode == "live":
         try:
             locations = services.gbp.list_locations()
-        except GBPError as e:
+        except PlatformError as e:
             return f"Impossible de vérifier la fiche auprès de Google pour le moment ({e})."
         match = next((loc for loc in locations if loc.get("name") == location_name), None)
         if not match or not place_id or match.get("placeId") != place_id:
@@ -83,9 +85,14 @@ def dashboard(request: Request):
     establishments = list_establishments(conn, account.id)
     ids = [e.id for e in establishments]
     counts = count_reviews_by_status(conn, ids)
+    platforms_by_est: dict[int, list[str]] = {e.id: [] for e in establishments}
+    for source in list_sources_for_establishments(conn, ids):
+        platforms_by_est.setdefault(source.establishment_id, []).append(source.platform)
     return render_template(
         request, "app/dashboard.html", establishments=establishments, counts=counts,
         pending=counts.get("draft", 0),
+        published=counts.get("published", 0) + counts.get("published_manually", 0),
+        platforms_by_est=platforms_by_est,
         events=list_events(conn, account.id, limit=10, exclude_kinds=DASHBOARD_HIDDEN_EVENTS),
         quota=quota_status(conn, account, services.settings),
         max_establishments=max_establishments(account_access(account, services.settings)),
@@ -210,6 +217,7 @@ def establishment_detail(request: Request, establishment_id: int):
         requests=list_review_requests(conn, [est.id], limit=5),
         messages=list_private_messages(conn, est.id),
         report_month=default_report_month(),
+        sources={s.platform: s for s in list_sources(conn, est.id)},
     )
 
 

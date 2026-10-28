@@ -9,14 +9,15 @@ from zoneinfo import ZoneInfo
 
 from core.llm import LLM
 
+from .angles import angle_scores, paused_angles, strong_angles, update_angle_status
 from .db import utc_now_iso
-from .products import PRODUCTS, product_rotation
+from .products import ANGLES, PRODUCTS, product_rotation
 from .publish import PLATFORM_FORMATS, PublishError, publish_draft
 from .render import RenderError, render_draft
 from .review import export_review
 from .scripts import FORMATS, generate_scripts, list_drafts
 from .settings import Settings
-from .topics import count_topics, generate_ideas, pick_topics
+from .topics import count_topics, generate_ideas, select_topics
 from .tts.base import TTSError
 
 # clé → (plateforme, format, heures locales, jours de semaine autorisés ou None = tous)
@@ -274,25 +275,63 @@ def run_daily(
     scripts_per_day: int = 5,
     ideas_batch: int = 10,
 ) -> dict:
-    """Routine du matin : idées si la banque est basse → scripts pour 5 sujets → relecture."""
+    """Routine du matin : scores des angles (pause des angles qui ne marchent pas) → idées si la
+    banque est basse → scripts pour 5 sujets choisis en privilégiant les angles qui marchent
+    (part d'exploration `ANGLE_EXPLORATION_RATE`) → relecture. Sans métriques, le choix des
+    sujets est inchangé (les plus anciens, produits alternés)."""
     today = today or date.today()
-    report: dict = {"ideas": {}, "scripts": [], "errors": []}
+    report: dict = {"ideas": {}, "scripts": [], "errors": [], "angles": {}}
+    scores = angle_scores(conn, prior_weight=settings.angle_prior_weight)
+    decisions = update_angle_status(
+        conn,
+        scores,
+        min_contents=settings.angle_pause_min_contents,
+        pause_ratio=settings.angle_pause_ratio,
+    )
+    paused = paused_angles(conn)
+    strong = strong_angles(scores)
+    report["angles"] = {
+        "decisions": decisions,
+        "paused": sorted(f"{p}/{a}" for p, a in paused),
+        "favored": {p: sorted(a) for p, a in strong.items()},
+        "exploration_rate": settings.angle_exploration_rate,
+    }
     for product in PRODUCTS:
         n = count_topics(conn, product, "new")
         if n < min_bank:
             try:
                 inserted = generate_ideas(
-                    conn, llm, product, min(ideas_batch, max(5, min_bank - n))
+                    conn,
+                    llm,
+                    product,
+                    min(ideas_batch, max(5, min_bank - n)),
+                    angles=[a for a in ANGLES if (product, a) not in paused],
                 )
                 report["ideas"][product] = len(inserted)
             except Exception as e:  # le LLM local peut échouer : on continue la routine
                 report["errors"].append(f"idées {product} : {e}")
-    topics = pick_topics(conn, scripts_per_day)
+    selection = select_topics(
+        conn,
+        scripts_per_day,
+        strong=strong,
+        paused=paused,
+        exploration_rate=settings.angle_exploration_rate,
+    )
+    topics = [t for t, _ in selection]
+    modes = {t["id"]: mode for t, mode in selection}
     formats = choose_formats(format_deficits(conn, today), len(topics))
     for topic, fmt in pair_topics_with_formats(topics, formats):
         try:
             ids = generate_scripts(conn, llm, topic["id"], fmt)
-            report["scripts"].append({"topic_id": topic["id"], "format": fmt, "draft_ids": ids})
+            report["scripts"].append(
+                {
+                    "topic_id": topic["id"],
+                    "format": fmt,
+                    "draft_ids": ids,
+                    "angle": topic["angle"] or "libre",
+                    "mode": modes[topic["id"]],
+                }
+            )
         except Exception as e:
             report["errors"].append(f"script sujet #{topic['id']} ({fmt}) : {e}")
     report["review_file"] = str(export_review(conn, settings.out_dir, today))

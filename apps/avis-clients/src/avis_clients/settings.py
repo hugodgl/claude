@@ -65,6 +65,20 @@ class AppSettings(Settings):
     google_oauth_client_secrets_file: Path | None = None
     google_token_file: Path | None = None  # défaut : <data_dir>/google_token.json
 
+    # Facebook (Graph API, jeton de Page par source, chiffré avec TOKENS_KEY)
+    facebook_mode: Literal["mock", "live"] = "mock"
+    facebook_fixtures_file: Path | None = None  # défaut : fixtures livrées avec le paquet
+    facebook_graph_version: str = "v21.0"
+
+    # Tripadvisor (Content API : lecture des 5 derniers avis, clé globale, pas de réponse par API)
+    tripadvisor_mode: Literal["mock", "live"] = "mock"
+    tripadvisor_fixtures_file: Path | None = None
+    tripadvisor_api_key: str | None = None
+    tripadvisor_poll_interval_min: int = 360  # quota mensuel limité : au plus un appel par fiche toutes les 6 h
+
+    # Chiffrement des jetons de plateforme stockés en base (clé Fernet, distincte de SESSION_SECRET)
+    tokens_key: str | None = None
+
     # Réponses aux avis
     reply_max_words: int = 60
     alert_max_rating: int = 2  # alerte email immédiate pour les avis ≤ 2 étoiles
@@ -91,6 +105,21 @@ class AppSettings(Settings):
                 "SESSION_SECRET manquant ou trop faible pour une URL https : générez-le avec "
                 "python -c \"import secrets;print(secrets.token_hex(32))\" et placez-le dans .env"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _require_platform_credentials_in_live(self) -> AppSettings:
+        """Les modes `live` exigent leurs secrets au démarrage plutôt qu'au premier poll, deux heures plus tard."""
+        from .crypto import MISSING_KEY_MESSAGE, is_valid_fernet_key
+
+        if self.tokens_key and not is_valid_fernet_key(self.tokens_key):
+            raise ValueError("TOKENS_KEY invalide : attendu une clé Fernet (44 caractères base64 url-safe).")
+        if self.facebook_mode == "live" and not self.tokens_key:
+            raise ValueError(f"FACEBOOK_MODE=live exige le chiffrement des jetons de Page. {MISSING_KEY_MESSAGE}")
+        if self.tripadvisor_mode == "live" and not (self.tripadvisor_api_key or "").strip():
+            raise ValueError("TRIPADVISOR_MODE=live exige TRIPADVISOR_API_KEY (clé Content API).")
+        if self.tripadvisor_poll_interval_min < 0:
+            raise ValueError("TRIPADVISOR_POLL_INTERVAL_MIN doit être positif ou nul.")
         return self
 
     def stripe_price_for(self, plan: str) -> str | None:

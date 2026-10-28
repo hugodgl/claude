@@ -14,6 +14,12 @@
   <p>Votre avis compte pour nous et aide d'autres clients à nous découvrir. Il ne prend que 30 secondes.</p>
   <a class="btn primary xl" href="{{ establishment.review_url }}" rel="noopener">Laisser un avis Google</a>
   <p class="muted small">Vous serez redirigé vers Google. Tous les avis sont les bienvenus, quelle que soit votre note.</p>
+  {% if secondary_links %}
+  <p class="muted small">Vous préférez une autre plateforme ?</p>
+  <p class="actions center secondary-links">
+    {% for link in secondary_links %}<a class="btn small secondary" href="{{ link.url }}" rel="noopener">{{ link.label }}</a>{% endfor %}
+  </p>
+  {% endif %}
 
   <details class="private">
     <summary>Nous écrire en privé (facultatif)</summary>

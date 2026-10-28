@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 import httpx
@@ -23,12 +24,36 @@ from .base import (
 
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 THUMB_URL = "https://www.googleapis.com/upload/youtube/v3/thumbnails/set"
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
+READONLY_SCOPE = "https://www.googleapis.com/auth/youtube.readonly"  # videos.list (vidéos privées)
+ANALYTICS_SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly"  # reports.query
+# portées demandées au consentement (+ ANALYTICS_SCOPE si YOUTUBE_ANALYTICS, voir consent_scopes)
+SCOPES = [UPLOAD_SCOPE, READONLY_SCOPE]
 TAGS_MAX_CHARS = 400
 
 
-def get_access_token(settings: Settings) -> str:
-    """Jeton OAuth : lit data/youtube-token.json, le rafraîchit, ou lance le consentement local."""
+def consent_scopes(settings: Settings) -> list[str]:
+    """Portées demandées lors du consentement OAuth (une seule fois, dans un terminal)."""
+    return SCOPES + ([ANALYTICS_SCOPE] if settings.youtube_analytics else [])
+
+
+def token_scopes(settings: Settings) -> set[str]:
+    """Portées enregistrées dans le jeton (vide sans jeton ou jeton illisible) ; lecture JSON
+    simple, sans dépendre de google-auth."""
+    path = Path(settings.youtube_token_file)
+    if not path.exists():
+        return set()
+    try:
+        info = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return set(info.get("scopes") or []) if isinstance(info, dict) else set()
+
+
+def get_access_token(settings: Settings, needed: Iterable[str] = (UPLOAD_SCOPE,)) -> str:
+    """Jeton OAuth : lit data/youtube-token.json, le rafraîchit, ou lance le consentement local.
+    `needed` : portées exigées pour l'opération (upload pour publier, readonly pour relever les
+    métriques) ; un jeton enregistré sans elles demande un nouveau consentement."""
     try:
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
@@ -42,9 +67,18 @@ def get_access_token(settings: Settings) -> str:
     creds = None
     if token_file.exists():
         try:
-            creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
-        except ValueError as e:
+            info = json.loads(token_file.read_text(encoding="utf-8"))
+            recorded = list(info.get("scopes") or consent_scopes(settings))
+            creds = Credentials.from_authorized_user_info(info, recorded)
+        except (ValueError, AttributeError) as e:
             raise PublishError(f"jeton YouTube illisible ({token_file}) : {e}") from e
+        missing = sorted(set(needed) - set(recorded))
+        if missing:
+            raise PublishError(
+                f"le jeton YouTube ({token_file}) n'a pas la portée {', '.join(missing)} : "
+                "supprimer ce fichier et relancer `ce publish --draft-id N --platform youtube "
+                "--live` dans un terminal pour un nouveau consentement"
+            )
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
@@ -65,7 +99,7 @@ def get_access_token(settings: Settings) -> str:
                 "`ce publish --draft-id N --platform youtube --live` dans un terminal "
                 f"(le jeton est ensuite conservé dans {token_file})"
             )
-        flow = InstalledAppFlow.from_client_secrets_file(str(secrets), SCOPES)
+        flow = InstalledAppFlow.from_client_secrets_file(str(secrets), consent_scopes(settings))
         creds = flow.run_local_server(port=0, open_browser=True)
     token_file.parent.mkdir(parents=True, exist_ok=True)
     token_file.write_text(creds.to_json(), encoding="utf-8")
@@ -128,7 +162,8 @@ class YouTubePublisher:
                 },
                 json=body,
                 notes=[
-                    f"Portée OAuth : {' '.join(SCOPES)}",
+                    f"Portées OAuth demandées au consentement : "
+                    f"{' '.join(consent_scopes(ctx.settings))}",
                     "status.containsSyntheticMedia = vrai quand la voix ou l'image sont "
                     "synthétiques (étiquetage obligatoire)",
                     "status.selfDeclaredMadeForKids = faux (contenu professionnel)",

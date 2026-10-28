@@ -1,4 +1,5 @@
-"""Client Google Business Profile : interface `ReviewsClient`, mock sur fixtures, implémentation réelle.
+"""Client Google Business Profile : interface `ReviewsClient`, mock sur fixtures, implémentation réelle,
+et adaptateur `GoogleAdapter` qui expose ce client sous le protocole commun `PlatformClient` (voir platforms.py).
 
 API réelle (approbation Google requise) :
 - liste des avis : GET https://mybusiness.googleapis.com/v4/{accounts/*/locations/*}/reviews
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .db import now_iso
+from .models import ReviewSource
+from .platforms import PlatformError, RemoteReview
 from .settings import AppSettings
 
 log = logging.getLogger(__name__)
@@ -26,21 +29,13 @@ INFO_V1 = "https://mybusinessbusinessinformation.googleapis.com/v1"
 PACKAGE_FIXTURE = Path(__file__).parent / "fixtures" / "gbp_reviews.json"
 
 
-class GBPError(RuntimeError):
+class GBPError(PlatformError):
     pass
 
 
 @dataclass
-class GBPReview:
-    name: str  # accounts/{a}/locations/{l}/reviews/{r}
-    review_id: str
-    author: str
-    rating: int
-    text: str
-    create_time: str
-    update_time: str | None = None
-    reply_text: str | None = None
-    reply_time: str | None = None
+class GBPReview(RemoteReview):
+    """Avis Google ; `name` = accounts/{a}/locations/{l}/reviews/{r} (ressource utilisée pour répondre)."""
 
     @classmethod
     def from_api(cls, data: dict[str, Any], location_name: str | None = None) -> GBPReview:
@@ -211,6 +206,36 @@ class LiveGBPClient:
                     "placeId": (loc.get("metadata") or {}).get("placeId"),
                 })
         return out
+
+
+class GoogleAdapter:
+    """Expose un `ReviewsClient` Google (mock ou live) sous le protocole commun des plateformes.
+    Le jeton est celui de l'opérateur (fichier), jamais stocké par source : `credentials` est ignoré."""
+
+    platform = "google"
+    can_reply = True
+
+    def __init__(self, gbp: ReviewsClient):
+        self.gbp = gbp
+
+    @property
+    def name(self) -> str:
+        return getattr(self.gbp, "name", "?")
+
+    def fetch_reviews(self, source: ReviewSource, credentials: str | None = None) -> list[RemoteReview]:
+        return list(self.gbp.list_reviews(source.external_id))
+
+    def publish_reply(self, source: ReviewSource, credentials: str | None, review_name: str,
+                      text: str) -> dict[str, Any]:
+        if not review_name:
+            raise GBPError("avis sans identifiant de ressource Google : réponse impossible")
+        return self.gbp.reply(review_name, text)
+
+    def verify_source(self, external_id: str, credentials: str | None = None) -> dict[str, Any]:
+        match = next((loc for loc in self.gbp.list_locations() if loc.get("name") == external_id), None)
+        if not match:
+            raise GBPError("fiche Google inaccessible au compte opérateur")
+        return {"id": external_id, "name": match.get("title"), "placeId": match.get("placeId")}
 
 
 def build_gbp_client(settings: AppSettings) -> ReviewsClient:

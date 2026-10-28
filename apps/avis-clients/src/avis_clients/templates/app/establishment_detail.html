@@ -40,11 +40,52 @@
   </article>
 </div>
 
+<article class="card" id="sources">
+  <h2>Plateformes d'avis</h2>
+  <p class="muted small">Google se relie dans les réglages ci-dessus (fiche Business Profile). Facebook et Tripadvisor : une source par plateforme, les avis arrivent dans la même boîte de réception avec un badge de plateforme et sont proposés sur votre page publique après le bouton Google.</p>
+  <div class="grid2">
+    {% set fb = sources.get('facebook') %}
+    <div>
+      <h3><span class="tag platform facebook">Facebook</span> Page</h3>
+      {% if fb %}
+        <p class="small">Page reliée : <strong>{{ fb.display_name or fb.external_id }}</strong> (id {{ fb.external_id }})<br>
+          statut <span class="tag {{ 'published' if fb.status == 'active' else 'failed' }}">{{ fb.status }}</span>
+          · dernière synchronisation {{ (fb.last_synced_at|datetime) or 'jamais' }}
+          · jeton {{ 'enregistré (chiffré, jamais réaffiché)' if fb.has_credentials else 'absent' }}</p>
+        {% if fb.last_error %}<p class="flash error small">{{ fb.last_error }}</p>{% endif %}
+        <form method="post" action="/app/establishments/{{ establishment.id }}/sources/facebook/unlink" class="inline"><button class="btn small danger">Délier la Page</button></form>
+      {% endif %}
+      <form method="post" action="/app/establishments/{{ establishment.id }}/sources/facebook" class="stack" autocomplete="off">
+        <label>Identifiant de la Page <input name="external_id" value="{{ fb.external_id if fb else '' }}" placeholder="103456789012345" inputmode="numeric" required></label>
+        <label>Jeton de Page longue durée <input type="password" name="credentials" autocomplete="off" placeholder="EAAB…" {% if settings.facebook_mode == 'live' %}required{% endif %}>
+          <small class="muted">Permissions <code>pages_read_user_content</code> et <code>pages_manage_engagement</code> ; obtention via le Graph API Explorer (jeton utilisateur longue durée → <code>GET /me/accounts</code>), voir le README. Le jeton est vérifié (<code>GET /me</code> doit renvoyer cette Page), puis chiffré en base.{% if settings.facebook_mode == 'mock' %} Mode démonstration : jeton facultatif, avis de fixtures.{% endif %}</small></label>
+        <button class="btn small primary">{{ 'Mettre à jour la Page' if fb else 'Relier la Page' }}</button>
+      </form>
+    </div>
+    {% set ta = sources.get('tripadvisor') %}
+    <div>
+      <h3><span class="tag platform tripadvisor">Tripadvisor</span> Fiche</h3>
+      {% if ta %}
+        <p class="small">Fiche reliée : <strong>{{ ta.display_name or ta.external_id }}</strong> (id {{ ta.external_id }})<br>
+          statut <span class="tag {{ 'published' if ta.status == 'active' else 'failed' }}">{{ ta.status }}</span>
+          · dernière synchronisation {{ (ta.last_synced_at|datetime) or 'jamais' }}</p>
+        {% if ta.last_error %}<p class="flash error small">{{ ta.last_error }}</p>{% endif %}
+        <form method="post" action="/app/establishments/{{ establishment.id }}/sources/tripadvisor/unlink" class="inline"><button class="btn small danger">Délier la fiche</button></form>
+      {% endif %}
+      <form method="post" action="/app/establishments/{{ establishment.id }}/sources/tripadvisor" class="stack">
+        <label>Identifiant de la fiche (location id) <input name="external_id" value="{{ ta.external_id if ta else '' }}" placeholder="1234567" inputmode="numeric" required>
+          <small class="muted">Le nombre qui suit « d » dans l'URL de votre fiche (…-d<strong>1234567</strong>-…). Lecture des 5 derniers avis toutes les {{ settings.tripadvisor_poll_interval_min // 60 }} h (quota de l'API). <strong>Tripadvisor ne permet pas de répondre par API</strong> : le brouillon est à copier dans votre espace propriétaire.{% if settings.tripadvisor_mode == 'mock' %} Mode démonstration : avis de fixtures.{% endif %}</small></label>
+        <button class="btn small primary">{{ 'Mettre à jour la fiche' if ta else 'Relier la fiche' }}</button>
+      </form>
+    </div>
+  </div>
+</article>
+
 <div class="grid2">
   <article class="card">
     <h2>Derniers avis</h2>
     {% for r in reviews %}
-      <p><span class="stars">{{ r.rating|stars }}</span> <strong>{{ r.author or 'Anonyme' }}</strong>
+      <p><span class="stars">{{ r.rating|stars }}</span> <strong>{{ r.author or 'Anonyme' }}</strong> <span class="tag platform {{ r.platform }}">{{ r.platform|platform }}</span>
         <span class="muted small">{{ r.created_at|date }} · {{ r.reply_status }}</span><br>{{ (r.text or '(sans texte)')[:160] }}</p>
     {% else %}
       <p class="muted">Aucun avis synchronisé. <a href="/app/inbox">Lancer une synchronisation</a>.</p>

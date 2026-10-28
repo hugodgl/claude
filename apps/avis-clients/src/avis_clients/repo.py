@@ -11,7 +11,7 @@ from typing import Any, Iterable
 from urllib.parse import quote
 
 from .db import month_bounds_utc, normalize_iso, now_iso, utcnow
-from .models import Account, Establishment, Review, ReviewRequest
+from .models import Account, Establishment, Review, ReviewRequest, ReviewSource
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -123,6 +123,8 @@ def create_establishment(
              review_url, json.dumps(tone_profile, ensure_ascii=False), request_template,
              notification_email, now_iso()),
         )
+    if google_location_name:
+        sync_google_source(conn, int(cur.lastrowid), google_location_name)
     return get_establishment(conn, cur.lastrowid)  # type: ignore[return-value]
 
 
@@ -156,14 +158,132 @@ def list_establishments(conn: sqlite3.Connection, account_id: int | None = None)
 
 
 def update_establishment(conn: sqlite3.Connection, establishment_id: int, **fields: Any) -> None:
+    """Met à jour l'établissement ; `google_location_name` est répercuté dans `review_sources` (la colonne
+    reste la saisie du commerçant, la table des sources est ce que le poll parcourt)."""
     if "tone_profile" in fields:
         fields["tone_profile_json"] = json.dumps(fields.pop("tone_profile"), ensure_ascii=False)
     _update(conn, "establishments", establishment_id, fields)
+    if "google_location_name" in fields:
+        sync_google_source(conn, establishment_id, fields["google_location_name"])
 
 
 def delete_establishment(conn: sqlite3.Connection, establishment_id: int) -> None:
     with conn:
         conn.execute("DELETE FROM establishments WHERE id = ?", (establishment_id,))
+
+
+# ------------------------------------------------------------------------------------------
+# Sources d'avis (une par plateforme et par établissement)
+# ------------------------------------------------------------------------------------------
+class SourceConflict(ValueError):
+    """L'identifiant externe est déjà relié à un autre établissement (isolation entre comptes)."""
+
+
+def get_source(conn: sqlite3.Connection, establishment_id: int, platform: str) -> ReviewSource | None:
+    row = conn.execute("SELECT * FROM review_sources WHERE establishment_id = ? AND platform = ?",
+                       (establishment_id, platform)).fetchone()
+    return ReviewSource.from_row(row) if row else None
+
+
+def get_source_by_id(conn: sqlite3.Connection, source_id: int) -> ReviewSource | None:
+    row = conn.execute("SELECT * FROM review_sources WHERE id = ?", (source_id,)).fetchone()
+    return ReviewSource.from_row(row) if row else None
+
+
+def get_source_by_external(conn: sqlite3.Connection, platform: str, external_id: str) -> ReviewSource | None:
+    """Source déjà reliée à cet identifiant externe, tous comptes confondus (un identifiant = un établissement)."""
+    row = conn.execute("SELECT * FROM review_sources WHERE platform = ? AND external_id = ?",
+                       (platform, external_id)).fetchone()
+    return ReviewSource.from_row(row) if row else None
+
+
+def list_sources(conn: sqlite3.Connection, establishment_id: int | None = None,
+                 platform: str | None = None) -> list[ReviewSource]:
+    where, params = [], []
+    if establishment_id is not None:
+        where.append("establishment_id = ?")
+        params.append(establishment_id)
+    if platform:
+        where.append("platform = ?")
+        params.append(platform)
+    sql = "SELECT * FROM review_sources" + (" WHERE " + " AND ".join(where) if where else "")
+    sql += " ORDER BY establishment_id, CASE platform WHEN 'google' THEN 0 WHEN 'facebook' THEN 1 ELSE 2 END"
+    return [ReviewSource.from_row(r) for r in conn.execute(sql, params)]
+
+
+def list_sources_for_establishments(conn: sqlite3.Connection, establishment_ids: Iterable[int]) -> list[ReviewSource]:
+    ids = list(establishment_ids)
+    if not ids:
+        return []
+    marks = ",".join("?" * len(ids))
+    rows = conn.execute(f"SELECT * FROM review_sources WHERE establishment_id IN ({marks})"
+                        " ORDER BY establishment_id, platform", ids)
+    return [ReviewSource.from_row(r) for r in rows]
+
+
+def upsert_source(
+    conn: sqlite3.Connection,
+    *,
+    establishment_id: int,
+    platform: str,
+    external_id: str,
+    display_name: str | None = None,
+    public_url: str | None = None,
+    credentials_enc: str | None = None,
+) -> ReviewSource:
+    """Crée ou remplace la source de cette plateforme pour l'établissement (statut remis à `active`).
+    Lève `SourceConflict` si l'identifiant externe est relié à un autre établissement."""
+    other = get_source_by_external(conn, platform, external_id)
+    if other and other.establishment_id != establishment_id:
+        raise SourceConflict(f"Cette source {platform} est déjà reliée à un autre établissement.")
+    now = now_iso()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO review_sources (establishment_id, platform, external_id, display_name, public_url,"
+                " credentials_enc, status, last_synced_at, last_error, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, 'active', NULL, NULL, ?, ?)"
+                " ON CONFLICT(establishment_id, platform) DO UPDATE SET external_id = excluded.external_id,"
+                " display_name = excluded.display_name, public_url = excluded.public_url,"
+                " credentials_enc = excluded.credentials_enc, status = 'active', last_synced_at = NULL,"
+                " last_error = NULL, updated_at = excluded.updated_at",
+                (establishment_id, platform, external_id, display_name, public_url, credentials_enc, now, now),
+            )
+    except sqlite3.IntegrityError as e:  # course entre deux liaisons simultanées du même identifiant
+        raise SourceConflict(f"Cette source {platform} est déjà reliée à un autre établissement.") from e
+    return get_source(conn, establishment_id, platform)  # type: ignore[return-value]
+
+
+def delete_source(conn: sqlite3.Connection, establishment_id: int, platform: str) -> bool:
+    with conn:
+        cur = conn.execute("DELETE FROM review_sources WHERE establishment_id = ? AND platform = ?",
+                           (establishment_id, platform))
+    return cur.rowcount > 0
+
+
+def mark_source_synced(conn: sqlite3.Connection, source_id: int) -> None:
+    _update(conn, "review_sources", source_id,
+            {"status": "active", "last_synced_at": now_iso(), "last_error": None, "updated_at": now_iso()})
+
+
+def mark_source_error(conn: sqlite3.Connection, source_id: int, error: str) -> None:
+    _update(conn, "review_sources", source_id,
+            {"status": "error", "last_error": (error or "")[:300], "updated_at": now_iso()})
+
+
+def sync_google_source(conn: sqlite3.Connection, establishment_id: int, location_name: str | None) -> None:
+    """Miroir de `establishments.google_location_name` dans `review_sources` : vide → source retirée."""
+    location_name = (location_name or "").strip() or None
+    if location_name is None:
+        delete_source(conn, establishment_id, "google")
+        return
+    current = get_source(conn, establishment_id, "google")
+    if current and current.external_id == location_name:
+        return
+    try:
+        upsert_source(conn, establishment_id=establishment_id, platform="google", external_id=location_name)
+    except SourceConflict:
+        raise SourceConflict("Cette fiche Google est déjà reliée à un autre établissement.") from None
 
 
 # ------------------------------------------------------------------------------------------
@@ -199,17 +319,18 @@ def insert_review(
     reply_text: str | None = None,
     reply_status: str = "none",
     reply_published_at: str | None = None,
+    rating_note: str | None = None,
 ) -> Review:
     # INSERT OR IGNORE : deux polls simultanés (job + bouton « Synchroniser ») ne doivent ni planter
     # ni dupliquer ; les horodatages Google (« Z », millisecondes) sont ramenés au format commun.
     with conn:
         cur = conn.execute(
             "INSERT OR IGNORE INTO reviews (establishment_id, platform, external_id, external_name, author,"
-            " rating, text, created_at, updated_at, fetched_at, reply_text, reply_status, reply_published_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " rating, text, created_at, updated_at, fetched_at, reply_text, reply_status, reply_published_at,"
+            " rating_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (establishment_id, platform, external_id, external_name, author, rating, text,
              normalize_iso(created_at) or created_at, normalize_iso(updated_at), now_iso(), reply_text,
-             reply_status, normalize_iso(reply_published_at)),
+             reply_status, normalize_iso(reply_published_at), rating_note),
         )
     if cur.rowcount == 0:
         existing = find_review(conn, establishment_id, platform, external_id)
@@ -228,6 +349,7 @@ def list_reviews(
     establishment_ids: Iterable[int],
     *,
     status: str | None = None,
+    platform: str | None = None,
     limit: int = 200,
 ) -> list[Review]:
     ids = list(establishment_ids)
@@ -239,6 +361,9 @@ def list_reviews(
     if status:
         sql += " AND reply_status = ?"
         params.append(status)
+    if platform:
+        sql += " AND platform = ?"
+        params.append(platform)
     sql += " ORDER BY created_at DESC LIMIT ?"
     params.append(limit)
     return [Review.from_row(r) for r in conn.execute(sql, params)]
