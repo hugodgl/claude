@@ -34,13 +34,14 @@ Règles : une app par agent à la fois, pas de modification des dossiers d'un au
 
 ## Phase 4 : ajouts décidés pendant la nuit
 - [~] **QA-2** revue croisée de `packages/core` (jamais relu : LLM, mail, migrations, JSON) + README du socle
-- [~] **SMOKE-1** `scripts/smoke.sh` + `make smoke` : test de fumée de bout en bout en mode simulation, à lancer sur le Mac mini après l'installation
+- [x] **SMOKE-1** `scripts/smoke.sh` + `make smoke` : test de fumée de bout en bout en mode simulation, à lancer sur le Mac mini après l'installation
 - [x] **DEP-2** `make setup` vérifié depuis zéro (venv recréé, 102 tests), image Docker du VPS non testable ici (pas de démon Docker dans le sandbox)
 
 ## Phase 5 : outils de prospection et relecture du code récent (ajoutés dans la nuit)
 - [~] **P2-4** `apps/veille-marches` : `vm prospects` — titulaires récents (DECP) par métier et zone, enrichissement via l'annuaire des entreprises (API ouverte), export CSV, brouillons d'emails de prospection personnalisés avec 3 marchés réels de la zone (jamais envoyés)
 - [~] **P1-5** `apps/avis-clients` : `avis prospects` — commerces d'une ville avec peu d'avis (Google Places API, mode mock), feuille de tournée imprimable, accroche personnalisée
 - [~] **QA-3b** relecture ciblée des ajouts P4-4 de `apps/content-engine` (métriques, angles)
+- [~] **P3-3** `apps/newsletter-pipeline` : simulateur de réponses réaliste en `LLM_PROVIDER=mock` (comme le moteur de contenu) pour que `np rank/draft/push/linkedin/run-monday` tournent hors ligne ; réactiver les étapes ignorées du test de fumée
 - [ ] **QA-3a** relecture ciblée des ajouts P1-4 et P1-5 de `apps/avis-clients` (après P1-5)
 
 ## Matin (dernier passage à 06:45)

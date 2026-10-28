@@ -104,3 +104,7 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 01:47 — réveil horaire n°2 (session cloud)
 - `NIGHT-SHIFT-OWNER` = cloud. Cinq agents en cours : QA-2 (socle), SMOKE-1 (script de fumée), P2-4 (prospects DECP), P1-5 (prospects Google Places), QA-3b (relecture métriques/angles). QA-3a attend la fin de P1-5. Rien d'autre à lancer.
 - État des suites au dernier passage complet : 364 tests verts avant les ajouts P4-4 (73) et P1-4 (118), soit 410 tests verts au total à cet instant.
+
+### 28/10 01:49 — SMOKE-1 livré : `make smoke`
+- `scripts/smoke.sh` : 44 étapes en mode simulation sans réseau (stub local qui rejoue les fixtures BOAMP/TED/DECP, serveurs web démarrés et arrêtés proprement, rendu vidéo vérifié par ffprobe), 42 ok, 2 ignorées, ~30 s. Rejoué par la session principale.
+- Constats d'intégration (détail dans `scripts/SMOKE-FINDINGS.md`) : la newsletter n'a pas de simulateur en mode `mock` (draft impossible hors ligne) → P3-3 lancée ; la veille compte un résumé vide comme « avec LLM » et ignore `DATA_DIR` → transmis à l'agent P2-4 ; `ce doctor` replie les chemins hors terminal → transmis à l'agent QA-3b.

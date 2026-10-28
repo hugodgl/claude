@@ -1,7 +1,7 @@
 # Constats du test de fumée (`scripts/smoke.sh`)
 
 Dernière exécution : 28/10/2026 01:45 (Paris), sandbox Linux, branche `claude/upbeat-davinci-lk5k7m` (commit `3c4695b`),
-`LLM_PROVIDER=mock`, `TTS_PROVIDER=silent` (pas de `say` sous Linux). **40 étapes : 38 ok, 0 échec, 2 ignorées, 26 s.**
+`LLM_PROVIDER=mock`, `TTS_PROVIDER=silent` (pas de `say` sous Linux). **44 étapes : 42 ok, 0 échec, 2 ignorées, 29 s.**
 Relancer : `make smoke` (ou `scripts/smoke.sh --keep vm ce np avis` pour garder rendus et journaux).
 
 Ce fichier liste ce que le test a révélé **dans les apps** (il ne corrige rien : chaque point est à traiter dans l'app
