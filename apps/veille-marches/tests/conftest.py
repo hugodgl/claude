@@ -1,7 +1,9 @@
 """Fixtures communes : réglages isolés (base temporaire, LLM mock, mail console), transport HTTP simulé."""
 from __future__ import annotations
 
+import importlib
 import json
+import pkgutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +29,24 @@ def load_fixture(name: str) -> dict:
 
 @pytest.fixture
 def now() -> datetime:
+    return NOW
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch) -> datetime:
+    """Fige l'horloge de l'app sur NOW pour les tests qui passent par la CLI.
+
+    La CLI ne reçoit pas de paramètre `now` : elle lit l'heure réelle, alors que les fixtures sont datées de
+    fin octobre 2026. Sans ce gel, les avis sortent de la fenêtre `digest_lookback_days` et les tests cassent
+    une semaine après la date des fixtures. Tous les modules sont importés d'abord, pour qu'aucun ne garde
+    l'horloge figée après le test.
+    """
+    import veille_marches
+
+    for info in pkgutil.walk_packages(veille_marches.__path__, "veille_marches."):
+        module = importlib.import_module(info.name)
+        if hasattr(module, "utcnow"):
+            monkeypatch.setattr(module, "utcnow", lambda: NOW)
     return NOW
 
 

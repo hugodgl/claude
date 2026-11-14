@@ -8,7 +8,7 @@ runner = CliRunner()
 
 
 @pytest.fixture
-def env(tmp_path, monkeypatch, apis):
+def env(tmp_path, monkeypatch, apis, frozen_clock):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("veille_marches.collectors.build_client", lambda settings, transport=None: apis.client())
     for key in ("LLM_PROVIDER", "MAIL_PROVIDER", "DB_PATH", "OUT_DIR", "DATA_DIR", "LLM_ENABLED"):

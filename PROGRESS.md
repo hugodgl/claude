@@ -1,7 +1,7 @@
 # Journal du chantier de nuit
 
 ## Résumé du matin
-_(rempli lors du dernier passage, vers 06:45 Paris)_
+_(pas encore rédigé : le chantier s'est arrêté le 28/10 avant le dernier passage ; l'état à la reprise est dans l'entrée du 14/11, en fin de journal)_
 
 ## Journal (heure de Paris)
 
@@ -112,3 +112,12 @@ _(rempli lors du dernier passage, vers 06:45 Paris)_
 ### 28/10 01:50 — QA-2 socle terminée
 - `packages/core` : 20 défauts corrigés (5 hauts, 9 moyens, 6 bas), 17 → 50 tests, ruff propre, `README.md` et `REVIEW.md` du socle créés. Forme des appels Anthropic vérifiée avec le vrai SDK sur un transport factice (bêta `server-side-fallback-2026-07-01`, `fallbacks="default"`, `output_config.effort`, pas de `temperature`, refus détecté).
 - Hauts : migrations non durables en `autocommit=False`, `Message-ID` et `Date` absents en SMTP, destinataire chaîne accepté comme liste, troncature `max_tokens` indétectable (nouveau `LLMResult.truncated`), fichier SQL finissant par un commentaire qui cassait la migration.
+
+### 14/11 14:13 — état remis à plat après l'arrêt du 28/10
+- Le chantier est à l'arrêt depuis le 28/10 : dernier push à 01:50, agents de la phase 5 interrompus par la limite d'usage du compte, puis « stop tout » d'Hugo à 11:07 et tâche planifiée « Chantier de nuit » désactivée. Elle l'est toujours ; `NIGHT-SHIFT-OWNER` = cloud, aucun exécutant actif.
+- Backlog : P2-4, P1-5, QA-3b et P3-3 repassent de « en cours » à « à faire ». Rien de leur travail n'a été commité (deux ébauches, `places.py` et `fake_llm.py`, étaient restées dans le conteneur de la session de nuit) : elles repartent de zéro. Les constats du test de fumée transmis aux agents P2-4 et QA-3b sont maintenant rattachés à ces tâches dans `BACKLOG.md`.
+- Tests rejoués depuis zéro (`make setup`, puis chaque suite) : core 49 verts et 1 ignoré (SDK `anthropic` non installé), contenu 73, avis 118, newsletter 93 ; veille 99 verts et 3 rouges.
+- Cause des 3 rouges de `apps/veille-marches` : trois tests passant par la CLI lisaient l'heure réelle alors que les fixtures sont datées de fin octobre ; au-delà de 7 jours (`digest_lookback_days`), les avis sortent de la fenêtre et plus rien n'est scoré. Défaut des tests, pas de l'app. Corrigé par une fixture `frozen_clock` (`tests/conftest.py`) appliquée à `tests/test_cli.py` et à `test_cli_digest_reports_failed_sends` : 102 verts, ruff propre.
+- `make smoke` : 44 étapes, 42 ok, 2 ignorées, comme le 28/10 (son stub décale déjà les dates).
+- Non vérifié : les suites des trois autres apps n'ont pas été rejouées avec une horloge avancée ; elles passent à J+18.
+- Reste à faire : toute la phase 5 (P2-4, P1-5, QA-3b, P3-3, QA-3a) et le passage du matin. Rien n'est relancé : la tâche planifiée reste désactivée jusqu'à décision d'Hugo.
