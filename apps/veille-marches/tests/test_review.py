@@ -413,7 +413,7 @@ def test_previews_do_not_collide_and_a_failed_send_does_not_stop_the_run(conn, s
     assert len({o.files[0] for o in previews}) == 2
 
 
-def test_cli_digest_reports_failed_sends(conn, settings, now, monkeypatch, tmp_path):
+def test_cli_digest_reports_failed_sends(conn, settings, now, monkeypatch, tmp_path, frozen_clock):
     monkeypatch.chdir(tmp_path)
     for key in ("LLM_PROVIDER", "MAIL_PROVIDER", "DB_PATH", "OUT_DIR", "DATA_DIR"):
         monkeypatch.delenv(key, raising=False)
